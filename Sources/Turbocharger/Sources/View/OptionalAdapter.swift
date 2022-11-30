@@ -30,6 +30,19 @@ public struct OptionalAdapter<
         }
     }
 
+    @inlinable
+    public init(
+        _ value: Binding<T?>,
+        @ViewBuilder content: (Binding<T>) -> Content,
+        @ViewBuilder placeholder: () -> Placeholder
+    ) {
+        if let unwrapped = value.unwrap() {
+            self.content = .init(content(unwrapped))
+        } else {
+            self.content = .init(placeholder())
+        }
+    }
+
     public var body: some View {
         content
     }
@@ -40,6 +53,14 @@ extension OptionalAdapter where Placeholder == EmptyView {
     public init(
         _ value: T?,
         @ViewBuilder content: (T) -> Content
+    ) {
+        self.init(value, content: content, placeholder: { EmptyView() })
+    }
+
+    @inlinable
+    public init(
+        _ value: Binding<T?>,
+        @ViewBuilder content: (Binding<T>) -> Content
     ) {
         self.init(value, content: content, placeholder: { EmptyView() })
     }

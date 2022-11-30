@@ -186,6 +186,13 @@ public struct OptionalAdapter<
         @ViewBuilder content: (T) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     )
+    
+    @inlinable
+    public init(
+        _ value: Binding<T?>,
+        @ViewBuilder content: (Binding<T>) -> Content,
+        @ViewBuilder placeholder: () -> Placeholder
+    )
 }
 
 extension OptionalAdapter where Placeholder == EmptyView {
@@ -193,6 +200,12 @@ extension OptionalAdapter where Placeholder == EmptyView {
     public init(
         _ value: T?,
         @ViewBuilder content: (T) -> Content
+    )
+    
+    @inlinable
+    public init(
+        _ value: Binding<T?>,
+        @ViewBuilder content: (Binding<T>) -> Content
     )
 }
 ```
@@ -213,6 +226,13 @@ public struct ResultAdapter<
         @ViewBuilder content: (Success) -> SuccessContent,
         @ViewBuilder placeholder: (Failure) -> FailureContent
     )
+    
+    @inlinable
+    public init<Success, Failure: Error>(
+        _ value: Binding<Result<Success, Failure>>,
+        @ViewBuilder content: (Binding<Success>) -> SuccessContent,
+        @ViewBuilder placeholder: (Binding<Failure>) -> FailureContent
+    )
 }
 
 extension ResultAdapter where FailureContent == EmptyView {
@@ -220,6 +240,12 @@ extension ResultAdapter where FailureContent == EmptyView {
     public init<Success, Failure: Error>(
         _ value: Result<Success, Failure>,
         @ViewBuilder content: (Success) -> SuccessContent
+    )
+    
+    @inlinable
+    public init<Success, Failure: Error>(
+        _ value: Binding<Result<Success, Failure>>,
+        @ViewBuilder content: (Binding<Success>) -> SuccessContent
     )
 }
 ```

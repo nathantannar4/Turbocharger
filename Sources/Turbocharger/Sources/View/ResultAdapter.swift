@@ -16,11 +16,6 @@ public struct ResultAdapter<
     var content: ConditionalContent<SuccessContent, FailureContent>
 
     @inlinable
-    init(content: ConditionalContent<SuccessContent, FailureContent>) {
-        self.content = content
-    }
-
-    @inlinable
     public init<Success, Failure: Error>(
         _ value: Result<Success, Failure>,
         @ViewBuilder content: (Success) -> SuccessContent,
@@ -28,9 +23,33 @@ public struct ResultAdapter<
     ) {
         switch value {
         case .success(let success):
-            self.init(content: .init(content(success)))
+            self.content = .init(content(success))
         case .failure(let error):
-            self.init(content: .init(placeholder(error)))
+            self.content = .init(placeholder(error))
+        }
+    }
+
+    @inlinable
+    public init<Success, Failure: Error>(
+        _ value: Binding<Result<Success, Failure>>,
+        @ViewBuilder content: (Binding<Success>) -> SuccessContent,
+        @ViewBuilder placeholder: (Binding<Failure>) -> FailureContent
+    ) {
+        switch value.wrappedValue {
+        case .success(let success):
+            let unwrapped = Binding(
+                get: { success },
+                set: { newValue in
+                    value.wrappedValue = .success(newValue)
+                })
+            self.content = .init(content(unwrapped))
+        case .failure(let error):
+            let unwrapped = Binding(
+                get: { error },
+                set: { newValue in
+                    value.wrappedValue = .failure(newValue)
+                })
+            self.content = .init(placeholder(unwrapped))
         }
     }
 
@@ -44,6 +63,14 @@ extension ResultAdapter where FailureContent == EmptyView {
     public init<Success, Failure: Error>(
         _ value: Result<Success, Failure>,
         @ViewBuilder content: (Success) -> SuccessContent
+    ) {
+        self.init(value, content: content, placeholder: { _ in EmptyView() })
+    }
+
+    @inlinable
+    public init<Success, Failure: Error>(
+        _ value: Binding<Result<Success, Failure>>,
+        @ViewBuilder content: (Binding<Success>) -> SuccessContent
     ) {
         self.init(value, content: content, placeholder: { _ in EmptyView() })
     }
