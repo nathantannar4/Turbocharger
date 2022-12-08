@@ -5,6 +5,7 @@
 import SwiftUI
 import os.log
 
+/// A protocol for defining a transform for a `Binding`
 public protocol BindingTransform {
     associatedtype Input
     associatedtype Output
@@ -14,6 +15,8 @@ public protocol BindingTransform {
 }
 
 extension Binding {
+
+    /// Projects a `Binding` with the `transform`
     @inlinable
     public func projecting<Transform: BindingTransform>(
         _ transform: Transform

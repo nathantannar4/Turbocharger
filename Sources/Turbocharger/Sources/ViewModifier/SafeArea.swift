@@ -4,6 +4,8 @@
 
 import SwiftUI
 
+/// A modifier that adds additional safe area padding
+/// to the edges of a view.
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 @frozen
 public struct SafeAreaPaddingModifier: ViewModifier {
@@ -38,16 +40,23 @@ public struct SafeAreaPaddingModifier: ViewModifier {
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 extension View {
+
+    /// A modifier that adds additional safe area padding
+    /// to the edges of a view.
     @inlinable
     public func safeAreaPadding(_ edgeInsets: EdgeInsets) -> some View {
         modifier(SafeAreaPaddingModifier(edgeInsets))
     }
 
+    /// A modifier that adds additional safe area padding
+    /// to the edges of a view.
     @inlinable
     public func safeAreaPadding(_ length: CGFloat = 16) -> some View {
         modifier(SafeAreaPaddingModifier(length))
     }
 
+    /// A modifier that adds additional safe area padding
+    /// to the edges of a view.
     @inlinable
     public func safeAreaPadding(_ edges: Edge.Set, _ length: CGFloat = 16) -> some View {
         modifier(SafeAreaPaddingModifier(edges, length))

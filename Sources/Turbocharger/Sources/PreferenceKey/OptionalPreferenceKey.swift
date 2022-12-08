@@ -4,6 +4,7 @@
 
 import SwiftUI
 
+/// A preference key that defaults to `nil`
 public protocol OptionalPreferenceKey: PreferenceKey where Value == Optional<WrappedValue> {
     associatedtype WrappedValue: Equatable
 }

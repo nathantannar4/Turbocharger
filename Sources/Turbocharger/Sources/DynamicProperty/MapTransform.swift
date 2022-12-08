@@ -4,6 +4,7 @@
 
 import SwiftUI
 
+/// A ``BindingTransform`` that transforms the value from a `WritableKeyPath`
 @frozen
 public struct MapTransform<Input, Output>: BindingTransform {
 
@@ -27,6 +28,8 @@ public struct MapTransform<Input, Output>: BindingTransform {
 }
 
 extension Binding {
+
+    /// A ``BindingTransform`` that transforms the value from a `WritableKeyPath`
     @inlinable
     public func map<T>(_ keyPath: WritableKeyPath<Value, T>) -> Binding<T> {
         projecting(MapTransform(keyPath: keyPath))

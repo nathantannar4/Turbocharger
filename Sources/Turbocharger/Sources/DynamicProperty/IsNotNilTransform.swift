@@ -4,6 +4,10 @@
 
 import SwiftUI
 
+/// A ``BindingTransform`` that transforms the value to a `Bool`
+///
+/// The transform will return `true` when the value is not `nil`. If the projected
+/// value is set to `false`, the value will be set to `nil`.
 @frozen
 public struct IsNotNilTransform<Input>: BindingTransform {
 
@@ -23,6 +27,8 @@ public struct IsNotNilTransform<Input>: BindingTransform {
 }
 
 extension Binding {
+
+    /// A ``BindingTransform`` that transforms the value to `true` when not `nil`
     @inlinable
     public func isNotNil<Wrapped>() -> Binding<Bool> where Optional<Wrapped> == Value {
         projecting(IsNotNilTransform())
