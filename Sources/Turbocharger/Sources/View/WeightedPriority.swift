@@ -7,7 +7,7 @@ import Engine
 
 /// A view trait that defines the relative weight priority of a subview
 /// when within a ``WeightedVStack`` or a ``WeightedHStack``.
-public struct LayoutWeightPriority: VariadicValueKey {
+public struct LayoutWeightPriority: TraitValueKey {
     public static let defaultValue: Double = 1
 }
 
@@ -27,6 +27,6 @@ extension AnyVariadicView.Subview {
 extension View {
     @ViewBuilder
     public func layoutWeight(_ value: Double) -> some View {
-        variadicValue(LayoutWeightPriority.self, value)
+        trait(LayoutWeightPriority.self, value)
     }
 }
