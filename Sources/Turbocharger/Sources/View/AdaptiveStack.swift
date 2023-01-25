@@ -9,7 +9,7 @@ import Engine
 /// would fit the available space. If there is not enough space, it arranges it's subviews
 /// in a vertical line.
 @frozen
-public struct AdaptiveStack<Content: View>: VersionedView {
+public struct AdaptiveStack<Content: View>: View {
 
     public var alignment: Alignment
     public var spacing: CGFloat?
@@ -42,8 +42,25 @@ public struct AdaptiveStack<Content: View>: VersionedView {
         self.content = content()
     }
 
+    public var body: some View {
+        AdaptiveStackBody(
+            alignment: alignment,
+            spacing: spacing,
+            content: content,
+            axis: axis
+        )
+    }
+}
+
+private struct AdaptiveStackBody<Content: View>: VersionedView {
+
+    var alignment: Alignment
+    var spacing: CGFloat?
+    var content: Content
+    var axis: Axis
+
     @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
-    public var v4Body: some View {
+    var v4Body: some View {
         LayoutAdapter {
             switch axis {
             case .vertical:
@@ -60,7 +77,7 @@ public struct AdaptiveStack<Content: View>: VersionedView {
         }
     }
 
-    public var v1Body: some View {
+    var v1Body: some View {
         HVStack(axis: axis, alignment: alignment, spacing: spacing) {
             content
         }
