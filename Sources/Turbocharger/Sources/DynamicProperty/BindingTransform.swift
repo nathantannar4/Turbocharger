@@ -11,7 +11,7 @@ public protocol BindingTransform {
     associatedtype Output
 
     func get(_ value: Input) -> Output
-    func set(_ newValue: Output, oldValue: @autoclosure () -> Input, transaction: Transaction) throws -> Input
+    func set(_ newValue: Output, oldValue: @autoclosure () -> Input) throws -> Input
 }
 
 extension Binding {
@@ -25,7 +25,7 @@ extension Binding {
             transform.get(wrappedValue)
         } set: { newValue, transaction in
             do {
-                wrappedValue = try transform.set(newValue, oldValue: wrappedValue, transaction: transaction)
+                self.transaction(transaction).wrappedValue = try transform.set(newValue, oldValue: wrappedValue)
             } catch {
                 os_log(.error, log: .default, "Projection %{public}@ failed with error: %{public}@", String(describing: Self.self), error.localizedDescription)
             }

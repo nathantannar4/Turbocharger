@@ -27,6 +27,11 @@ public struct ProposedSize: Equatable {
         }
     }
 
+    @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+    public init(_ proposedSize: ProposedViewSize) {
+        self.init(width: proposedSize.width, height: proposedSize.height)
+    }
+
     #if os(iOS)
     public func toUIKit() -> CGSize {
         CGSize(width: width ?? UIView.noIntrinsicMetric, height: height ?? UIView.noIntrinsicMetric)

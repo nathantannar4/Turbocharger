@@ -43,9 +43,11 @@ public struct WeightedVStack<Content: View>: VersionedView {
         .hidden()
         .overlay(
             GeometryReader { proxy in
-                VariadicViewAdapter { content in
+                VariadicViewAdapter {
+                    content
+                } content: { source in
                     VStack(alignment: alignment, spacing: spacing) {
-                        let children = content.children
+                        let children = source.children
                         let availableHeight = (proxy.size.height - (CGFloat(children.count - 1) * spacing))
                         let weights = children.reduce(into: 0) { value, subview in
                             value += max(0, subview.layoutWeightPriority)
@@ -56,8 +58,6 @@ public struct WeightedVStack<Content: View>: VersionedView {
                             subview.frame(height: height)
                         }
                     }
-                } source: {
-                    content
                 }
             }
         )

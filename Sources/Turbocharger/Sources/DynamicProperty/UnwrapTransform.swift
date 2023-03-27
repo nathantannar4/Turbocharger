@@ -12,8 +12,8 @@ extension Binding {
         guard let value = self.wrappedValue else { return nil }
         return Binding<Wrapped>(
             get: { return value },
-            set: { value in
-                self.wrappedValue = value
+            set: { value, transaction in
+                self.transaction(transaction).wrappedValue = value
             }
         )
     }

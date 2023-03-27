@@ -20,7 +20,7 @@ public struct MapTransform<Input, Output>: BindingTransform {
         value[keyPath: keyPath]
     }
 
-    public func set(_ newValue: Output, oldValue: @autoclosure () -> Input, transaction: Transaction) throws -> Input {
+    public func set(_ newValue: Output, oldValue: @autoclosure () -> Input) throws -> Input {
         var copy = oldValue()
         copy[keyPath: keyPath] = newValue
         return copy

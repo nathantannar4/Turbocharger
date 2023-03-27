@@ -26,7 +26,7 @@ public struct FormatTransform<F: ParseableFormatStyle>: BindingTransform where F
         format.format(value)
     }
 
-    public func set(_ newValue: Output, oldValue: @autoclosure () -> Input, transaction: Transaction) throws -> Input {
+    public func set(_ newValue: Output, oldValue: @autoclosure () -> Input) throws -> Input {
         do {
             return try format.parseStrategy.parse(newValue)
         } catch {

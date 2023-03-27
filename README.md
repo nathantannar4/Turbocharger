@@ -258,7 +258,7 @@ public protocol BindingTransform {
     associatedtype Output
 
     func get(_ value: Input) -> Output
-    func set(_ newValue: Output, oldValue: @autoclosure () -> Input, transaction: Transaction) throws -> Input
+    func set(_ newValue: Output, oldValue: @autoclosure () -> Input) throws -> Input
 }
 
 extension Binding {

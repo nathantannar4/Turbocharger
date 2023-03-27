@@ -18,7 +18,7 @@ public struct IsNilTransform<Input>: BindingTransform {
         value == nil
     }
 
-    public func set(_ newValue: Output, oldValue: @autoclosure () -> Input?, transaction: Transaction) throws -> Input? {
+    public func set(_ newValue: Output, oldValue: @autoclosure () -> Input?) throws -> Input? {
         if newValue {
             return nil
         }
