@@ -5,37 +5,84 @@
 import SwiftUI
 
 /// A custom parameter attribute that constructs a `[Text]` from closures.
+@frozen
 @resultBuilder
 public struct TextBuilder {
 
-    public static func buildBlock() -> [Text] {
+    @inlinable
+    public static func buildBlock() -> [Optional<Text>] {
         []
     }
 
-    static func buildEither(first component: Text) -> [Text] {
-        [component]
+    @inlinable
+    public static func buildPartialBlock(
+        first: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        first
     }
 
-    static func buildEither(second component: Text) -> [Text] {
-        [component]
+    @inlinable
+    public static func buildPartialBlock(
+        accumulated: [Optional<Text>],
+        next: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        accumulated + next
     }
 
-    public static func buildOptional(_ component: Text?) -> [Text] {
-        component.map { [$0] } ?? []
+    @inlinable
+    public static func buildExpression(
+        _ expression: Text
+    ) -> [Optional<Text>] {
+        [expression]
     }
 
-    public static func buildLimitedAvailability(_ component: Text) -> [Text] {
-        [component]
+    @inlinable
+    public static func buildEither(
+        first component: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        component
     }
 
-    public static func buildArray(_ components: [Text]) -> [Text] {
+    @inlinable
+    public static func buildEither(
+        second component: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        component
+    }
+
+    @inlinable
+    public static func buildOptional(
+        _ component: [Optional<Text>]?
+    ) -> [Optional<Text>] {
+        component ?? []
+    }
+
+    @inlinable
+    public static func buildLimitedAvailability(
+        _ component: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        component
+    }
+
+    @inlinable
+    public static func buildArray(
+        _ components: [Optional<Text>]
+    ) -> [Optional<Text>] {
         components
     }
 
-    public static func buildBlock(_ components: Text...) -> [Text] {
-        components
+    @inlinable
+    public static func buildBlock(
+        _ components: [Optional<Text>]...
+    ) -> [Optional<Text>] {
+        components.flatMap { $0 }
     }
 
+    public static func buildFinalResult(
+        _ component: [Optional<Text>]
+    ) -> [Text] {
+        component.compactMap { $0 }
+    }
 }
 
 extension Text {
@@ -82,14 +129,34 @@ extension Text {
 
 struct TextBuilder_Previews: PreviewProvider {
     static var previews: some View {
-        VStack {
-            Text(separator: ", ") {
-                Text("Hello")
-                    .font(.headline)
-                    .foregroundColor(.red)
+        Preview()
+    }
 
-                Text("World")
-                    .fontWeight(.light)
+    struct Preview: View {
+        @State var flag = false
+
+        var body: some View {
+            VStack {
+                Toggle(isOn: $flag) { Text("Flag") }
+
+                Text(separator: " ") {
+                    if flag {
+                        Text("~")
+                    }
+
+                    Text("Hello")
+                        .font(.headline)
+                        .foregroundColor(.red)
+
+                    Text("World")
+                        .fontWeight(.light)
+
+                    if flag {
+                        Text("!")
+                    } else {
+                        Text(".")
+                    }
+                }
             }
         }
     }

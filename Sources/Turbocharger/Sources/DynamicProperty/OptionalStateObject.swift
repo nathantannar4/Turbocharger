@@ -9,6 +9,7 @@ import Combine
 /// and invalidates a view whenever the observable object changes.
 @propertyWrapper
 @frozen
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 public struct OptionalStateObject<ObjectType: ObservableObject>: DynamicProperty {
 
     @usableFromInline
@@ -25,9 +26,9 @@ public struct OptionalStateObject<ObjectType: ObservableObject>: DynamicProperty
         var cancellable: AnyCancellable?
 
         @usableFromInline
-        init(value: ObjectType?) {
-            self.value = value
-            value.map { bind(to: $0) }
+        init(value: @autoclosure @escaping () -> ObjectType?) {
+            self.value = value()
+            self.value.map { bind(to: $0) }
         }
 
         func bind(to object: ObjectType) {
@@ -39,11 +40,11 @@ public struct OptionalStateObject<ObjectType: ObservableObject>: DynamicProperty
     }
 
     @usableFromInline
-    var storage: ObservedObject<Storage>
+    var storage: StateObject<Storage>
 
     @inlinable
-    public init(wrappedValue: ObjectType?) {
-        storage = ObservedObject<Storage>(wrappedValue: Storage(value: wrappedValue))
+    public init(wrappedValue: @autoclosure @escaping () -> ObjectType?) {
+        storage = StateObject<Storage>(wrappedValue: Storage(value: wrappedValue()))
     }
 
     public var wrappedValue: ObjectType? {

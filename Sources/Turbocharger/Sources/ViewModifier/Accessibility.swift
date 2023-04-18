@@ -3,12 +3,51 @@
 //
 
 import SwiftUI
+import Engine
 
 extension View {
     /// Disables accessibility elements from being generated, even when an assistive technology is running
     @inlinable
     public func accessibilityDisabled() -> some View {
         environment(\.accessibilityEnabled, false)
+    }
+}
+
+@frozen
+public struct AccessibilityShowsLargeContentViewModifierIfAvailable: VersionedViewModifier {
+    @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+    public func v3Body(content: Content) -> some View {
+        content
+            .accessibilityShowsLargeContentViewer()
+    }
+}
+
+@frozen
+public struct AccessibilityLargeContentViewModifierIfAvailable<Label: View>: VersionedViewModifier {
+
+    @usableFromInline
+    var label: Label
+
+    @inlinable
+    public init(@ViewBuilder label: () -> Label) {
+        self.label = label()
+    }
+
+    @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+    public func v3Body(content: Content) -> some View {
+        content
+            .accessibilityShowsLargeContentViewer { label }
+    }
+}
+
+extension View {
+    public func accessibilityShowsLargeContentViewerIfAvailable() -> some View {
+        modifier(AccessibilityShowsLargeContentViewModifierIfAvailable())
+    }
+
+    @inlinable
+    public func accessibilityLargeContentViewerIfAvailable<Label: View>(@ViewBuilder label: () -> Label) -> some View {
+        modifier(AccessibilityLargeContentViewModifierIfAvailable(label: label))
     }
 }
 

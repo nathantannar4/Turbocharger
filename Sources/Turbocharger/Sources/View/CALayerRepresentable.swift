@@ -14,13 +14,28 @@ import Engine
 public protocol CALayerRepresentable: View where Body == Never {
     associatedtype CALayerType: CALayer
 
-    func updateCALayer(_ layer: CALayerType, context: Context)
+    /// Configures the layers initial state.
+    ///
+    /// Configure the view using your app's current data and contents of the
+    /// `context` parameter. The system calls this method only once, when it
+    /// creates your layer for the first time. For all subsequent updates, the
+    /// system calls the ``CALayerRepresentable/updateCALayer(_:context:)``
+    /// method.
+    /// 
+    @MainActor func makeCALayer(_ layer: CALayerType, context: Context)
+
+    /// Updates the layer with new information.
+    ///
+    /// > Note: This protocol implementation is optional
+    ///
+    @MainActor func updateCALayer(_ layer: CALayerType, context: Context)
 
     associatedtype Coordinator = Void
 
-    func makeCoordinator() -> Coordinator
+    @MainActor func makeCoordinator() -> Coordinator
 
-    static func dismantleCALayer(coordinator: Coordinator)
+    /// Cleans up the layer in anticipation of it's removal.
+    @MainActor static func dismantleCALayer(_ layer: CALayerType, coordinator: Coordinator)
 
     typealias Context = CALayerRepresentableContext<Self>
 }
@@ -34,7 +49,7 @@ extension CALayerRepresentable where Coordinator == Void {
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
 extension CALayerRepresentable {
-    public static func dismantleCALayer(coordinator: Coordinator) { }
+    public static func dismantleCALayer(_ layer: CALayerType, coordinator: Coordinator) { }
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
@@ -86,13 +101,13 @@ private struct CALayerRepresentableBody<
 >: View {
     var representable: Representable
 
-    @StateObject var coordinator: CoordinatorStorage
+    @StateObject var storage: Storage
     @Environment(\.self) var environment
 
     init(representable: Representable) {
         self.representable = representable
-        self._coordinator = StateObject(
-            wrappedValue: CoordinatorStorage(
+        self._storage = StateObject(
+            wrappedValue: Storage(
                 coordinator: representable.makeCoordinator()
             )
         )
@@ -100,26 +115,42 @@ private struct CALayerRepresentableBody<
 
     var body: some View {
         _CALayerView(type: Representable.CALayerType.self) { layer in
+            let context = CALayerRepresentableContext<Representable>(
+                coordinator: storage.coordinator,
+                environment: environment
+            )
+            if storage.layer == nil {
+                storage.layer = layer
+                representable.makeCALayer(
+                    layer,
+                    context: context
+                )
+            }
             representable.updateCALayer(
                 layer,
-                context: .init(
-                    coordinator: coordinator.coordinator,
-                    environment: environment
-                )
-            )
-        }
-        .onDisappear {
-            Representable.dismantleCALayer(
-                coordinator: coordinator.coordinator
+                context: context
             )
         }
     }
 
-    final class CoordinatorStorage: ObservableObject {
+    final class Storage: ObservableObject {
+        var layer: Representable.CALayerType!
         var coordinator: Representable.Coordinator
 
         init(coordinator: Representable.Coordinator) {
             self.coordinator = coordinator
+        }
+
+        deinit {
+            if let layer {
+                let coordinator = coordinator
+                Task { @MainActor in
+                    Representable.dismantleCALayer(
+                        layer,
+                        coordinator: coordinator
+                    )
+                }
+            }
         }
     }
 }
@@ -129,18 +160,22 @@ private struct CALayerRepresentableBody<
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
 struct GradientLayer: CALayerRepresentable {
-    func updateCALayer(_ layer: CAGradientLayer, context: Context) {
+    func makeCALayer(_ layer: CAGradientLayer, context: Context) {
         #if os(iOS) || os(tvOS)
         layer.colors = [UIColor.green.cgColor, UIColor.blue.cgColor]
         #else
         layer.colors = [NSColor.green.cgColor, NSColor.blue.cgColor]
         #endif
     }
+
+    func updateCALayer(_ layer: CAGradientLayer, context: Context) {
+        
+    }
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
-struct LayerView_Previews: PreviewProvider {
+struct GradientLayer_Previews: PreviewProvider {
     static var previews: some View {
         GradientLayer()
     }
