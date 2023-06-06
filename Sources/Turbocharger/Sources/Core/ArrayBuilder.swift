@@ -1,0 +1,86 @@
+//
+// Copyright (c) Nathan Tannar
+//
+
+import SwiftUI
+
+/// A custom parameter attribute that constructs an array from closures.
+@frozen
+@resultBuilder
+public struct ArrayBuilder<Element> {
+
+    @inlinable
+    public static func buildBlock() -> [Optional<Text>] {
+        []
+    }
+
+    @inlinable
+    public static func buildPartialBlock(
+        first: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        first
+    }
+
+    @inlinable
+    public static func buildPartialBlock(
+        accumulated: [Optional<Text>],
+        next: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        accumulated + next
+    }
+
+    @inlinable
+    public static func buildExpression(
+        _ expression: Text
+    ) -> [Optional<Text>] {
+        [expression]
+    }
+
+    @inlinable
+    public static func buildEither(
+        first component: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        component
+    }
+
+    @inlinable
+    public static func buildEither(
+        second component: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        component
+    }
+
+    @inlinable
+    public static func buildOptional(
+        _ component: [Optional<Text>]?
+    ) -> [Optional<Text>] {
+        component ?? []
+    }
+
+    @inlinable
+    public static func buildLimitedAvailability(
+        _ component: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        component
+    }
+
+    @inlinable
+    public static func buildArray(
+        _ components: [Optional<Text>]
+    ) -> [Optional<Text>] {
+        components
+    }
+
+    @inlinable
+    public static func buildBlock(
+        _ components: [Optional<Text>]...
+    ) -> [Optional<Text>] {
+        components.flatMap { $0 }
+    }
+
+    public static func buildFinalResult(
+        _ component: [Optional<Text>]
+    ) -> [Text] {
+        component.compactMap { $0 }
+    }
+}
