@@ -55,4 +55,9 @@ public struct OptionalStateObject<ObjectType: ObservableObject>: DynamicProperty
     public var projectedValue: Binding<ObjectType?> {
         storage.projectedValue.value
     }
+
+    @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+    public static var _propertyBehaviors: UInt32 {
+        StateObject<Storage>._propertyBehaviors
+    }
 }

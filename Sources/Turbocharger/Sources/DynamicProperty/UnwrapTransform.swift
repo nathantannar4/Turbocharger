@@ -17,4 +17,17 @@ extension Binding {
             }
         )
     }
+
+    /// Unwraps a `Binding` projected value with a default value when `nil`
+    @inlinable
+    public func unwrap<Wrapped>(
+        _ defaultValue: Wrapped
+    ) -> Binding<Wrapped> where Optional<Wrapped> == Value {
+        return Binding<Wrapped>(
+            get: { return wrappedValue ?? defaultValue },
+            set: { value, transaction in
+                self.transaction(transaction).wrappedValue = value
+            }
+        )
+    }
 }

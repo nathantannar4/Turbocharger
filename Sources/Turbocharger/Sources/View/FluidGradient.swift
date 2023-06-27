@@ -16,14 +16,30 @@ public struct FluidGradient: View {
     @usableFromInline
     var colors: [Color]
 
+    @usableFromInline
+    var backgroundColors: [Color]
+
+    @usableFromInline
+    var blurRadius: CGFloat
+
     @inlinable
-    public init(colors: [Color]) {
+    public init(colors: [Color], blurRadius: CGFloat = 50) {
+        self.init(colors: colors, backgroundColors: colors, blurRadius: blurRadius)
+    }
+
+    @inlinable
+    public init(colors: [Color], backgroundColors: [Color], blurRadius: CGFloat = 50) {
         self.colors = colors
+        self.backgroundColors = backgroundColors
+        self.blurRadius = blurRadius
     }
 
     public var body: some View {
-        FluidGradientBody(colors: colors)
-            .blur(radius: 50, opaque: true)
+        FluidGradientBody(
+            colors: colors,
+            backgroundColors: backgroundColors
+        )
+        .blur(radius: blurRadius, opaque: !backgroundColors.isEmpty)
     }
 }
 
@@ -32,6 +48,7 @@ public struct FluidGradient: View {
 private struct FluidGradientBody: CALayerRepresentable {
 
     var colors: [Color]
+    var backgroundColors: [Color]
 
     func makeCALayer(
         _ layer: FluidGradientLayer,
@@ -46,7 +63,7 @@ private struct FluidGradientBody: CALayerRepresentable {
     ) {
         withCATransaction {
             CATransaction.setDisableActions(true)
-            layer.colors = colors
+            layer.update(colors: colors, backgroundColors: backgroundColors)
         }
     }
 
@@ -79,11 +96,8 @@ private struct FluidGradientBody: CALayerRepresentable {
 @available(watchOS, unavailable)
 final class FluidGradientLayer: CALayer {
 
-    var colors: [Color] = [] {
-        didSet {
-            update(colors: colors)
-        }
-    }
+    private var colors: [Color] = []
+    private var backgroundColors: [Color] = []
     private var backgroundGradientLayer = CAGradientLayer()
     private var backgroundFluidLayers: [FluidLayer] = []
     private let backgroundLayer = CALayer()
@@ -131,21 +145,30 @@ final class FluidGradientLayer: CALayer {
         }
 
         if isPendingLayout {
-            update(colors: colors)
+            update()
         }
+    }
+
+    func update(
+        colors: [Color],
+        backgroundColors: [Color]
+    ) {
+        self.colors = colors
+        self.backgroundColors = backgroundColors
+        update()
     }
 
     func onClockTick(duration: TimeInterval) {
         backgroundGradientLayer.removeAllAnimations()
-        update(colors: colors)
+        update()
 
-        let colors = colors.shuffled().map { $0.toCGColor() }
+        let backgroundColors = backgroundColors.shuffled().map { $0.toCGColor() }
         if duration > 0 {
             let layer = backgroundGradientLayer.presentation() ?? backgroundGradientLayer
             let colorsAnimation = CABasicAnimation.gradientAnimation(
                 keyPath: "colors",
                 from: layer.colors,
-                to: colors,
+                to: backgroundColors,
                 duration: duration
             )
             backgroundGradientLayer.add(
@@ -153,7 +176,7 @@ final class FluidGradientLayer: CALayer {
                 forKey: "colors"
             )
         } else {
-            backgroundGradientLayer.colors = colors
+            backgroundGradientLayer.colors = backgroundColors
         }
 
         for layer in backgroundFluidLayers {
@@ -172,8 +195,8 @@ final class FluidGradientLayer: CALayer {
         }
     }
 
-    private func update(colors: [Color]) {
-        backgroundGradientLayer.colors = colors.map {
+    private func update() {
+        backgroundGradientLayer.colors = backgroundColors.map {
             $0.toCGColor()
         }
 
@@ -235,7 +258,7 @@ final class FluidLayer: CAGradientLayer {
                         cgColor,
                         color.opacity(0).toCGColor()
                     ]
-                    locations = [0.0, 0.9, 1.0]
+                    locations = [0.0, 0.9, 0.99]
                 } else {
                     colors = nil
                     locations = nil

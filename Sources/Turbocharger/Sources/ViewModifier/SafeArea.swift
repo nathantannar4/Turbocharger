@@ -62,23 +62,3 @@ extension View {
         modifier(SafeAreaPaddingModifier(edges, length))
     }
 }
-
-// MARK: - Previews
-
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-struct SafeAreaPaddingModifier_Previews: PreviewProvider {
-    static var previews: some View {
-        ZStack {
-            Color.red
-                .ignoresSafeArea()
-                .safeAreaPadding(24)
-
-            Color.blue
-                .safeAreaPadding(24)
-                .ignoresSafeArea()
-
-            Color.yellow
-                .safeAreaPadding(24)
-        }
-    }
-}

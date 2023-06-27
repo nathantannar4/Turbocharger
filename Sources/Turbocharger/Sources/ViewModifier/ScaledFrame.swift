@@ -5,6 +5,7 @@
 import SwiftUI
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+@frozen
 public struct ScaledFrameModifier: ViewModifier {
     var width: CGFloat?
     var height: CGFloat?
@@ -15,25 +16,26 @@ public struct ScaledFrameModifier: ViewModifier {
         width: CGFloat? = nil,
         height: CGFloat? = nil,
         alignment: Alignment,
-        relativeTo textSyle: Font.TextStyle
+        relativeTo textStyle: Font.TextStyle
     ) {
         self.width = width
         self.height = height
         self.alignment = alignment
-        self._scale = ScaledMetric(wrappedValue: 1, relativeTo: textSyle)
+        self._scale = ScaledMetric(wrappedValue: 1, relativeTo: textStyle)
     }
 
     public func body(content: Content) -> some View {
         content.frame(
-            width: width?.scaled(by: scale),
-            height: height?.scaled(by: scale),
+            width: width.map { $0 * scale },
+            height: height.map { $0 * scale },
             alignment: alignment
         )
     }
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-public struct ScaledBoundsModifier: ViewModifier {
+@frozen
+public struct ScaledFlexFrameModifier: ViewModifier {
     var minWidth: CGFloat?
     var maxWidth: CGFloat?
     var minHeight: CGFloat?
@@ -47,22 +49,22 @@ public struct ScaledBoundsModifier: ViewModifier {
         minHeight: CGFloat? = nil,
         maxHeight: CGFloat? = nil,
         alignment: Alignment,
-        relativeTo textSyle: Font.TextStyle
+        relativeTo textStyle: Font.TextStyle
     ) {
         self.minWidth = minWidth
         self.maxWidth = maxWidth
         self.minHeight = minHeight
         self.maxHeight = maxHeight
         self.alignment = alignment
-        self._scale = ScaledMetric(wrappedValue: 1, relativeTo: textSyle)
+        self._scale = ScaledMetric(wrappedValue: 1, relativeTo: textStyle)
     }
 
     public func body(content: Content) -> some View {
         content.frame(
-            minWidth: minWidth?.scaled(by: scale),
-            maxWidth: maxWidth?.scaled(by: scale),
-            minHeight: minHeight?.scaled(by: scale),
-            maxHeight: maxHeight?.scaled(by: scale),
+            minWidth: minWidth.map { $0 * scale },
+            maxWidth: maxWidth.map { $0 * scale },
+            minHeight: minHeight.map { $0 * scale },
+            maxHeight: maxHeight.map { $0 * scale },
             alignment: alignment
         )
     }
@@ -70,17 +72,24 @@ public struct ScaledBoundsModifier: ViewModifier {
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 extension View {
-    public func frame(_ size: CGFloat?, relativeTo textSyle: Font.TextStyle) -> some View {
-        frame(width: size, height: size, alignment: .center, relativeTo: textSyle)
+    public func frame(_ size: CGFloat?, relativeTo textStyle: Font.TextStyle) -> some View {
+        frame(width: size, height: size, alignment: .center, relativeTo: textStyle)
     }
 
     public func frame(
         width: CGFloat? = nil,
         height: CGFloat? = nil,
         alignment: Alignment = .center,
-        relativeTo textSyle: Font.TextStyle
+        relativeTo textStyle: Font.TextStyle
     ) -> some View {
-        modifier(ScaledFrameModifier(width: height, height: width, alignment: alignment, relativeTo: textSyle))
+        modifier(
+            ScaledFrameModifier(
+                width: height,
+                height: width,
+                alignment: alignment,
+                relativeTo: textStyle
+            )
+        )
     }
 
     public func frame(
@@ -89,26 +98,17 @@ extension View {
         minHeight: CGFloat? = nil,
         maxHeight: CGFloat? = nil,
         alignment: Alignment = .center,
-        relativeTo textSyle: Font.TextStyle
+        relativeTo textStyle: Font.TextStyle
     ) -> some View {
-        modifier(ScaledBoundsModifier(minWidth: minWidth, maxWidth: maxWidth, minHeight: minHeight, maxHeight: maxHeight, alignment: alignment, relativeTo: textSyle))
-    }
-}
-
-// MARK: - Previews
-
-@available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
-struct ScaledFrame_Previews: PreviewProvider {
-    static var previews: some View {
-        VStack {
-            Circle()
-                .fill(Color.yellow)
-                .frame(width: 40, height: 40, relativeTo: .body)
-
-            Circle()
-                .fill(Color.yellow)
-                .frame(width: 40, height: 40, relativeTo: .body)
-                .dynamicTypeSize(.accessibility1)
-        }
+        modifier(
+            ScaledFlexFrameModifier(
+                minWidth: minWidth,
+                maxWidth: maxWidth,
+                minHeight: minHeight,
+                maxHeight: maxHeight,
+                alignment: alignment,
+                relativeTo: textStyle
+            )
+        )
     }
 }
