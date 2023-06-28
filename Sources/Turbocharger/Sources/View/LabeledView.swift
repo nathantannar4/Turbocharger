@@ -6,19 +6,21 @@ import SwiftUI
 import Engine
 
 /// The ``ViewStyle`` for ``LabeledView``
-@available(iOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
-@available(macOS, introduced: 10.15, deprecated: 13.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
-@available(tvOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
-@available(watchOS, introduced: 6.0, deprecated: 9.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+@available(iOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+@available(macOS, introduced: 10.15, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+@available(tvOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+@available(watchOS, introduced: 6.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+@available(xrOS, introduced: 0.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 public protocol LabeledViewStyle: ViewStyle where Configuration == LabeledViewStyleConfiguration {
 
 }
 
 /// The ``ViewStyledView.Configuration`` for ``LabeledView``
-@available(iOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
-@available(macOS, introduced: 10.15, deprecated: 13.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
-@available(tvOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
-@available(watchOS, introduced: 6.0, deprecated: 9.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
+@available(iOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
+@available(macOS, introduced: 10.15, deprecated: 100000.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
+@available(tvOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
+@available(watchOS, introduced: 6.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
+@available(xrOS, introduced: 0.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 public struct LabeledViewStyleConfiguration {
     /// A type-erased label of a ``LabeledView``
     public struct Label: ViewAlias { }
@@ -30,10 +32,11 @@ public struct LabeledViewStyleConfiguration {
 }
 
 /// A backwards compatible port of `LabeledContent`
-@available(iOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContent")
-@available(macOS, introduced: 10.15, deprecated: 13.0, message: "Please use the built in LabeledContent")
-@available(tvOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContent")
-@available(watchOS, introduced: 6.0, deprecated: 9.0, message: "Please use the built in LabeledContent")
+@available(iOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContent")
+@available(macOS, introduced: 10.15, deprecated: 100000.0, message: "Please use the built in LabeledContent")
+@available(tvOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContent")
+@available(watchOS, introduced: 6.0, deprecated: 100000.0, message: "Please use the built in LabeledContent")
+@available(xrOS, introduced: 0.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 public struct LabeledView<Label: View, Content: View>: View {
     var label: Label
     var content: Content
@@ -72,10 +75,11 @@ private struct LabeledViewBody: ViewStyledView {
 }
 
 extension View {
-    @available(iOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
-    @available(macOS, introduced: 10.15, deprecated: 13.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
-    @available(tvOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
-    @available(watchOS, introduced: 6.0, deprecated: 9.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+    @available(iOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+    @available(macOS, introduced: 10.15, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+    @available(tvOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+    @available(watchOS, introduced: 6.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
+    @available(xrOS, introduced: 0.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
     public func labeledViewStyle<Style: LabeledViewStyle>(_ style: Style) -> some View {
         styledViewStyle(LabeledViewBody.self, style: style)
     }
