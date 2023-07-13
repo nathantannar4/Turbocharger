@@ -47,7 +47,7 @@ let package = Package(
 
 ### LabeledView
 
-```
+```swift
 /// The ``ViewStyle`` for ``LabeledView``
 public protocol LabeledViewStyle: ViewStyle where Configuration == LabeledViewStyleConfiguration {
 
@@ -76,7 +76,7 @@ public struct LabeledView<Label: View, Content: View>: View {
 
 ### HVStack/AdaptiveStack
 
-```
+```swift
 /// A view that arranges its subviews in a vertical or horizontal line.
 @frozen
 public struct HVStack<Content: View>: View {
@@ -105,7 +105,7 @@ public struct AdaptiveStack<Content: View>: View {
 
 ### WeightedHStack/WeightedVStack
 
-```
+```swift
 /// A view that arranges its subviews in a horizontal line a width
 /// that is relative to its `LayoutWeightPriority`.
 ///
@@ -140,12 +140,11 @@ extension View {
     @ViewBuilder
     public func layoutWeight(_ value: Double) -> some View
 }
-
 ```
 
 ### FlowStack
 
-```
+```swift
 /// A view that arranges its subviews along multiple horizontal lines.
 @frozen
 public struct FlowStack<Content: View>: View {
@@ -160,7 +159,7 @@ public struct FlowStack<Content: View>: View {
 
 ### RadialStack
 
-```
+```swift
 /// A view that arranges its subviews along a radial circumference.
 @frozen
 public struct RadialStack<Content: View>: View {
@@ -171,7 +170,7 @@ public struct RadialStack<Content: View>: View {
 
 ### OptionalAdapter
 
-```
+```swift
 /// A view maps an `Optional` value to it's `Content` or `Placeholder`.
 @frozen
 public struct OptionalAdapter<
@@ -212,7 +211,7 @@ extension OptionalAdapter where Placeholder == EmptyView {
 
 ### ResultAdapter
 
-```
+```swift
 /// A view maps a `Result` value to it's `SuccessContent` or `FailureContent`.
 @frozen
 public struct ResultAdapter<
@@ -252,7 +251,7 @@ extension ResultAdapter where FailureContent == EmptyView {
 
 ### BindingTransform
 
-```
+```swift
 public protocol BindingTransform {
     associatedtype Input
     associatedtype Output
@@ -280,7 +279,7 @@ extension Binding {
 
 ### SafeAreaPadding
 
-```
+```swift
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 extension View {
     @inlinable
@@ -296,7 +295,7 @@ extension View {
 
 ### Badge
 
-```
+```swift
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 extension View {
     @inlinable
@@ -311,7 +310,7 @@ extension View {
 
 ### Accessibility
 
-```
+```swift
 extension View {
     /// Disables accessibility elements from being generated, even when an assistive technology is running
     @inlinable
