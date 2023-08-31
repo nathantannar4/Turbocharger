@@ -5,7 +5,7 @@
 import SwiftUI
 import Engine
 
-/// The ``ViewStyle`` for ``LabeledView``
+/// The style for ``LabeledView``
 @available(iOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 @available(macOS, introduced: 10.15, deprecated: 13.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 @available(tvOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
@@ -14,11 +14,12 @@ public protocol LabeledViewStyle: ViewStyle where Configuration == LabeledViewSt
 
 }
 
-/// The ``ViewStyledView.Configuration`` for ``LabeledView``
+/// The configuration parameters for ``LabeledView``
 @available(iOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
 @available(macOS, introduced: 10.15, deprecated: 13.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
 @available(tvOS, introduced: 13.0, deprecated: 16.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
 @available(watchOS, introduced: 6.0, deprecated: 9.0, message: "Please use the built in LabeledContentStyleConfiguration with LabeledContent")
+@frozen
 public struct LabeledViewStyleConfiguration {
     /// A type-erased label of a ``LabeledView``
     public struct Label: ViewAlias { }
