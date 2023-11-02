@@ -6,10 +6,15 @@
 
 > Built for performance and backwards compatibility using [Engine](https://github.com/nathantannar4/Engine)
 
+## See Also
+
+- [Ignition](https://github.com/nathantannar4/Ignition)
+- [Transmission](https://github.com/nathantannar4/Transmission)
+
 ## Requirements
 
 - Deployment target: iOS 13.0, macOS 10.15, tvOS 13.0, or watchOS 6.0
-- Xcode 14.1+
+- Xcode 15+
 
 ## Installation
 
@@ -50,7 +55,7 @@ let package = Package(
 ```swift
 /// The ``ViewStyle`` for ``LabeledView``
 public protocol LabeledViewStyle: ViewStyle where Configuration == LabeledViewStyleConfiguration {
-
+    associatedtype Configuration = Configuration
 }
 
 /// The ``ViewStyledView.Configuration`` for ``LabeledView``

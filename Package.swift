@@ -1,4 +1,4 @@
-// swift-tools-version: 5.7
+// swift-tools-version: 5.9
 
 import PackageDescription
 
@@ -9,7 +9,8 @@ let package = Package(
         .macOS(.v10_15),
         .macCatalyst(.v13),
         .tvOS(.v13),
-        .watchOS(.v6)
+        .watchOS(.v6),
+//        .visionOS(.v1)
     ],
     products: [
         .library(
@@ -18,7 +19,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/nathantannar4/Engine", from: "0.1.13"),
+        .package(url: "https://github.com/nathantannar4/Engine", from: "1.0.0"),
     ],
     targets: [
         .target(

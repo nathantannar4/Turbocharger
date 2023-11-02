@@ -202,6 +202,8 @@ public struct FlowStackLayout: Layout {
     }
 }
 
+// MARK: - Previews
+
 extension HorizontalAlignment {
     fileprivate var percent: Double {
         switch self {

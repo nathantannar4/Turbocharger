@@ -396,6 +396,8 @@ extension CGPoint {
     }
 }
 
+// MARK: - Previews
+
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 struct FluidGradient_Previews: PreviewProvider {
     static var previews: some View {
