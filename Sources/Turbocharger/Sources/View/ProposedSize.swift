@@ -32,11 +32,15 @@ public struct ProposedSize: Equatable {
         self.init(width: proposedSize.width, height: proposedSize.height)
     }
 
-    #if os(iOS)
-    public func toUIKit() -> CGSize {
-        CGSize(width: width ?? UIView.noIntrinsicMetric, height: height ?? UIView.noIntrinsicMetric)
+    public func toCoreGraphics() -> CGSize {
+        #if os(iOS) || os(tvOS)
+        return CGSize(width: width ?? UIView.noIntrinsicMetric, height: height ?? UIView.noIntrinsicMetric)
+        #elseif os(watchOS)
+        return CGSize(width: width ?? -1, height: height ?? -1)
+        #elseif os(macOS)
+        return CGSize(width: width ?? NSView.noIntrinsicMetric, height: height ?? NSView.noIntrinsicMetric)
+        #endif
     }
-    #endif
 
     public func toSwiftUI() -> _ProposedSize {
         assert(MemoryLayout<ProposedSize>.size == MemoryLayout<_ProposedSize>.size)

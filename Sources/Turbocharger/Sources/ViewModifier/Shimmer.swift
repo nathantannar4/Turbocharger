@@ -5,7 +5,7 @@
 import SwiftUI
 import Engine
 
-@available(iOS 14.0, macOS 11.0, tvOS 15.0, watchOS 8.0, *)
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 8.0, *)
 extension View {
     /// Redacts content and overlays a shimmering effect
     public func shimmer(isActive: Bool = true) -> some View {
@@ -17,7 +17,7 @@ extension View {
 ///
 /// All active shimmer effects are synchronized to the same clock.
 ///
-@available(iOS 14.0, macOS 11.0, tvOS 15.0, watchOS 8.0, *)
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 8.0, *)
 public struct ShimmerModifier: ViewModifier {
     var isActive: Bool
 
@@ -260,27 +260,29 @@ private class ShimmerClock: ObservableObject {
     }
 }
 
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 8.0, *)
 struct ShimmerModifier_Previews: PreviewProvider {
     struct Preview: View {
         @State var isActive = true
 
         var body: some View {
-            VStack(alignment: .center) {
-                Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
-                    .shimmer(isActive: isActive)
-
-                Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
-                    .shimmer(isActive: isActive)
-
-                Text(verbatim: isActive ? "Placeholder" : "Line 1")
-                    .shimmer(isActive: isActive)
-            }
-            .onTapGesture {
+            Button {
                 withAnimation {
                     isActive.toggle()
                 }
+            } label: {
+                VStack(alignment: .center) {
+                    Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
+                        .shimmer(isActive: isActive)
+
+                    Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
+                        .shimmer(isActive: isActive)
+
+                    Text(verbatim: isActive ? "Placeholder" : "Line 1")
+                        .shimmer(isActive: isActive)
+                }
             }
+            .buttonStyle(.plain)
         }
     }
 

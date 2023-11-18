@@ -32,6 +32,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
         self._startAt = State(wrappedValue: Date.now.addingTimeInterval(delay))
     }
 
+    @available(tvOS, unavailable)
     public init(
         selection: Binding<Selection>,
         spacing: CGFloat? = nil,
@@ -121,6 +122,7 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
         } symbols: {
             views
         }
+        #if os(iOS) || os(watchOS) || os(macOS)
         .overlay {
             if let selection {
                 Rectangle()
@@ -139,6 +141,7 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
                     )
             }
         }
+        #endif
     }
 
     private struct ResolvedSymbol {
