@@ -59,24 +59,10 @@ public struct ShimmerModifier: ViewModifier {
         content
             .disabled(state != .inactive)
             .redacted(reason: state != .inactive ? .placeholder : [])
-            .animation(nil, value: isActive)
-            .mask(
-                ViewAdapter {
-                    switch state {
-                    case .inactive:
-                        Rectangle()
-                            .scale(1000)
-                            .ignoresSafeArea()
-                    case .transitioning, .shimmering:
-                        GradientMask()
-                            .onAppear {
-                                state = .shimmering
-                            }
-                    }
-                }
-            )
-            .animation(.default, value: isActive)
-            .onChange(of: isActive) { [oldState = state] newValue in
+            .animation(nil, value: state)
+            .mask(mask)
+            .animation(.linear(duration: 0.3), value: state)
+            .onAppearAndChange(of: isActive) { [oldState = state] newValue in
                 switch oldState {
                 case .inactive:
                     state = newValue ? .transitioning(nil) : .inactive
@@ -99,6 +85,21 @@ public struct ShimmerModifier: ViewModifier {
                     }
                 }
             }
+    }
+
+    @ViewBuilder
+    private var mask: some View {
+        switch state {
+        case .inactive:
+            Rectangle()
+                .scale(1000)
+                .ignoresSafeArea()
+        case .transitioning, .shimmering:
+            GradientMask()
+                .onAppear {
+                    state = .shimmering
+                }
+        }
     }
 
     private struct GradientMask: VersionedView {
@@ -266,11 +267,25 @@ struct ShimmerModifier_Previews: PreviewProvider {
         @State var isActive = true
 
         var body: some View {
-            Button {
-                withAnimation {
-                    isActive.toggle()
+            VStack {
+                HStack {
+                    Button {
+                        isActive.toggle()
+                    } label: {
+                        Text("Toggle")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        withAnimation {
+                            isActive.toggle()
+                        }
+                    } label: {
+                        Text("Toggle (Animated)")
+                    }
+                    .buttonStyle(.plain)
                 }
-            } label: {
+
                 VStack(alignment: .center) {
                     Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
                         .shimmer(isActive: isActive)
@@ -282,7 +297,6 @@ struct ShimmerModifier_Previews: PreviewProvider {
                         .shimmer(isActive: isActive)
                 }
             }
-            .buttonStyle(.plain)
         }
     }
 

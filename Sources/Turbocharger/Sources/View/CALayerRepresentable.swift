@@ -22,20 +22,20 @@ public protocol CALayerRepresentable: View where Body == Never {
     /// system calls the ``CALayerRepresentable/updateCALayer(_:context:)``
     /// method.
     /// 
-    @MainActor func makeCALayer(_ layer: CALayerType, context: Context)
+    @MainActor(unsafe) func makeCALayer(_ layer: CALayerType, context: Context)
 
     /// Updates the layer with new information.
     ///
     /// > Note: This protocol implementation is optional
     ///
-    @MainActor func updateCALayer(_ layer: CALayerType, context: Context)
+    @MainActor(unsafe) func updateCALayer(_ layer: CALayerType, context: Context)
 
     associatedtype Coordinator = Void
 
-    @MainActor func makeCoordinator() -> Coordinator
+    @MainActor(unsafe) func makeCoordinator() -> Coordinator
 
     /// Cleans up the layer in anticipation of it's removal.
-    @MainActor static func dismantleCALayer(_ layer: CALayerType, coordinator: Coordinator)
+    @MainActor(unsafe) static func dismantleCALayer(_ layer: CALayerType, coordinator: Coordinator)
 
     typealias Context = CALayerRepresentableContext<Self>
 }
@@ -143,13 +143,10 @@ private struct CALayerRepresentableBody<
 
         deinit {
             if let layer {
-                let coordinator = coordinator
-                Task { @MainActor in
-                    Representable.dismantleCALayer(
-                        layer,
-                        coordinator: coordinator
-                    )
-                }
+                Representable.dismantleCALayer(
+                    layer,
+                    coordinator: coordinator
+                )
             }
         }
     }
@@ -161,10 +158,10 @@ private struct CALayerRepresentableBody<
 @available(watchOS, unavailable)
 struct GradientLayer: CALayerRepresentable {
     func makeCALayer(_ layer: CAGradientLayer, context: Context) {
-        #if os(iOS) || os(tvOS)
-        layer.colors = [UIColor.green.cgColor, UIColor.blue.cgColor]
-        #else
+        #if os(macOS)
         layer.colors = [NSColor.green.cgColor, NSColor.blue.cgColor]
+        #else
+        layer.colors = [UIColor.green.cgColor, UIColor.blue.cgColor]
         #endif
     }
 

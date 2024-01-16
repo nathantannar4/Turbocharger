@@ -46,6 +46,10 @@ let package = Package(
 )
 ```
 
+### Xcode Cloud / Github Actions / Fastlane / CI
+
+[Engine](https://github.com/nathantannar4/Engine) includes a Swift macro, which requires user validation to enable or the build will fail. When configuring your CI, pass the flag `-skipMacroValidation` to `xcodebuild` to fix this.
+
 ## Introduction to Turbocharger
 
 `Turbocharger` was started with the two goals. 1) To expand the standard API that SwiftUI provides to what many would commonly desired or need; and 2) To demonstrate how to use [Engine](https://github.com/nathantannar4/Engine) to make reusable components that are backwards compatible.

@@ -18,9 +18,8 @@ public struct ProposedSizeObserver: ViewModifier {
                 GeometryReader { proxy in
                     Color.clear
                         .hidden()
-                        .onAppear { size = ProposedSize(size: proxy.size) }
+                        .onAppearAndChange(of: proxy.size) { size = ProposedSize(size: $0) }
                         .onDisappear { size = .unspecified }
-                        .onChange(of: proxy.size) { size = ProposedSize(size: $0) }
                 }
             )
     }

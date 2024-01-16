@@ -33,7 +33,7 @@ public struct ProposedSize: Equatable {
     }
 
     public func toCoreGraphics() -> CGSize {
-        #if os(iOS) || os(tvOS)
+        #if os(iOS) || os(tvOS) || os(visionOS)
         return CGSize(width: width ?? UIView.noIntrinsicMetric, height: height ?? UIView.noIntrinsicMetric)
         #elseif os(watchOS)
         return CGSize(width: width ?? -1, height: height ?? -1)
