@@ -60,8 +60,8 @@ public struct FlowStack<Content: View>: VersionedView {
                     x += d.width + spacing
                     return -result
                 }
-                .alignmentGuide(alignment.vertical) { _ in
-                    -y
+                .alignmentGuide(alignment.vertical) { d in
+                    d.height - y
                 }
         }
     }
@@ -88,13 +88,13 @@ public struct FlowStackLayout: Layout {
         subviews: Subviews,
         cache: inout Void
     ) -> CGSize {
-        let result = FlowResult(
-            in: proposal.replacingUnspecifiedDimensions().width,
+        let layoutProposal = layoutProposal(
             subviews: subviews,
-            alignment: alignment,
-            spacing: spacing
+            spacing: spacing,
+            proposal: proposal,
+            alignment: alignment
         )
-        return result.bounds
+        return layoutProposal.frames.union.size
     }
 
     public func placeSubviews(
@@ -103,167 +103,185 @@ public struct FlowStackLayout: Layout {
         subviews: Subviews,
         cache: inout Void
     ) {
-        let result = FlowResult(
-            in: proposal.replacingUnspecifiedDimensions().width,
+        let layoutProposal = layoutProposal(
             subviews: subviews,
-            alignment: alignment,
-            spacing: spacing
+            spacing: spacing,
+            proposal: proposal,
+            alignment: alignment
         )
-        for row in result.rows {
-            let rowXOffset = (bounds.width - row.frame.width) * alignment.horizontal.percent
-            for index in row.range {
-                let xPos = rowXOffset + row.frame.minX + row.xOffsets[index - row.range.lowerBound] + bounds.minX
-                let rowYAlignment = (row.frame.height - subviews[index].sizeThatFits(.unspecified).height) *
-                alignment.vertical.percent
-                let yPos = row.frame.minY + rowYAlignment + bounds.minY
-                subviews[index].place(at: CGPoint(x: xPos, y: yPos), anchor: .topLeading, proposal: .unspecified)
-            }
+        for (frame, subview) in zip(layoutProposal.frames, subviews) {
+            subview.place(
+                at: CGPoint(
+                    x: frame.origin.x + bounds.minX,
+                    y: frame.origin.y + bounds.minY
+                ),
+                proposal: .init(frame.size)
+            )
         }
     }
 
-    struct FlowResult {
-        var bounds = CGSize.zero
-        var rows = [Row]()
+    private struct LayoutProposal {
+        var frames: [CGRect]
+    }
+    private func layoutProposal(
+        subviews: Subviews,
+        spacing: CGFloat?,
+        proposal: ProposedViewSize,
+        alignment: Alignment
+    ) -> LayoutProposal {
 
-        struct Row {
-            var range: Range<Int>
-            var xOffsets: [Double]
-            var frame: CGRect
-        }
+        var result: [CGRect] = []
+        var currentPosition: CGPoint = .zero
+        var currentLine: [CGRect] = []
+        let maxWidth = proposal.replacingUnspecifiedDimensions().width
 
-        init(
-            in maxPossibleWidth: Double,
-            subviews: Subviews,
-            alignment: Alignment,
-            spacing: CGFloat?
-        ) {
-            func spacingBefore(index: Int) -> Double {
-                guard itemsInRow > 0 else { return 0 }
-                return spacing ?? subviews[index - 1].spacing.distance(to: subviews[index].spacing, along: .horizontal)
-            }
+        func endLine(index: Subviews.Index) {
+            let union = currentLine.union
+            result.append(contentsOf: currentLine.map { rect in
+                var copy = rect
+                copy.origin.y += currentPosition.y - union.minY
+                return copy
+            })
 
-            func widthInRow(index: Int, idealWidth: Double) -> Double {
-                idealWidth + spacingBefore(index: index)
-            }
-
-            func addToRow(index: Int, idealSize: CGSize) {
-                let width = widthInRow(index: index, idealWidth: idealSize.width)
-
-                xOffsets.append(maxPossibleWidth - remainingWidth + spacingBefore(index: index))
-                // Allocate width to this item (and spacing).
-                remainingWidth -= width
-                // Ensure the row height is as tall as the tallest item.
-                rowHeight = max(rowHeight, idealSize.height)
-                // Can fit in this row, add it.
-                itemsInRow += 1
-            }
-
-            func finalizeRow(index: Int, idealSize: CGSize) {
-                let rowWidth = maxPossibleWidth - remainingWidth
-                rows.append(
-                    Row(
-                        range: index - max(itemsInRow - 1, 0) ..< index + 1,
-                        xOffsets: xOffsets,
-                        frame: CGRect(x: 0, y: rowMinY, width: rowWidth, height: rowHeight)
-                    )
+            currentPosition.x = 0
+            currentPosition.y += union.height
+            if index < subviews.endIndex {
+                let spacing = spacing ?? subviews[index - 1].spacing.distance(
+                    to: subviews[index].spacing,
+                    along: .vertical
                 )
-                bounds.width = max(bounds.width, rowWidth)
-                let ySpacing = spacing ?? ViewSpacing().distance(to: ViewSpacing(), along: .vertical)
-                bounds.height += rowHeight + (rows.count > 1 ? ySpacing : 0)
-                rowMinY += rowHeight + ySpacing
-                itemsInRow = 0
-                rowHeight = 0
-                xOffsets.removeAll()
-                remainingWidth = maxPossibleWidth
+                currentPosition.y += spacing
             }
-
-            var itemsInRow = 0
-            var remainingWidth = maxPossibleWidth.isFinite ? maxPossibleWidth : .greatestFiniteMagnitude
-            var rowMinY = 0.0
-            var rowHeight = 0.0
-            var xOffsets: [Double] = []
-            for (index, subview) in zip(subviews.indices, subviews) {
-                let idealSize = subview.sizeThatFits(.unspecified)
-                if index != 0 && widthInRow(index: index, idealWidth: idealSize.width) > remainingWidth {
-                    // Finish the current row without this subview.
-                    finalizeRow(index: max(index - 1, 0), idealSize: idealSize)
-                }
-                addToRow(index: index, idealSize: idealSize)
-
-                if index == subviews.count - 1 {
-                    // Finish this row; it's either full or we're on the last view anyway.
-                    finalizeRow(index: index, idealSize: idealSize)
-                }
-            }
-            if alignment.horizontal != .center {
-                bounds.width = maxPossibleWidth
-            }
+            currentLine.removeAll()
         }
+
+        for index in subviews.indices {
+            let dimension = subviews[index].dimensions(in: proposal)
+            if index > 0 {
+                let spacing = spacing ?? subviews[index - 1].spacing.distance(
+                    to: subviews[index].spacing,
+                    along: .horizontal
+                )
+                currentPosition.x += spacing
+
+                if currentPosition.x + dimension.width > maxWidth {
+                    endLine(index: index)
+                }
+            }
+
+            currentLine.append(
+                CGRect(
+                    x: currentPosition.x,
+                    y: -dimension[alignment.vertical],
+                    width: dimension.width,
+                    height: dimension.height
+                )
+            )
+            currentPosition.x += dimension.width
+        }
+        endLine(index: subviews.endIndex)
+
+        return LayoutProposal(
+            frames: result
+        )
+    }
+
+    public static var layoutProperties: LayoutProperties {
+        var properties = LayoutProperties()
+        properties.stackOrientation = .vertical
+        return properties
+    }
+}
+
+extension Sequence where Element == CGRect {
+    var union: CGRect {
+        reduce(.null, { $0.union($1) })
     }
 }
 
 // MARK: - Previews
 
-extension HorizontalAlignment {
-    fileprivate var percent: Double {
-        switch self {
-        case .leading:
-            return 0
-        case .trailing:
-            return 1
-        default:
-            return 0.5
-        }
-    }
-}
-
-extension VerticalAlignment {
-    fileprivate var percent: Double {
-        switch self {
-        case .top:
-            return 0
-        case .bottom:
-            return 1
-        default:
-            return 0.5
-        }
-    }
-}
-
 struct FlowStack_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 24) {
-            FlowStack(alignment: .trailing) {
-                ForEach(1..<6) { num in
-                    Text(String(num))
-                        .frame(minWidth: 30, minHeight: 30)
-                        .background(Circle().fill(Color.red))
-                }
-            }
+        Preview()
+    }
 
-            FlowStack(alignment: .leading) {
-                ForEach(1..<18) { num in
-                    Text(String(num))
-                        .frame(minWidth: 30, minHeight: 30)
-                        .background(Circle().fill(Color.red))
-                }
-            }
+    struct Preview: View {
+        @State var width: CGFloat = 350
 
-            FlowStack(alignment: .center) {
-                ForEach(1..<23) { num in
-                    Text(String(num))
-                        .frame(minWidth: 30, minHeight: 30)
-                        .background(Circle().fill(Color.red))
-                }
-            }
+        var body: some View {
+            VStack {
+                Text(width.rounded().description)
+                Slider(value: $width, in: 10...375)
 
-            FlowStack(alignment: .trailing) {
-                ForEach(1..<16) { num in
-                    Text(String(num))
-                        .frame(minWidth: 30, minHeight: 30)
-                        .background(Circle().fill(Color.red))
+                FlowStack {
+                    ScrollView {
+                        VStack(alignment: .center, spacing: 24) {
+                            FlowStack {
+                                Text("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
+
+                                Divider()
+
+                                Text("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
+                            }
+
+
+                            FlowStack(
+                                alignment: Alignment(horizontal: .center, vertical: .firstTextBaseline)
+                            ) {
+                                let words = "elit sed vulputate mi sit amet mauris commodo quis imperdiet"
+                                ForEach(words.components(separatedBy: .whitespaces), id: \.self) { word in
+                                    Text(word)
+                                        .font(word.count.isMultiple(of: 2) ? .title : .body)
+                                }
+
+                                Text("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.")
+
+                                Text("Hello World")
+
+                                Divider()
+
+                                Text("Hello World")
+                                    .font(.title)
+                            }
+
+                            FlowStack(alignment: .center) {
+                                ForEach(1..<5) { num in
+                                    Text(String(num))
+                                        .frame(minWidth: 30, minHeight: 30)
+                                        .background(Circle().fill(Color.red))
+                                }
+                            }
+
+                            FlowStack(alignment: .leading) {
+                                ForEach(1..<18) { num in
+                                    Text(String(num))
+                                        .frame(minWidth: 30, minHeight: 30)
+                                        .background(Circle().fill(Color.red))
+                                }
+                            }
+
+                            FlowStack(alignment: .center) {
+                                ForEach(1..<23) { num in
+                                    Text(String(num))
+                                        .frame(minWidth: 30, minHeight: 30)
+                                        .background(Circle().fill(Color.red))
+                                }
+                            }
+
+                            FlowStack(alignment: .trailing) {
+                                ForEach(1..<16) { num in
+                                    Text(String(num))
+                                        .frame(minWidth: 30, minHeight: 30)
+                                        .background(Circle().fill(Color.red))
+                                }
+                            }
+                        }
+                        .frame(width: width)
+                    }
                 }
             }
+            .padding()
         }
     }
 }

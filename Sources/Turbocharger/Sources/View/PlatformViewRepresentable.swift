@@ -29,6 +29,15 @@ public protocol PlatformViewRepresentable: DynamicProperty, View where Body == N
 }
 
 extension PlatformViewRepresentable {
+    func sizeThatFits(_ proposal: ProposedSize, view: PlatformView) -> CGSize? { nil }
+    static func dismantleView(_ view: PlatformView, coordinator: Coordinator) { }
+}
+
+extension PlatformViewRepresentable where Coordinator == Void {
+    func makeCoordinator() -> Coordinator { () }
+}
+
+extension PlatformViewRepresentable {
     public var body: Never {
         bodyError()
     }
