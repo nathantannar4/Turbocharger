@@ -11,6 +11,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
 
     public var spacing: CGFloat
     public var speed: Double
+    public var minimumInterval: Double?
     public var isScrollEnabled: Bool
     public var content: Content
 
@@ -20,6 +21,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
     public init(
         spacing: CGFloat? = nil,
         speed: Double = 1,
+        minimumInterval: Double? = nil,
         delay: TimeInterval = 2,
         isScrollEnabled: Bool = true,
         @ViewBuilder content: () -> Content
@@ -27,6 +29,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
         self.selection = nil
         self.spacing = spacing ?? 4
         self.speed = speed
+        self.minimumInterval = minimumInterval
         self.isScrollEnabled = isScrollEnabled
         self.content = content()
         self._startAt = State(wrappedValue: Date.now.addingTimeInterval(delay))
@@ -37,6 +40,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
         selection: Binding<Selection>,
         spacing: CGFloat? = nil,
         speed: Double = 1,
+        minimumInterval: Double? = nil,
         delay: TimeInterval = 2,
         isScrollEnabled: Bool = true,
         @ViewBuilder content: () -> Content
@@ -44,6 +48,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
         self.selection = selection
         self.spacing = spacing ?? 4
         self.speed = speed
+        self.minimumInterval = minimumInterval
         self.isScrollEnabled = isScrollEnabled
         self.content = content()
         self._startAt = State(wrappedValue: Date.now.addingTimeInterval(delay))
@@ -60,7 +65,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
                 content
             } content: { source in
                 TimelineView(
-                    .animation(minimumInterval: nil, paused: !isScrollEnabled)
+                    .animation(minimumInterval: minimumInterval, paused: !isScrollEnabled)
                 ) { ctx in
                     MarqueeHStackBody(
                         selection: selection,
@@ -180,10 +185,10 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
 
         let requiredWidth = resolvedSymbols.map(\.symbol.size.width).reduce(0, +) + spacing * CGFloat(views.count - 1)
         let timestamp = keyframe / 20 * speed
-        let dx = (requiredWidth * timestamp).truncatingRemainder(dividingBy: requiredWidth).rounded()
+        let dx = (requiredWidth * timestamp).truncatingRemainder(dividingBy: requiredWidth)
         var origin = CGPoint(
             x: 0,
-            y: (size.height / 2).rounded()
+            y: (size.height / 2)
         )
 
         if requiredWidth > size.width {
@@ -215,5 +220,65 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
         }
 
         box?.nodes = proxies
+    }
+}
+
+// MARK: - Previews
+
+@available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+struct MarqueeHStack_Previews: PreviewProvider {
+    static var previews: some View {
+        VStack {
+            MarqueeHStack(speed: 2) {
+                ForEach(0..<10, id: \.self) { index in
+                    Label {
+                        Text("Index: \(index)")
+                    } icon: {
+                        Image(systemName: "info")
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background {
+                        Capsule()
+                            .fill(.black)
+                    }
+                }
+            }
+
+            MarqueeHStack(speed: -1) {
+                ForEach(10..<20, id: \.self) { index in
+                    Label {
+                        Text("Index: \(index)")
+                    } icon: {
+                        Image(systemName: "info")
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background {
+                        Capsule()
+                            .fill(.black)
+                    }
+                }
+            }
+
+            MarqueeHStack {
+                ForEach(20..<30, id: \.self) { index in
+                    Label {
+                        Text("Index: \(index)")
+                    } icon: {
+                        Image(systemName: "info")
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background {
+                        Capsule()
+                            .fill(.black)
+                    }
+                }
+            }
+        }
     }
 }
