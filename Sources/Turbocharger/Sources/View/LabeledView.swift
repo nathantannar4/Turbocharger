@@ -12,7 +12,6 @@ import Engine
 @available(watchOS, introduced: 6.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 @available(visionOS, introduced: 1.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 public protocol LabeledViewStyle: ViewStyle where Configuration == LabeledViewStyleConfiguration {
-    associatedtype Configuration = Configuration
 }
 
 /// The configuration parameters for ``LabeledView``
@@ -101,7 +100,7 @@ extension VerticalAlignment {
 }
 
 public struct DefaultLabeledViewStyle: LabeledViewStyle {
-    public func makeBody(configuration: Configuration) -> some View {
+    public func makeBody(configuration: LabeledViewStyleConfiguration) -> some View {
         HStack(alignment: .label) {
             configuration.label
             configuration.content
@@ -113,7 +112,7 @@ public struct DefaultLabeledViewStyle: LabeledViewStyle {
 // MARK: - Previews
 
 struct CustomLabeledViewStyle: LabeledViewStyle {
-    func makeBody(configuration: Configuration) -> some View {
+    func makeBody(configuration: LabeledViewStyleConfiguration) -> some View {
         VStack(alignment: .leading) {
             configuration.label
             configuration.content
@@ -122,7 +121,7 @@ struct CustomLabeledViewStyle: LabeledViewStyle {
 }
 
 struct RedLabeledViewStyle: LabeledViewStyle {
-    func makeBody(configuration: Configuration) -> some View {
+    func makeBody(configuration: LabeledViewStyleConfiguration) -> some View {
         LabeledView {
             configuration.content
         } label: {
