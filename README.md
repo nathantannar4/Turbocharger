@@ -149,7 +149,6 @@ extension View {
     @ViewBuilder
     public func layoutWeight(_ value: Double) -> some View
 }
-
 ```
 
 ### FlowStack
