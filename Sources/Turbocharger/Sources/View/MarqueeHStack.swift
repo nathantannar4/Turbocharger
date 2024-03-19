@@ -16,7 +16,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
     public var content: Content
 
     private var selection: Binding<Selection>?
-    @State var startAt: Date
+    @State private var startAt: Date
 
     public init(
         spacing: CGFloat? = nil,
@@ -122,7 +122,7 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
     }
 
     var body: some View {
-        Canvas(rendersAsynchronously: true) { ctx, size in
+        Canvas(rendersAsynchronously: false) { ctx, size in
             draw(ctx: ctx, size: size)
         } symbols: {
             views
@@ -184,8 +184,13 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
         }
 
         let requiredWidth = resolvedSymbols.map(\.symbol.size.width).reduce(0, +) + spacing * CGFloat(views.count - 1)
-        let timestamp = keyframe / 20 * speed
-        let dx = (requiredWidth * timestamp).truncatingRemainder(dividingBy: requiredWidth)
+        let timestamp = keyframe * 40 * speed
+        var dx = timestamp
+            .truncatingRemainder(
+                dividingBy: max(size.width, requiredWidth + spacing)
+            )
+        dx = (dx * ctx.environment.displayScale).rounded() / ctx.environment.displayScale
+
         var origin = CGPoint(
             x: 0,
             y: (size.height / 2)
@@ -265,6 +270,40 @@ struct MarqueeHStack_Previews: PreviewProvider {
 
             MarqueeHStack {
                 ForEach(20..<30, id: \.self) { index in
+                    Label {
+                        Text("Index: \(index)")
+                    } icon: {
+                        Image(systemName: "info")
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background {
+                        Capsule()
+                            .fill(.black)
+                    }
+                }
+            }
+
+            MarqueeHStack {
+                ForEach(1..<30, id: \.self) { index in
+                    Label {
+                        Text("Index: \(index)")
+                    } icon: {
+                        Image(systemName: "info")
+                    }
+                    .foregroundColor(.white)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+                    .background {
+                        Capsule()
+                            .fill(.black)
+                    }
+                }
+            }
+
+            MarqueeHStack {
+                ForEach(1..<100, id: \.self) { index in
                     Label {
                         Text("Index: \(index)")
                     } icon: {
