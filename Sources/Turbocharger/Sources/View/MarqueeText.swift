@@ -151,7 +151,9 @@ struct MarqueeText_Previews: PreviewProvider {
         var body: some View {
             VStack(spacing: 12) {
                 Text(width.description)
+                #if os(iOS) || os(macOS)
                 Slider(value: $width, in: 100...300)
+                #endif
                 Button("Reset") { id += 1 }
 
                 MarqueeText(

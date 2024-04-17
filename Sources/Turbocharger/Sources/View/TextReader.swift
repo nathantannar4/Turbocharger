@@ -3,6 +3,7 @@
 //
 
 import SwiftUI
+import Engine
 
 /// A view that resolves `Text` with the current environment
 @frozen
@@ -30,17 +31,6 @@ public struct TextReader<Content: View>: View {
 
     public var body: some View {
         content(text.resolve(in: environment))
-    }
-}
-
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-extension Text {
-
-    /// Transforms the `Text` to a `String`, using the environment to resolve localized
-    /// string keys if necessary.
-    @inlinable
-    public func resolve(in environment: EnvironmentValues) -> String {
-        _resolveText(in: environment)
     }
 }
 

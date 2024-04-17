@@ -100,11 +100,22 @@ extension VerticalAlignment {
 }
 
 public struct DefaultLabeledViewStyle: LabeledViewStyle {
+
+    @Environment(\.labelsHidden) var labelsHidden
+
+    public init() { }
+
     public func makeBody(configuration: LabeledViewStyleConfiguration) -> some View {
         HStack(alignment: .label) {
-            configuration.label
+            if !labelsHidden {
+                configuration.label
+            }
+
             configuration.content
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(
+                    maxWidth: labelsHidden ? nil : .infinity,
+                    alignment: .trailing
+                )
         }
     }
 }
@@ -139,6 +150,13 @@ struct LabeledViewStyle_Previews: PreviewProvider {
             } label: {
                 Text("Label")
             }
+
+            LabeledView {
+                Text("Content")
+            } label: {
+                Text("Label")
+            }
+            .labelsHidden()
 
             LabeledView {
                 Text("Content")

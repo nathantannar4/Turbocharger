@@ -361,21 +361,6 @@ extension CASpringAnimation {
     }
 }
 
-extension Color {
-    @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-    func toCGColor() -> CGColor {
-        if let cgColor = cgColor {
-            return cgColor
-        } else {
-            #if os(macOS)
-            return NSColor(self).cgColor
-            #else
-            return UIColor(self).cgColor
-            #endif
-        }
-    }
-}
-
 extension UnitPoint {
     static func random() -> UnitPoint {
         UnitPoint(x: CGFloat.random(in: 0...1), y: CGFloat.random(in: 0...1))

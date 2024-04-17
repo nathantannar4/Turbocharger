@@ -212,7 +212,9 @@ struct FlowStack_Previews: PreviewProvider {
         var body: some View {
             VStack {
                 Text(width.rounded().description)
+                #if os(iOS) || os(macOS)
                 Slider(value: $width, in: 10...375)
+                #endif
 
                 FlowStack {
                     ScrollView {
