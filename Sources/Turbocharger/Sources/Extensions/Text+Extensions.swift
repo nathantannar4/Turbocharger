@@ -18,7 +18,7 @@ extension Text {
     /// string keys if necessary.
     @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
     public func resolveAttributed(in environment: EnvironmentValues) -> AttributedString {
-        guard MemoryLayout<Text>.size == MemoryLayout<Text.Layout>.size else {
+        guard MemoryLayout<Text>.size == MemoryLayout<Text.TypeLayout>.size else {
             return AttributedString(resolve(in: environment))
         }
         return _resolveAttributed(in: environment)
@@ -100,13 +100,13 @@ extension Text {
         }
     }
 
-    private struct Layout {
+    private struct TypeLayout {
         var storage: Storage
         var modifiers: [Modifier]
     }
 
-    private var layout: Text.Layout {
-        unsafeBitCast(self, to: Text.Layout.self)
+    private var layout: Text.TypeLayout {
+        unsafeBitCast(self, to: Text.TypeLayout.self)
     }
 
     func _resolveAttributed(in environment: EnvironmentValues) -> AttributedString {
@@ -220,5 +220,9 @@ extension Text {
 }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
+#if hasAttribute(retroactive)
+extension NSTextAttachment: @unchecked @retroactive Sendable { }
+#else
 extension NSTextAttachment: @unchecked Sendable { }
+#endif
 #endif

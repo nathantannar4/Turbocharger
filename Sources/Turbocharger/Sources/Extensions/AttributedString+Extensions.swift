@@ -120,8 +120,16 @@ extension AttributeContainer {
     #endif
 }
 
+#if hasAttribute(retroactive)
+extension NSParagraphStyle: @unchecked @retroactive Sendable { }
+
+#if os(macOS)
+extension NSFont: @unchecked @retroactive Sendable { }
+#endif
+#else
 extension NSParagraphStyle: @unchecked Sendable { }
 
 #if os(macOS)
 extension NSFont: @unchecked Sendable { }
+#endif
 #endif

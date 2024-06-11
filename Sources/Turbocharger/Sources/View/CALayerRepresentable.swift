@@ -11,6 +11,7 @@ import Engine
 /// SwiftUI view hierarchy.
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
+@MainActor @preconcurrency
 public protocol CALayerRepresentable: View where Body == Never {
     associatedtype CALayerType: CALayer
 
@@ -22,20 +23,20 @@ public protocol CALayerRepresentable: View where Body == Never {
     /// system calls the ``CALayerRepresentable/updateCALayer(_:context:)``
     /// method.
     /// 
-    @MainActor(unsafe) func makeCALayer(_ layer: CALayerType, context: Context)
+    @MainActor @preconcurrency func makeCALayer(_ layer: CALayerType, context: Context)
 
     /// Updates the layer with new information.
     ///
     /// > Note: This protocol implementation is optional
     ///
-    @MainActor(unsafe) func updateCALayer(_ layer: CALayerType, context: Context)
+    @MainActor @preconcurrency func updateCALayer(_ layer: CALayerType, context: Context)
 
     associatedtype Coordinator = Void
 
-    @MainActor(unsafe) func makeCoordinator() -> Coordinator
+    @MainActor @preconcurrency func makeCoordinator() -> Coordinator
 
     /// Cleans up the layer in anticipation of it's removal.
-    @MainActor(unsafe) static func dismantleCALayer(_ layer: CALayerType, coordinator: Coordinator)
+    @MainActor @preconcurrency static func dismantleCALayer(_ layer: CALayerType, coordinator: Coordinator)
 
     typealias Context = CALayerRepresentableContext<Self>
 }

@@ -9,6 +9,7 @@ import Engine
 
 /// A protocol for defining a `NSViewRepresentable`/`UIViewRepresentable`
 /// that has a  backwards compatible `sizeThatFits`
+@MainActor @preconcurrency
 public protocol PlatformViewRepresentable: DynamicProperty, View where Body == Never {
 
     #if os(macOS)
@@ -17,13 +18,13 @@ public protocol PlatformViewRepresentable: DynamicProperty, View where Body == N
     associatedtype PlatformView: UIView
     #endif
 
-    @MainActor(unsafe) func makeView(context: Context) -> PlatformView
-    @MainActor(unsafe) func updateView(_ view: PlatformView, context: Context)
-    @MainActor(unsafe) func sizeThatFits(_ proposal: ProposedSize, view: PlatformView) -> CGSize?
-    @MainActor(unsafe) static func dismantleView(_ view: PlatformView, coordinator: Coordinator)
+    @MainActor @preconcurrency func makeView(context: Context) -> PlatformView
+    @MainActor @preconcurrency func updateView(_ view: PlatformView, context: Context)
+    @MainActor @preconcurrency func sizeThatFits(_ proposal: ProposedSize, view: PlatformView) -> CGSize?
+    @MainActor @preconcurrency static func dismantleView(_ view: PlatformView, coordinator: Coordinator)
 
     associatedtype Coordinator = Void
-    @MainActor(unsafe) func makeCoordinator() -> Coordinator
+    @MainActor @preconcurrency func makeCoordinator() -> Coordinator
 
     typealias Context = _PlatformViewRepresentableBody<Self>.Context
 }
