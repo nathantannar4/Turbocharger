@@ -10,7 +10,7 @@ import Engine
 /// A protocol for defining a `NSViewRepresentable`/`UIViewRepresentable`
 /// that has a  backwards compatible `sizeThatFits`
 @MainActor @preconcurrency
-public protocol PlatformViewRepresentable: DynamicProperty, View where Body == Never {
+public protocol PlatformViewRepresentable: DynamicProperty, PrimitiveView where Body == Never {
 
     #if os(macOS)
     associatedtype PlatformView: NSView
@@ -47,14 +47,14 @@ extension PlatformViewRepresentable {
         _PlatformViewRepresentableBody(representable: self)
     }
 
-    public static func _makeView(
+    public static func makeView(
         view: _GraphValue<Self>,
         inputs: _ViewInputs
     ) -> _ViewOutputs {
         _PlatformViewRepresentableBody<Self>._makeView(view: view[\.content], inputs: inputs)
     }
 
-    public static func _makeViewList(
+    public static func makeViewList(
         view: _GraphValue<Self>,
         inputs: _ViewListInputs
     ) -> _ViewListOutputs {
@@ -62,7 +62,7 @@ extension PlatformViewRepresentable {
     }
 
     @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-    public static func _viewListCount(
+    public static func viewListCount(
         inputs: _ViewListCountInputs
     ) -> Int? {
         _PlatformViewRepresentableBody<Self>._viewListCount(inputs: inputs)
