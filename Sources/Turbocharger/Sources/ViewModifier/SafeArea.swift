@@ -17,11 +17,6 @@ public struct SafeAreaPaddingModifier: ViewModifier {
     }
 
     @inlinable
-    public init(_ length: CGFloat = 16) {
-        self.init(EdgeInsets(top: length, leading: length, bottom: length, trailing: length))
-    }
-
-    @inlinable
     public init(_ edges: Edge.Set, _ length: CGFloat = 16) {
         let edgeInsets = EdgeInsets(
             top: edges.contains(.top) ? length : 0,
@@ -46,13 +41,6 @@ extension View {
     @inlinable
     public func safeAreaPadding(_ edgeInsets: EdgeInsets) -> some View {
         modifier(SafeAreaPaddingModifier(edgeInsets))
-    }
-
-    /// A modifier that adds additional safe area padding
-    /// to the edges of a view.
-    @inlinable
-    public func safeAreaPadding(_ length: CGFloat = 16) -> some View {
-        modifier(SafeAreaPaddingModifier(length))
     }
 
     /// A modifier that adds additional safe area padding
