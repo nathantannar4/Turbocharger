@@ -15,6 +15,10 @@ extension View {
 
 @frozen
 public struct AccessibilityShowsLargeContentViewModifierIfAvailable: VersionedViewModifier {
+
+    @inlinable
+    public init() { }
+
     @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
     public func v3Body(content: Content) -> some View {
         content
@@ -41,12 +45,15 @@ public struct AccessibilityLargeContentViewModifierIfAvailable<Label: View>: Ver
 }
 
 extension View {
+    @inlinable
     public func accessibilityShowsLargeContentViewerIfAvailable() -> some View {
         modifier(AccessibilityShowsLargeContentViewModifierIfAvailable())
     }
 
     @inlinable
-    public func accessibilityLargeContentViewerIfAvailable<Label: View>(@ViewBuilder label: () -> Label) -> some View {
+    public func accessibilityLargeContentViewerIfAvailable<Label: View>(
+        @ViewBuilder label: () -> Label
+    ) -> some View {
         modifier(AccessibilityLargeContentViewModifierIfAvailable(label: label))
     }
 }

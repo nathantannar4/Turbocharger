@@ -6,6 +6,7 @@ import SwiftUI
 
 /// A modifier that adds a view as a badge
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
+@frozen
 public struct BadgeModifier<Label: View>: ViewModifier {
 
     public var alignment: Alignment
@@ -14,6 +15,7 @@ public struct BadgeModifier<Label: View>: ViewModifier {
     public var inset: CGFloat
     public var label: Label
 
+    @inlinable
     public init(
         alignment: Alignment,
         anchor: UnitPoint = UnitPoint(x: 0.25, y: 0.25),
@@ -28,6 +30,7 @@ public struct BadgeModifier<Label: View>: ViewModifier {
         self.inset = inset
     }
 
+    @inlinable
     public init(
         alignment: Alignment,
         anchor: UnitPoint = UnitPoint(x: 0.25, y: 0.25),

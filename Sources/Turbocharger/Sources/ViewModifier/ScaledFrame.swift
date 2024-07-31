@@ -7,9 +7,10 @@ import SwiftUI
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 @frozen
 public struct ScaledFrameModifier: ViewModifier {
-    var width: CGFloat?
-    var height: CGFloat?
-    var alignment: Alignment
+
+    public var width: CGFloat?
+    public var height: CGFloat?
+    public var alignment: Alignment
     @ScaledMetric var scale: CGFloat
 
     public init(
@@ -36,11 +37,12 @@ public struct ScaledFrameModifier: ViewModifier {
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 @frozen
 public struct ScaledFlexFrameModifier: ViewModifier {
-    var minWidth: CGFloat?
-    var maxWidth: CGFloat?
-    var minHeight: CGFloat?
-    var maxHeight: CGFloat?
-    var alignment: Alignment
+
+    public var minWidth: CGFloat?
+    public var maxWidth: CGFloat?
+    public var minHeight: CGFloat?
+    public var maxHeight: CGFloat?
+    public var alignment: Alignment
     @ScaledMetric var scale: CGFloat
 
     public init(
@@ -72,10 +74,18 @@ public struct ScaledFlexFrameModifier: ViewModifier {
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 extension View {
-    public func frame(_ size: CGFloat?, relativeTo textStyle: Font.TextStyle) -> some View {
+
+    @inlinable
+    @_disfavoredOverload
+    public func frame(
+        _ size: CGFloat?,
+        relativeTo textStyle: Font.TextStyle
+    ) -> some View {
         frame(width: size, height: size, alignment: .center, relativeTo: textStyle)
     }
 
+    @inlinable
+    @_disfavoredOverload
     public func frame(
         width: CGFloat? = nil,
         height: CGFloat? = nil,
@@ -92,6 +102,8 @@ extension View {
         )
     }
 
+    @inlinable
+    @_disfavoredOverload
     public func frame(
         minWidth: CGFloat? = nil,
         maxWidth: CGFloat? = nil,

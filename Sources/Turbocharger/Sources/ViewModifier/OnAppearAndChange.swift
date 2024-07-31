@@ -11,11 +11,8 @@ public struct OnAppearAndChangeModifier<
     Value: Equatable
 >: VersionedViewModifier {
 
-    @usableFromInline
-    var value: Value
-
-    @usableFromInline
-    var action: (Value) -> Void
+    public var value: Value
+    public var action: (Value) -> Void
 
     @inlinable
     public init(value: Value, action: @escaping (Value) -> Void) {

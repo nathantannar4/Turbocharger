@@ -8,11 +8,8 @@ import SwiftUI
 @frozen
 public struct HiddenModifier: ViewModifier {
 
-    @usableFromInline
-    var isHidden: Bool
-
-    @usableFromInline
-    var transition: AnyTransition
+    public var isHidden: Bool
+    public var transition: AnyTransition
 
     @inlinable
     public init(

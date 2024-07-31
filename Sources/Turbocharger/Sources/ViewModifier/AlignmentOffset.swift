@@ -5,11 +5,13 @@
 import SwiftUI
 
 /// A modifier that scales the edge alignment guides by an offset
+@frozen
 public struct AlignmentGuideAdjustmentModifier: ViewModifier {
 
     public var anchor: UnitPoint
     public var offset: CGPoint
 
+    @inlinable
     public init(anchor: UnitPoint, offset: CGPoint) {
         self.anchor = anchor
         self.offset = offset
@@ -27,17 +29,29 @@ public struct AlignmentGuideAdjustmentModifier: ViewModifier {
 extension View {
     
     /// A modifier that scales the edge alignment guides by an offset
-    public func alignmentGuideAdjustment(anchor: UnitPoint) -> some View {
+    @inlinable
+    public func alignmentGuideAdjustment(
+        anchor: UnitPoint
+    ) -> some View {
         modifier(AlignmentGuideAdjustmentModifier(anchor: anchor, offset: .zero))
     }
 
     /// A modifier that scales the edge alignment guides by an offset
-    public func alignmentGuideAdjustment(x: CGFloat, y: CGFloat) -> some View {
+    @inlinable
+    public func alignmentGuideAdjustment(
+        x: CGFloat,
+        y: CGFloat
+    ) -> some View {
         modifier(AlignmentGuideAdjustmentModifier(anchor: .zero, offset: CGPoint(x: x, y: y)))
     }
 
     /// A modifier that scales the edge alignment guides by an offset
-    public func alignmentGuideAdjustment(anchor: UnitPoint, x: CGFloat, y: CGFloat) -> some View {
+    @inlinable
+    public func alignmentGuideAdjustment(
+        anchor: UnitPoint,
+        x: CGFloat,
+        y: CGFloat
+    ) -> some View {
         modifier(AlignmentGuideAdjustmentModifier(anchor: anchor, offset: CGPoint(x: x, y: y)))
     }
 }
