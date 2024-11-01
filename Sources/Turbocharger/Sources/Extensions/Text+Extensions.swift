@@ -192,7 +192,7 @@ extension Text {
                 fallthrough
             }
             var attributedString = AttributedString(stringLiteral: " ")
-            #if os(iOS) || os(tvOS) || os(watchOS)
+            #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
             if let image = image.toUIImage() {
                 if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *),
                     let baselineOffset = environment.baselineOffset,
@@ -207,6 +207,12 @@ extension Text {
                     )
                 }
             }
+            #elseif os(macOS)
+            if let image = image.toNSImage() {
+                let attachment = NSTextAttachment()
+                attachment.image = image
+                attributedString.attachment = attachment
+            }
             #endif
             return attributedString
 
@@ -219,7 +225,7 @@ extension Text {
     }
 }
 
-#if os(iOS) || os(tvOS) || os(watchOS)
+#if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS) || os(macOS)
 #if hasAttribute(retroactive)
 extension NSTextAttachment: @unchecked @retroactive Sendable { }
 #else

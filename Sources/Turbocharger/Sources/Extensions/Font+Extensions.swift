@@ -9,12 +9,12 @@ extension Font {
     #if os(macOS)
     typealias PlatformRepresentable = NSFont
     typealias PlatformRepresentableDescriptor = NSFontDescriptor
-    #elseif os(iOS) || os(tvOS) || os(watchOS)
+    #elseif os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     typealias PlatformRepresentable = UIFont
     typealias PlatformRepresentableDescriptor = UIFontDescriptor
     #endif
 
-    #if os(iOS) || os(tvOS) || os(watchOS)
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     @available(iOS 13.0, tvOS 13.0, watchOS 6.0, *)
     public func toUIFont() -> UIFont? {
         toPlatformValue()

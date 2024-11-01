@@ -154,6 +154,21 @@ extension CollectionView where Header == EmptyView, Footer == EmptyView {
     {
         self.init(layout, sections: [items], id: id, content: content, header: { _ in EmptyView() }, footer: { _ in EmptyView() })
     }
+
+    public init<
+        Views: View
+    >(
+        _ layout: Layout,
+        @ViewBuilder views: () -> Views
+    ) where
+        Content == MultiViewSubviewVisitor.Subview,
+        Data == Array<Array<MultiViewSubviewVisitor.Subview>>
+    {
+        var visitor = MultiViewSubviewVisitor()
+        let content = views()
+        content.visit(visitor: &visitor)
+        self.init(layout, items: visitor.subviews, content: { $0 })
+    }
 }
 
 #if os(iOS)
@@ -502,23 +517,39 @@ private func makeHostingConfiguration<
     ID: Hashable,
     Content: View
 >(
-    id: ID?,
+    id: ID,
     kind: HostingConfigurationKind = .cell,
     @ViewBuilder content: () -> Content
 ) -> UIContentConfiguration {
     if #available(iOS 16.0, *) {
-        return HostingConfiguration(kind: kind) {
+        return UIHostingConfiguration {
             content()
-                .contentTransition(.identity)
-                .transition(.identity)
-                .id(id)
+                .modifier(HostingConfigurationModifier(id: id))
         }
+        .margins(.all, 0)
     } else {
-        return HostingConfiguration(kind: kind) {
+        return HostingConfigurationBackport(kind: kind) {
             content()
-                .transition(.identity)
-                .id(id)
+                .modifier(HostingConfigurationModifier(id: id))
         }
+    }
+}
+
+private struct HostingConfigurationModifier<ID: Hashable>: VersionedViewModifier {
+    var id: ID
+
+    @available(iOS 16.0, *)
+    func v4Body(content: Content) -> some View {
+        content
+            .contentTransition(.identity)
+            .transition(.identity)
+            .id(id)
+    }
+
+    func v1Body(content: Content) -> some View {
+        content
+            .transition(.identity)
+            .id(id)
     }
 }
 
@@ -532,7 +563,7 @@ public enum HostingConfigurationKind {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-public struct HostingConfiguration<
+public struct HostingConfigurationBackport<
     Content: View
 >: UIContentConfiguration {
     public var kind: HostingConfigurationKind
@@ -547,35 +578,27 @@ public struct HostingConfiguration<
     }
 
     public func makeContentView() -> UIView & UIContentView {
-        if #available(iOS 16.0, *) {
-            let configuration = UIHostingConfiguration {
-                content
-            }
-            .margins(.all, 0)
-            return configuration.makeContentView()
-        } else {
-            return HostingConfigurationContentView(configuration: self)
-        }
+        return HostingConfigurationBackportContentView(configuration: self)
     }
 
-    public func updated(for state: UIConfigurationState) -> HostingConfiguration<Content> {
+    public func updated(for state: UIConfigurationState) -> Self {
         return self
     }
 }
 
 @available(iOS 14.0, *)
-private class HostingConfigurationContentView<
+private class HostingConfigurationBackportContentView<
     Content: View
 >: HostingView<ModifiedContent<Content, SizeObserver>>, UIContentView {
 
     var configuration: UIContentConfiguration {
         didSet {
-            let configuration = configuration as! HostingConfiguration<Content>
+            let configuration = configuration as! HostingConfigurationBackport<Content>
             content.content = configuration.content
         }
     }
 
-    init(configuration: HostingConfiguration<Content>) {
+    init(configuration: HostingConfigurationBackport<Content>) {
         self.configuration = configuration
         super.init(content: configuration.content.modifier(SizeObserver(onChange: { _ in })))
         content.modifier.onChange = { [unowned self] newValue in
@@ -597,7 +620,7 @@ private class HostingConfigurationContentView<
             return
         }
 
-        let kind = (configuration as! HostingConfiguration<Content>).kind
+        let kind = (configuration as! HostingConfigurationBackport<Content>).kind
         let ctx = UICollectionViewLayoutInvalidationContext()
         switch kind {
         case .supplementary(let kind):

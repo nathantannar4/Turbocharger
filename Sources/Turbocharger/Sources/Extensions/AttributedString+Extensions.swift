@@ -7,7 +7,7 @@ import SwiftUI
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
 extension AttributedString {
 
-    #if os(iOS) || os(tvOS) || os(watchOS)
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     public func toUIKit(
         in environment: EnvironmentValues = EnvironmentValues()
     ) -> AttributedString {
@@ -33,7 +33,7 @@ extension AttributedString {
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
 extension AttributeContainer {
 
-    #if os(iOS) || os(tvOS) || os(watchOS)
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     public func toUIKit(
         in environment: EnvironmentValues = EnvironmentValues()
     ) -> AttributeContainer {

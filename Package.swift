@@ -19,7 +19,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/nathantannar4/Engine", from: "1.8.1"),
+        .package(url: "https://github.com/nathantannar4/Engine", from: "1.8.8"),
     ],
     targets: [
         .target(

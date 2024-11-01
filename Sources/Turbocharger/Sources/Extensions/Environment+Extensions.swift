@@ -91,7 +91,7 @@ extension EnvironmentValues {
         self["ImageScaleKey"]
     }
 
-    #if os(iOS) || os(tvOS) || os(watchOS)
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     /// The value for the ``.textInputAutocapitalization(_)`` modifier
     @available(iOS 15.0, tvOS 15.0, watchOS 8.0, *)
     @available(macOS, unavailable)

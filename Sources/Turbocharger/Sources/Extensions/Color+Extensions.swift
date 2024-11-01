@@ -15,7 +15,7 @@ extension Color {
         }
     }
 
-    #if os(iOS) || os(tvOS) || os(watchOS)
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     @available(iOS 14.0, tvOS 14.0, watchOS 7.0, *)
     public func toUIColor() -> UIColor {
         toPlatformValue()
@@ -31,10 +31,10 @@ extension Color {
 
     #if os(macOS)
     typealias PlatformRepresentable = NSColor
-    #elseif os(iOS) || os(tvOS) || os(watchOS)
+    #elseif os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     typealias PlatformRepresentable = UIColor
     #endif
-    #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+    #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
     private func toPlatformValue() -> PlatformRepresentable {
         func resolve(provider: Any) -> PlatformRepresentable {
@@ -59,7 +59,7 @@ extension Color {
                     return PlatformRepresentable(self)
                 }
                 let bundle = mirror.descendant("bundle") as? Bundle
-                #if os(iOS) || os(tvOS)
+                #if os(iOS) || os(tvOS) || os(visionOS)
                 return UIColor { traits in
                     UIColor(named: name, in: bundle, compatibleWith: traits) ?? UIColor(self)
                 }

@@ -8,11 +8,11 @@ extension Image {
 
     #if os(macOS)
     typealias PlatformRepresentable = NSImage
-    #elseif os(iOS) || os(tvOS) || os(watchOS)
+    #elseif os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     typealias PlatformRepresentable = UIImage
     #endif
 
-    #if os(iOS) || os(tvOS) || os(watchOS)
+    #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     public func toUIImage(
         in environment: EnvironmentValues = EnvironmentValues()
     ) -> UIImage? {
@@ -89,7 +89,7 @@ private enum ImageProvider {
     func resolved(in environment: EnvironmentValues) -> Image.PlatformRepresentable? {
         switch self {
         case .system(let name):
-            #if os(iOS) || os(tvOS) || os(watchOS)
+            #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
             let scale: UIImage.SymbolScale = {
                 guard let scale = environment.imageScale else { return .unspecified }
                 switch scale {
@@ -112,12 +112,40 @@ private enum ImageProvider {
             )
             #elseif os(macOS)
             if #available(macOS 11.0, *) {
-                return NSImage(systemSymbolName: name, accessibilityDescription: nil)
+                let scale: NSImage.SymbolScale? = {
+                    switch environment.imageScale {
+                    case .small: return .small
+                    case .medium: return .medium
+                    case .large: return .large
+                    case .none: return nil
+                    @unknown default:
+                        return nil
+                    }
+                }()
+                let config = environment.font?.toNSFont().map {
+                    let attributes = $0.fontDescriptor.fontAttributes
+                    let traits = attributes[.traits] as? [NSFontDescriptor.TraitKey: Any]
+                    let weight = traits?[.weight] as? NSFont.Weight
+                    if let scale {
+                        return NSImage.SymbolConfiguration(
+                            pointSize: $0.pointSize,
+                            weight: weight ?? .regular,
+                            scale: scale
+                        )
+                    } else {
+                        return NSImage.SymbolConfiguration(
+                            pointSize: $0.pointSize,
+                            weight: weight ?? .regular
+                        )
+                    }
+                } ?? NSImage.SymbolConfiguration(scale: scale ?? .medium)
+                return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(config)
             }
             return nil
             #endif
         case let .named(name, bundle):
-            #if os(iOS) || os(tvOS) || os(watchOS)
+            #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
             return UIImage(named: name, in: bundle, with: nil)
             #elseif os(macOS)
             if #available(macOS 14.0, *), let bundle {
@@ -128,7 +156,7 @@ private enum ImageProvider {
         case let .image(image):
             return image
         case let .cg(image, scale, orientation):
-            #if os(iOS) || os(tvOS) || os(watchOS)
+            #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
             let orientation: UIImage.Orientation = {
                 switch orientation {
                 case .down: return .down
