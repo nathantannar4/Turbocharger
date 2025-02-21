@@ -12,7 +12,7 @@ import Engine
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
 @MainActor @preconcurrency
-public protocol CALayerRepresentable: View where Body == Never {
+public protocol CALayerRepresentable: PrimitiveView {
     associatedtype CALayerType: CALayer
 
     /// Configures the layers initial state.
@@ -66,29 +66,26 @@ public struct CALayerRepresentableContext<
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
 extension CALayerRepresentable {
-    public var body: Never {
-        bodyError()
-    }
 
     private var content: CALayerRepresentableBody<Self> {
         CALayerRepresentableBody(representable: self)
     }
 
-    public static func _makeView(
+    public static func makeView(
         view: _GraphValue<Self>,
         inputs: _ViewInputs
     ) -> _ViewOutputs {
         CALayerRepresentableBody<Self>._makeView(view: view[\.content], inputs: inputs)
     }
 
-    public static func _makeViewList(
+    public static func makeViewList(
         view: _GraphValue<Self>,
         inputs: _ViewListInputs
     ) -> _ViewListOutputs {
         CALayerRepresentableBody<Self>._makeViewList(view: view[\.content], inputs: inputs)
     }
 
-    public static func _viewListCount(
+    public static func viewListCount(
         inputs: _ViewListCountInputs
     ) -> Int? {
         CALayerRepresentableBody<Self>._viewListCount(inputs: inputs)

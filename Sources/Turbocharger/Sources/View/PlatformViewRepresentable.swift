@@ -10,7 +10,7 @@ import Engine
 /// A protocol for defining a `NSViewRepresentable`/`UIViewRepresentable`
 /// that has a  backwards compatible `sizeThatFits`
 @MainActor @preconcurrency
-public protocol PlatformViewRepresentable: DynamicProperty, PrimitiveView where Body == Never {
+public protocol PlatformViewRepresentable: DynamicProperty, PrimitiveView {
 
     #if os(macOS)
     associatedtype PlatformView: NSView
@@ -39,9 +39,6 @@ extension PlatformViewRepresentable where Coordinator == Void {
 }
 
 extension PlatformViewRepresentable {
-    public var body: Never {
-        bodyError()
-    }
 
     private var content: _PlatformViewRepresentableBody<Self> {
         _PlatformViewRepresentableBody(representable: self)
