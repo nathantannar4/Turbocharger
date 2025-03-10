@@ -5,6 +5,26 @@
 import SwiftUI
 import Engine
 
+/// Redacts content and overlays a shimmering effect when `Value` is `nil`
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 8.0, *)
+@frozen
+public struct ShimmerAdapter<Value, Content: View>: View {
+
+    public var content: Content
+    public var isActive: Bool
+
+    @inlinable
+    public init(_ value: Optional<Value>, _ content: (Optional<Value>) -> Content) {
+        self.content = content(value)
+        self.isActive = value == nil
+    }
+
+    public var body: some View {
+        content
+            .shimmer(isActive: isActive)
+    }
+}
+
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 8.0, *)
 extension View {
     /// Redacts content and overlays a shimmering effect

@@ -79,9 +79,10 @@ extension View {
     @_disfavoredOverload
     public func frame(
         _ size: CGFloat?,
+        alignment: Alignment = .center,
         relativeTo textStyle: Font.TextStyle
     ) -> some View {
-        frame(width: size, height: size, alignment: .center, relativeTo: textStyle)
+        frame(width: size, height: size, alignment: alignment, relativeTo: textStyle)
     }
 
     @inlinable

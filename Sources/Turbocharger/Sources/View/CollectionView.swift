@@ -614,7 +614,6 @@ private class HostingConfigurationBackportContentView<
         guard
             let collectionViewCell = superview as? UICollectionViewCell,
             let collectionView = collectionViewCell.superview as? UICollectionView,
-            let indexPath = collectionView.indexPath(for: collectionViewCell),
             size.height != frame.size.height
         else {
             return
@@ -624,9 +623,16 @@ private class HostingConfigurationBackportContentView<
         let ctx = UICollectionViewLayoutInvalidationContext()
         switch kind {
         case .supplementary(let kind):
-            ctx.invalidateSupplementaryElements(ofKind: kind, at: [indexPath])
+            if let indexPath = collectionView.indexPath(for: collectionViewCell) {
+                ctx.invalidateSupplementaryElements(ofKind: kind, at: [indexPath])
+            } else {
+                let indexPaths = collectionView.indexPathsForVisibleSupplementaryElements(ofKind: kind)
+                ctx.invalidateSupplementaryElements(ofKind: kind, at: indexPaths)
+            }
         case .cell:
-            ctx.invalidateItems(at: [indexPath])
+            if let indexPath = collectionView.indexPath(forSupplementaryView: collectionViewCell) {
+                ctx.invalidateItems(at: [indexPath])
+            }
         }
         collectionView.collectionViewLayout.invalidateLayout(with: ctx)
         invalidateIntrinsicContentSize()
@@ -730,6 +736,8 @@ struct CollectionView_Previews: PreviewProvider {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(6)
+                .background(Color.blue)
+                .foregroundStyle(.white)
             }
         }
 

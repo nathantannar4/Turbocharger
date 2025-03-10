@@ -62,8 +62,17 @@ public struct RadialStackLayout: Layout {
         subviews: Subviews,
         cache: inout Void
     ) -> CGSize {
-        let size = proposal.replacingUnspecifiedDimensions()
-        let length = min(size.width, size.height)
+        if let radius {
+            let length = radius * 2
+            return CGSize(width: length, height: length)
+        }
+        var size = CGSize.zero
+        for subview in subviews {
+            let sizeThatFits = subview.sizeThatFits(.unspecified)
+            size.width = max(size.width, sizeThatFits.width)
+            size.height = max(size.height, sizeThatFits.height)
+        }
+        let length = round(.pi * min(size.width, size.height))
         return CGSize(width: length, height: length)
     }
 
@@ -93,47 +102,60 @@ public struct RadialStackLayout: Layout {
 struct CircleLayout_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
-            RadialStack {
-                Color.blue
-                    .frame(width: 80, height: 80)
+            RadialStack(radius: 40) {
+                Group {
+                    Circle()
+                        .fill(Color.blue)
 
-                Color.red
-                    .frame(width: 80, height: 80)
+                    Circle()
+                        .fill(Color.red)
+
+                    Circle()
+                        .fill(Color.yellow)
+                }
+                .frame(width: 40, height: 40)
             }
-            .background(Color.black)
-
-            RadialStack {
-                Color.blue
-                    .frame(width: 80, height: 80)
-
-                Color.yellow
-                    .frame(width: 80, height: 80)
-
-                Color.red
-                    .frame(width: 80, height: 80)
-            }
-            .background(Color.black)
+            .border(Color.black)
 
             RadialStack {
-                Color.blue
-                    .frame(width: 80, height: 80)
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 60, height: 60)
 
-                Color.yellow
-                    .frame(width: 80, height: 80)
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 20, height: 20)
 
-                Color.red
-                    .frame(width: 80, height: 80)
-
-                Color.green
-                    .frame(width: 80, height: 80)
-
-                Color.purple
-                    .frame(width: 80, height: 80)
-
-                Color.pink
-                    .frame(width: 80, height: 80)
+                Circle()
+                    .fill(Color.yellow)
+                    .frame(width: 40, height: 40)
             }
-            .background(Color.black)
+            .border(Color.black)
+
+            RadialStack {
+                Group {
+                    Circle()
+                        .fill(Color.blue)
+
+                    Circle()
+                        .fill(Color.purple)
+
+                    Circle()
+                        .fill(Color.red)
+
+                    Circle()
+                        .fill(Color.orange)
+
+                    Circle()
+                        .fill(Color.yellow)
+
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 75, height: 75)
+                }
+                .frame(width: 50, height: 50)
+            }
+            .border(Color.black)
         }
     }
 }
