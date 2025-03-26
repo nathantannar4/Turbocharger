@@ -50,10 +50,10 @@ public struct WeightedVStack<Content: View>: VersionedView {
                         let children = source.children
                         let availableHeight = (proxy.size.height - (CGFloat(children.count - 1) * spacing))
                         let weights = children.reduce(into: 0) { value, subview in
-                            value += max(0, subview.layoutWeightPriority)
+                            value += max(0, min(subview.layoutWeightPriority, CGFloat(children.count)))
                         }
                         ForEach(children) { subview in
-                            let weight = subview.layoutWeightPriority
+                            let weight = max(0, min(subview.layoutWeightPriority, CGFloat(children.count)))
                             let height = availableHeight * weight / weights
                             subview.frame(height: height)
                         }
@@ -93,7 +93,7 @@ public struct WeightedVStackLayout: Layout {
         let availableHeight = (height - spacing.reduce(0, +)) / CGFloat(subviews.count)
 
         var sizeThatFits: CGSize = subviews.reduce(into: .zero) { value, subview in
-            let height = availableHeight * max(0, subview.layoutWeightPriority)
+            let height = availableHeight * max(0, min(subview.layoutWeightPriority, Double(subviews.count)))
             let sizeThatFits = subview.sizeThatFits(
                 ProposedViewSize(width: proposal.width, height: height)
             )
@@ -112,7 +112,7 @@ public struct WeightedVStackLayout: Layout {
         guard !subviews.isEmpty else { return }
 
         let weights = subviews.reduce(into: 0) { value, subview in
-            value += max(0, subview.layoutWeightPriority)
+            value += max(0, min(subview.layoutWeightPriority, Double(subviews.count)))
         }
         let spacing = spacing(subviews: subviews)
         let availableHeight = bounds.height - spacing.reduce(0, +)
@@ -133,8 +133,9 @@ public struct WeightedVStackLayout: Layout {
 
         var y = bounds.minY
         for index in subviews.indices {
-            let weight = subviews[index].layoutWeightPriority
-            let height = availableHeight * max(0, weight) / weights
+            let weight = min(subviews[index].layoutWeightPriority, Double(subviews.count))
+            let height = availableHeight * max(0, weight) / max(weights, 1)
+
             y += height / 2
             if weight > 0 {
                 let subviewProposal = ProposedViewSize(width: proposal.width, height: height)
@@ -159,14 +160,30 @@ public struct WeightedVStackLayout: Layout {
     }
 
     private func spacing(subviews: Subviews) -> [CGFloat] {
-        if let spacing = spacing {
-            return Array(repeating: spacing, count: subviews.count - 1) + [0]
-        }
-        return subviews.indices.map { index in
-            guard index < subviews.count - 1 else { return 0 }
-            return subviews[index].spacing.distance(
-                to: subviews[index + 1].spacing,
-                along: .vertical)
+        let spacing: [CGFloat] = {
+            if let spacing = self.spacing {
+                return Array(repeating: spacing, count: subviews.count - 1) + [0]
+            }
+            return subviews.indices.map { index in
+                guard index < subviews.count - 1 else { return 0 }
+                return subviews[index].spacing.distance(
+                    to: subviews[index + 1].spacing,
+                    along: .horizontal
+                )
+            }
+        }()
+        return spacing.indices.map { index in
+            let weight = subviews[index].layoutWeightPriority
+            if weight <= 0 {
+                return 0
+            }
+            let hasNextNonZeroWeight = subviews[(index + 1)..<subviews.endIndex].contains {
+                $0.layoutWeightPriority > 0
+            }
+            if hasNextNonZeroWeight {
+                return spacing[index]
+            }
+            return 0
         }
     }
 
@@ -180,66 +197,62 @@ public struct WeightedVStackLayout: Layout {
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 struct WeightedVStackLayout_Previews: PreviewProvider {
     static var previews: some View {
-        VStack {
-            HStack {
-                WeightedVStack(alignment: .leading) {
-                    Text("Line 1")
+        HStack {
+            WeightedVStack(spacing: 24) {
+                Color.yellow
+                    .layoutWeight(0)
 
-                    Text("Line 2")
+                Color.yellow
+                    .layoutWeight(0)
 
-                    Text("Line 3")
-                }
-                .background(Color.blue)
+                Color.red
 
-                VStack(alignment: .leading) {
-                    Text("Line 1")
+                Color.yellow
+                    .layoutWeight(0)
 
-                    Text("Line 2")
+                Color.yellow
+                    .layoutWeight(0)
 
-                    Text("Line 3")
-                }
-                .background(Color.blue)
+                Color.blue
+
+                Color.yellow
+                    .layoutWeight(0)
+
+                Color.yellow
+                    .layoutWeight(0)
             }
 
-            HStack {
-                HStack {
-                    VStack {
-                        ForEach(0..<3, id: \.self) { _ in
-                            Color.yellow
-                                .aspectRatio(1, contentMode: .fit)
-                        }
-                    }
-                    .background(Color.blue)
+            WeightedVStack(spacing: 24) {
+                Color.red
 
-                    WeightedVStack {
-                        ForEach(0..<3, id: \.self) { _ in
-                            Color.yellow
-                                .aspectRatio(1, contentMode: .fit)
-                        }
-                    }
-                    .background(Color.red)
-                }
+                Color.yellow
+                    .layoutWeight(.infinity)
 
-                WeightedVStack(spacing: 24) {
-                    Color.red
-
-                    Color.yellow
-                        .layoutWeight(-2)
-
-                    Color.blue
-                }
-
-                WeightedVStack {
-                    Color.red
-
-                    Color.yellow
-                        .layoutWeight(2)
-
-                    Color.blue
-                }
+                Color.blue
             }
 
-            WeightedVStack {
+            WeightedVStack(spacing: 24) {
+                Color.red
+
+                Color.yellow
+                    .layoutWeight(.infinity)
+
+                Color.yellow
+                    .layoutWeight(.infinity)
+
+                Color.blue
+            }
+
+            WeightedVStack(spacing: 24) {
+                Color.red
+
+                Color.yellow
+                    .layoutWeight(2)
+
+                Color.blue
+            }
+
+            WeightedVStack(spacing: 24) {
                 Color.red
                     .layoutWeight(2)
 
@@ -249,5 +262,46 @@ struct WeightedVStackLayout_Previews: PreviewProvider {
                 Color.blue
             }
         }
+        .padding(24)
+
+        HStack {
+            VStack {
+                ForEach(0..<3, id: \.self) { _ in
+                    Color.yellow
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .background(Color.blue)
+
+            WeightedVStack {
+                ForEach(0..<3, id: \.self) { _ in
+                    Color.yellow
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+            .background(Color.red)
+        }
+        .previewDisplayName("Aspect Ratio")
+
+        HStack {
+            WeightedVStack(alignment: .leading) {
+                Text("Line 1")
+
+                Text("Line 2")
+
+                Text("Line 3")
+            }
+            .background(Color.blue)
+
+            VStack(alignment: .leading) {
+                Text("Line 1")
+
+                Text("Line 2")
+
+                Text("Line 3")
+            }
+            .background(Color.blue)
+        }
+        .previewDisplayName("Text")
     }
 }

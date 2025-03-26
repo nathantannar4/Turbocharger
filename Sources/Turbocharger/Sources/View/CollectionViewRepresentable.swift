@@ -5,132 +5,68 @@
 import SwiftUI
 import Engine
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-public protocol CollectionViewLayout: DynamicProperty {
-    
-    #if os(iOS)
-    associatedtype UICollectionViewType: UICollectionView
-
-    func makeUICollectionView(
-        context: Context,
-        options: CollectionViewLayoutOptions
-    ) -> UICollectionViewType
-
-    func updateUICollectionView(
-        _ collectionView: UICollectionViewType,
-        context: Context
-    )
-
-    func updateUICollectionViewCell(
-        _ collectionView: UICollectionViewType,
-        cell: UICollectionViewCell,
-        kind: HostingConfigurationKind,
-        indexPath: IndexPath
-    )
-    #endif
-
-    typealias Context = CollectionViewLayoutContext
-
-}
-
 #if os(iOS)
-@available(iOS 14.0, *)
-extension CollectionViewLayout {
-    public func updateUICollectionViewCell(
-        _ collectionView: UICollectionViewType,
-        cell: UICollectionViewCell,
-        kind: HostingConfigurationKind,
-        indexPath: IndexPath
-    ) { }
-}
-#endif
 
 @available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-public struct CollectionViewLayoutContext {
-    public var environment: EnvironmentValues
-    public var transaction: Transaction
+@MainActor @preconcurrency
+public protocol CollectionViewRepresentable: View {
+
+    associatedtype Data: RandomAccessCollection where Data.Element: RandomAccessCollection, Data.Index: Hashable, Data.Element.Element: Equatable & Identifiable
+    associatedtype Layout: CollectionViewLayout
+    associatedtype Coordinator: CollectionViewCoordinator<Layout, Data>
+
+    var data: Data { get }
+    var layout: Layout { get }
+
+    func updateCoordinator(_ coordinator: Coordinator)
+
+    func makeCoordinator() -> Coordinator
 }
 
 @available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-public struct CollectionViewLayoutOptions: OptionSet {
-    public var rawValue: UInt8
-    public init(rawValue: UInt8) {
-        self.rawValue = rawValue
-    }
+extension CollectionViewRepresentable where Body == _CollectionViewRepresentableBody<Self> {
 
-    /// The `UICollectionViewLayout` should include a header
-    public static let header = CollectionViewLayoutOptions(rawValue: 1 << 0)
-
-    /// The `UICollectionViewLayout` should include a footer
-    public static let footer = CollectionViewLayoutOptions(rawValue: 1 << 1)
-}
-
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-struct CollectionViewLayoutOptionsKey: EnvironmentKey {
-    static let defaultValue = CollectionViewLayoutOptions()
-}
-
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-extension EnvironmentValues {
-    public var collectionViewLayoutOptions: CollectionViewLayoutOptions {
-        get { self[CollectionViewLayoutOptionsKey.self] }
-        set { self[CollectionViewLayoutOptionsKey.self] = newValue }
+    public var body: _CollectionViewRepresentableBody<Self> {
+        _CollectionViewRepresentableBody(representable: self)
     }
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
 @frozen
-public struct CollectionViewListLayout: CollectionViewLayout {
+@available(iOS 14.0, *)
+public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepresentable>: UIViewRepresentable {
 
-    @inlinable
-    public init() { }
+    public typealias Coordinator = Representable.Coordinator
+    public typealias UIViewType = Representable.Layout.UICollectionViewType
 
-    #if os(iOS)
-    public func makeUICollectionView(
-        context: Context,
-        options: CollectionViewLayoutOptions
-    ) -> UICollectionView {
-        var configuration = UICollectionLayoutListConfiguration(appearance: .plain)
-        configuration.headerMode = options.contains(.header) ? .supplementary : .none
-        configuration.footerMode = options.contains(.footer) ? .supplementary : .none
-        configuration.showsSeparators = false
-        configuration.backgroundColor = .clear
-        let layout = UICollectionViewCompositionalLayout.list(using: configuration)
-        let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
-        uiCollectionView.clipsToBounds = false
-        uiCollectionView.keyboardDismissMode = .interactive
-        return uiCollectionView
+    var representable: Representable
+
+    public func makeUIView(context: Context) -> UIViewType {
+        context.coordinator.context = CollectionViewLayoutContext(
+            environment: context.environment,
+            transaction: context.transaction
+        )
+        let uiView = representable.layout.makeUICollectionView(
+            context: context.coordinator.context,
+            options: context.coordinator.layoutOptions
+        )
+        context.coordinator.configure(to: uiView)
+
+        return uiView
     }
 
-    public func updateUICollectionView(
-        _ collectionView: UICollectionView,
-        context: Context
-    ) { }
-    #endif
+    public func updateUIView(_ uiView: UIViewType, context: Context) {
+        context.coordinator.context = CollectionViewLayoutContext(
+            environment: context.environment,
+            transaction: context.transaction
+        )
+        context.coordinator.update(layout: representable.layout)
+        representable.updateCoordinator(context.coordinator)
+        context.coordinator.update(data: representable.data)
+    }
+
+    public func makeCoordinator() -> Coordinator {
+        representable.makeCoordinator()
+    }
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-extension CollectionViewLayout where Self == CollectionViewListLayout {
-    public static var list: CollectionViewListLayout { .init() }
-}
+#endif

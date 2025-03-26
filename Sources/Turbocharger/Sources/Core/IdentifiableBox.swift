@@ -2,7 +2,7 @@
 // Copyright (c) Nathan Tannar
 //
 
-import SwiftUI
+import Foundation
 
 @frozen
 public struct IdentifiableBox<Value, ID: Hashable>: Identifiable {
@@ -18,3 +18,4 @@ public struct IdentifiableBox<Value, ID: Hashable>: Identifiable {
     }
 }
 
+extension IdentifiableBox: Equatable where Value: Equatable { }
