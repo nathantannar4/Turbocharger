@@ -1,0 +1,13 @@
+version: 1
+builder:
+  configs:
+    - documentation_targets: [Turbocharger]
+      platform: macos
+    - documentation_targets: [Turbocharger]
+      platform: ios
+    - documentation_targets: [Turbocharger]
+      platform: tvos
+    - documentation_targets: [Turbocharger]
+      platform: watchos
+    - documentation_targets: [Turbocharger]
+      platform: visionos

@@ -15,13 +15,13 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
 
     public var spacing: CGFloat
     public var contentInsets: EdgeInsets
-    public var pinnedViews: CollectionViewLayoutOptions
+    public var pinnedViews: Set<CollectionViewSupplementaryView.ID>
 
     @inlinable
     public init(
         spacing: CGFloat,
         contentInsets: EdgeInsets = .zero,
-        pinnedViews: CollectionViewLayoutOptions = []
+        pinnedViews: Set<CollectionViewSupplementaryView.ID> = []
     ) {
         self.spacing = spacing
         self.contentInsets = contentInsets
@@ -35,7 +35,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
     ) -> UICollectionView {
         let itemSize = NSCollectionLayoutSize(
             widthDimension: .fractionalWidth(1.0),
-            heightDimension: .estimated(60)
+            heightDimension: .estimated(44)
         )
         let item = NSCollectionLayoutItem(
             layoutSize: itemSize
@@ -48,25 +48,43 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         let section = NSCollectionLayoutSection(group: group)
         section.interGroupSpacing = spacing
         section.contentInsets = NSDirectionalEdgeInsets(contentInsets)
-        section.supplementariesFollowContentInsets = false
-
-        if options.contains(.header) {
-            let header = NSCollectionLayoutBoundarySupplementaryItem(
-                layoutSize: itemSize,
-                elementKind: UICollectionView.elementKindSectionHeader,
-                alignment: .topLeading
-            )
-            header.pinToVisibleBounds = pinnedViews.contains(.header)
-            section.boundarySupplementaryItems.append(header)
+        if #available(iOS 16.0, *) {
+            section.supplementaryContentInsetsReference = .none
+        } else {
+            section.supplementariesFollowContentInsets = false
         }
-        if options.contains(.footer) {
-            let footer = NSCollectionLayoutBoundarySupplementaryItem(
+
+        for supplementaryView in options.supplementaryViews {
+            let item = NSCollectionLayoutBoundarySupplementaryItem(
                 layoutSize: itemSize,
-                elementKind: UICollectionView.elementKindSectionFooter,
-                alignment: .bottomLeading
+                elementKind: supplementaryView.kind,
+                alignment: {
+                    switch supplementaryView.alignment {
+                    case .top:
+                        return .top
+                    case .topLeading:
+                        return .topLeading
+                    case .topTrailing:
+                        return .topLeading
+                    case .bottom:
+                        return .bottom
+                    case .bottomLeading:
+                        return .bottomLeading
+                    case .bottomTrailing:
+                        return .bottomTrailing
+                    case .leading:
+                        return .leading
+                    case .trailing:
+                        return .trailing
+                    default:
+                        return .none
+                    }
+                }()
             )
-            footer.pinToVisibleBounds = pinnedViews.contains(.footer)
-            section.boundarySupplementaryItems.append(footer)
+            item.contentInsets = NSDirectionalEdgeInsets(supplementaryView.contentInset)
+            item.zIndex = supplementaryView.id == .header || supplementaryView.id == .footer ? 1 : 0
+            item.pinToVisibleBounds = pinnedViews.contains(supplementaryView.id)
+            section.boundarySupplementaryItems.append(item)
         }
 
         let layout = UICollectionViewCompositionalLayout(section: section)
@@ -91,12 +109,10 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
 @available(watchOS, unavailable)
 extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
 
-    public static var list: CollectionViewCompositionalLayout { CollectionViewCompositionalLayout(spacing: 0) }
-
-    public static func list(
-        spacing: CGFloat,
+    public static func compositional(
+        spacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
-        pinnedViews: CollectionViewLayoutOptions = []
+        pinnedViews: Set<CollectionViewSupplementaryView.ID> = []
     ) -> CollectionViewCompositionalLayout {
         CollectionViewCompositionalLayout(
             spacing: spacing,
@@ -117,7 +133,7 @@ struct CollectionViewLayout_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 12) {
             CollectionView(
-                .list(spacing: 12, pinnedViews: [.header]),
+                .compositional(spacing: 12, pinnedViews: [.header]),
                 sections: [[1, 2, 3]],
                 id: \.self
             ) { id in
@@ -129,7 +145,7 @@ struct CollectionViewLayout_Previews: PreviewProvider {
             }
 
             CollectionView(
-                .list(spacing: 12, contentInsets: .init(top: 8, leading: 8, bottom: 8, trailing: 8)),
+                .compositional(spacing: 12, contentInsets: .init(top: 8, leading: 8, bottom: 8, trailing: 8)),
                 sections: [[1, 2, 3]],
                 id: \.self
             ) { id in

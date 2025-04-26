@@ -46,6 +46,10 @@ let package = Package(
 )
 ```
 
+## Documentation
+
+Detailed documentation is available [here](https://swiftpackageindex.com/nathantannar4/Turbocharger/main/documentation/turbocharger).
+
 ## Introduction to Turbocharger
 
 `Turbocharger` was started with the two goals. 1) To expand the standard API that SwiftUI provides to what many would commonly desired or need; and 2) To demonstrate how to use [Engine](https://github.com/nathantannar4/Engine) to make reusable components that are backwards compatible.

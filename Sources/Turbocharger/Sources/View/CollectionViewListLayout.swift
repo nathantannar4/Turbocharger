@@ -46,8 +46,8 @@ public struct CollectionViewListLayout: CollectionViewLayout {
                 return .insetGrouped
             }
         }())
-        configuration.headerMode = options.contains(.header) ? .supplementary : .none
-        configuration.footerMode = options.contains(.footer) ? .supplementary : .none
+        configuration.headerMode = options.supplementaryViews.contains(.header) ? .supplementary : .none
+        configuration.footerMode = options.supplementaryViews.contains(.footer) ? .supplementary : .none
         configuration.showsSeparators = showsSeparators
         configuration.backgroundColor = .clear
         if #available(iOS 15.0, *) {

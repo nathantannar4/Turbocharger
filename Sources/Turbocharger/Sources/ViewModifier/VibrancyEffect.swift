@@ -156,10 +156,10 @@ private class HDRLayerView: UIView {
 
     private func render() {
         #if targetEnvironment(simulator)
-        let isHDRSupported = true
+        isHidden = true
+        return
         #else
         let isHDRSupported = window?.screen.traitCollection.displayGamut == .P3
-        #endif
         isHidden = !isHDRSupported
         guard isHDRSupported else { return }
 
@@ -184,6 +184,7 @@ private class HDRLayerView: UIView {
         encoder.endEncoding()
         buffer.present(drawable)
         buffer.commit()
+        #endif
     }
 }
 #endif

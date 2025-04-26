@@ -59,8 +59,8 @@ public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepr
             environment: context.environment,
             transaction: context.transaction
         )
-        context.coordinator.update(layout: representable.layout)
         representable.updateCoordinator(context.coordinator)
+        context.coordinator.update(layout: representable.layout)
         context.coordinator.update(data: representable.data)
     }
 

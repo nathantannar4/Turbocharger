@@ -23,6 +23,7 @@ public struct CollectionView<
     Header: View,
     Content: View,
     Footer: View,
+    SupplementaryView: View,
     Layout: CollectionViewLayout,
     Data: RandomAccessCollection
 >: View where
@@ -37,7 +38,29 @@ public struct CollectionView<
     var header: (Data.Index) -> Header
     var content: (Data.Element.Element) -> Content
     var footer: (Data.Index) -> Footer
+    var supplementaryViews: Set<CollectionViewSupplementaryView>
+    var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
     var refresh: (() async -> Void)?
+
+    public init(
+        _ layout: Layout,
+        sections: Data,
+        supplementaryViews: Set<CollectionViewSupplementaryView>,
+        refresh: (() async -> Void)? = nil,
+        @ViewBuilder content: @escaping (Data.Element.Element) -> Content,
+        @ViewBuilder header: @escaping (Data.Index) -> Header,
+        @ViewBuilder footer: @escaping (Data.Index) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
+    ) {
+        self.layout = layout
+        self.data = sections
+        self.header = header
+        self.content = content
+        self.footer = footer
+        self.supplementaryViews = supplementaryViews
+        self.supplementaryView = supplementaryView
+        self.refresh = refresh
+    }
 
     public init(
         _ layout: Layout,
@@ -45,12 +68,16 @@ public struct CollectionView<
         @ViewBuilder content: @escaping (Data.Element.Element) -> Content,
         @ViewBuilder header: @escaping (Data.Index) -> Header,
         @ViewBuilder footer: @escaping (Data.Index) -> Footer
-    ) {
-        self.layout = layout
-        self.data = sections
-        self.header = header
-        self.content = content
-        self.footer = footer
+    ) where SupplementaryView == EmptyView {
+        self.init(
+            layout,
+            sections: sections,
+            supplementaryViews: [],
+            content: content,
+            header: header,
+            footer: footer,
+            supplementaryView: { _, _ in EmptyView() }
+        )
     }
 
     public var body: some View {
@@ -60,6 +87,8 @@ public struct CollectionView<
             header: header,
             content: content,
             footer: footer,
+            supplementaryViews: supplementaryViews,
+            supplementaryView: supplementaryView,
             refresh: refresh
         )
     }
@@ -79,7 +108,7 @@ extension CollectionView {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-extension CollectionView {
+extension CollectionView where SupplementaryView == EmptyView {
 
     public init<
         Items: RandomAccessCollection
@@ -114,7 +143,7 @@ extension CollectionView {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-extension CollectionView {
+extension CollectionView where SupplementaryView == EmptyView {
 
     public init<
         Sections: RandomAccessCollection,
@@ -158,7 +187,7 @@ extension CollectionView {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-extension CollectionView where Header == EmptyView, Footer == EmptyView {
+extension CollectionView where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
 
     public init<
         Items: RandomAccessCollection
@@ -232,6 +261,7 @@ private struct CollectionViewBody<
     Header: View,
     Content: View,
     Footer: View,
+    SupplementaryView: View,
     Layout: CollectionViewLayout,
     Data: RandomAccessCollection
 >: CollectionViewRepresentable where
@@ -247,27 +277,33 @@ private struct CollectionViewBody<
     var header: (Data.Index) -> Header
     var content: (Data.Element.Element) -> Content
     var footer: (Data.Index) -> Footer
+    var supplementaryViews: Set<CollectionViewSupplementaryView>
+    var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
     var refresh: (() async -> Void)?
 
-    func updateCoordinator(_ coordinator: CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, Layout, Data>) {
+    typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Data>
+
+    func updateCoordinator(_ coordinator: Coordinator) {
         coordinator.header = header
         coordinator.content = content
         coordinator.footer = footer
+        coordinator.supplementaryView = supplementaryView
         coordinator.refresh = refresh
     }
 
-    func makeCoordinator() -> CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, Layout, Data> {
-        var layoutOptions = CollectionViewLayoutOptions()
-        if Header.self != EmptyView.self {
-            layoutOptions.update(with: .header)
+    func makeCoordinator() -> Coordinator {
+        var layoutOptions = CollectionViewLayoutOptions(supplementaryViews: supplementaryViews)
+        if Header.self != EmptyView.self, !layoutOptions.supplementaryViews.contains(where: { $0.id == .header }) {
+            layoutOptions.supplementaryViews.insert(.header)
         }
-        if Footer.self != EmptyView.self {
-            layoutOptions.update(with: .footer)
+        if Footer.self != EmptyView.self, !layoutOptions.supplementaryViews.contains(where: { $0.id == .footer }) {
+            layoutOptions.supplementaryViews.insert(.footer)
         }
         return CollectionViewHostingConfigurationCoordinator(
             header: header,
             content: content,
             footer: footer,
+            supplementaryView: supplementaryView,
             layout: layout,
             data: data,
             refresh: refresh,
@@ -288,10 +324,95 @@ private struct CollectionViewBody<
 @available(watchOS, unavailable)
 struct CollectionView_Previews: PreviewProvider {
     static var previews: some View {
-        Preview()
+        PreviewA()
+        PreviewB()
     }
 
-    struct Preview: View {
+    struct PreviewA: View {
+        struct Item: Identifiable, Equatable {
+            var id = UUID().uuidString
+            var value = 0
+        }
+
+        @State var sections: [CollectionViewSection<[Item], Void>] = (0..<10).map { index in
+            CollectionViewSection(
+                items: (0..<10).map { Item(value: $0) },
+                section: ()
+            )
+        }
+
+        struct ItemView: View {
+            var item: Item
+
+            @State var isExpanded = false
+
+            var body: some View {
+                VStack(spacing: 0) {
+                    Text(item.id)
+                        .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
+                        .background(item.value.isMultiple(of: 2) ? .blue : .red)
+                }
+                .onTapGesture {
+                    isExpanded.toggle()
+                }
+            }
+        }
+
+        struct HeaderFooterView: View {
+            var index: Int
+
+            @State var isExpanded = false
+
+            var body: some View {
+                Text("Header/Footer \(index)")
+                    .frame(maxWidth: .infinity, minHeight: isExpanded ? 44 : 22)
+                    .onTapGesture {
+                        isExpanded.toggle()
+                    }
+            }
+        }
+
+        var body: some View {
+            CollectionView(
+                .compositional(contentInsets: .init(top: 4, leading: 4, bottom: 4, trailing: 4), pinnedViews: [.header, .footer]),
+                sections: sections,
+                supplementaryViews: [
+                    .init(id: .header, alignment: .topLeading, contentInset: .init(top: 4, leading: 4, bottom: 4, trailing: 4)),
+                    .custom("banner", alignment: .topLeading, contentInset: .init(top: 0, leading: 12, bottom: 0, trailing: 12)),
+                    .custom("card", alignment: .bottom)
+                ]
+            ) { item in
+                ItemView(item: item)
+            } header: { index in
+                HeaderFooterView(index: index)
+                    .background(.yellow)
+            } footer: { index in
+                HeaderFooterView(index: index)
+                    .background(.orange)
+            } supplementaryView: { id, index in
+                if id == .custom("banner"), index == 0 {
+                    Color.purple
+                        .frame(height: 200)
+                        .overlay {
+                            Rectangle()
+                                .inset(by: 5)
+                                .stroke(Color.green, lineWidth: 10)
+                        }
+                } else if id == .custom("card") {
+                    Color.pink
+                        .frame(height: 200)
+                        .overlay {
+                            Rectangle()
+                                .inset(by: 5)
+                                .stroke(Color.green, lineWidth: 10)
+                        }
+                }
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    struct PreviewB: View {
         struct Item: Identifiable, Equatable {
             var id = UUID().uuidString
             var value = 0
@@ -320,12 +441,12 @@ struct CollectionView_Previews: PreviewProvider {
                     }
 
                     RoundedRectangle(cornerRadius: isExpanded ? 6 : 0)
-                        .fill(Color.red)
+                        .fill(.yellow)
                         .frame(height: isExpanded ? 100 : 0)
                         .opacity(isExpanded ? 1 : 0)
                 }
                 .padding(6)
-                .background(Color.blue)
+                .background(item.value.isMultiple(of: 2) ? .blue : .red)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(6)
                 .onTapGesture {

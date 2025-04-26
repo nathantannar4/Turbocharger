@@ -7,6 +7,46 @@
 import UIKit
 import SwiftUI
 
+/// A collection wrapper for grouping items in a section
+public struct CollectionViewSection<
+    Data: RandomAccessCollection,
+    Section
+>: RandomAccessCollection where Data.Element: Equatable & Identifiable {
+
+    public var items: Data
+    public var section: Section
+
+    public init(items: Data, section: Section) {
+        self.items = items
+        self.section = section
+    }
+
+    // MARK: - RandomAccessCollection
+
+    public typealias Index = Data.Index
+    public typealias Element = Data.Element
+
+    public var startIndex: Index {
+        items.startIndex
+    }
+
+    public var endIndex: Index {
+        items.endIndex
+    }
+
+    public subscript(position: Index) -> Element {
+        items[position]
+    }
+
+    public func index(after i: Index) -> Index {
+        items.index(after: i)
+    }
+
+    public func index(before i: Index) -> Index {
+        items.index(before: i)
+    }
+}
+
 /// A `UICollectionViewDiffableDataSource` wrapper
 @MainActor
 @available(iOS 14.0, *)
@@ -37,8 +77,7 @@ open class CollectionViewCoordinator<
 
     // Defaults
     private var cellRegistration: UICollectionView.CellRegistration<Layout.UICollectionViewCellType, ID>!
-    private var headerRegistration: UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>!
-    private var footerRegistration: UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>!
+    private var supplementaryViewRegistration = [String: UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>]()
 
     public init(
         data: Data,
@@ -65,7 +104,11 @@ open class CollectionViewCoordinator<
         indexPath: IndexPath,
         id: ID
     ) -> Layout.UICollectionViewCellType? {
-        collectionView.dequeueConfiguredReusableCell(using: cellRegistration, for: indexPath, item: id)
+        return collectionView.dequeueConfiguredReusableCell(
+            using: cellRegistration,
+            for: indexPath,
+            item: id
+        )
     }
 
     open func configureCell(
@@ -81,15 +124,11 @@ open class CollectionViewCoordinator<
         kind: String,
         indexPath: IndexPath
     ) -> Layout.UICollectionViewSupplementaryViewType? {
-
-        switch kind {
-        case UICollectionView.elementKindSectionHeader:
-            return collectionView.dequeueConfiguredReusableSupplementary(using: headerRegistration, for: indexPath)
-        case UICollectionView.elementKindSectionFooter:
-            return collectionView.dequeueConfiguredReusableSupplementary(using: footerRegistration, for: indexPath)
-        default:
-            return nil
-        }
+        guard let registration = supplementaryViewRegistration[kind] else { return nil }
+        return collectionView.dequeueConfiguredReusableSupplementary(
+            using: registration,
+            for: indexPath
+        )
     }
 
     open func configureSupplementaryView(
@@ -111,24 +150,17 @@ open class CollectionViewCoordinator<
             )
         }
 
-        headerRegistration = UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>(
-            elementKind: UICollectionView.elementKindSectionHeader
-        ) { [unowned self] headerView, kind, indexPath in
-            configureSupplementaryView(
-                headerView,
-                kind: kind,
-                indexPath: indexPath
-            )
-        }
-
-        footerRegistration = UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>(
-            elementKind: UICollectionView.elementKindSectionFooter
-        ) { [unowned self] footerView, kind, indexPath in
-            configureSupplementaryView(
-                footerView,
-                kind: kind,
-                indexPath: indexPath
-            )
+        for supplementaryView in layoutOptions.supplementaryViews {
+            let kind = supplementaryView.kind
+            supplementaryViewRegistration[kind] = UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>(
+                elementKind: kind
+            ) { [unowned self] supplementaryView, kind, indexPath in
+                configureSupplementaryView(
+                    supplementaryView,
+                    kind: kind,
+                    indexPath: indexPath
+                )
+            }
         }
 
         let dataSource = UICollectionViewDiffableDataSource<Section, ID>(
@@ -214,11 +246,8 @@ open class CollectionViewCoordinator<
     ) {
 
         let (wasEmpty, updated) = updateDataSource(data: data, animated: animated, completion: completion)
-        guard !wasEmpty else {
-            return
-        }
-        let hasHeaderFooter = layoutOptions.contains(.header) || layoutOptions.contains(.footer)
-        guard !updated.isEmpty || hasHeaderFooter else {
+        let hasSupplementaryViews = !layoutOptions.supplementaryViews.isEmpty
+        guard (!updated.isEmpty && !wasEmpty) || hasSupplementaryViews else {
             return
         }
 
@@ -255,11 +284,13 @@ open class CollectionViewCoordinator<
         var updated = Set<ID>()
 
         var snapshot = NSDiffableDataSourceSnapshot<Section, ID>()
-        snapshot.appendSections(Array(data.indices))
-        for section in data.indices {
-            let ids = data[section].map(\.id)
-            snapshot.appendItems(ids, toSection: section)
-            updated.formUnion(ids)
+        if !data.isEmpty {
+            snapshot.appendSections(Array(data.indices))
+            for section in data.indices {
+                let ids = data[section].map(\.id)
+                snapshot.appendItems(ids, toSection: section)
+                updated.formUnion(ids)
+            }
         }
         updated.formIntersection(oldValue)
 
@@ -316,7 +347,8 @@ open class CollectionViewCoordinator<
                 }
             }
         }
-        for kind in [UICollectionView.elementKindSectionHeader, UICollectionView.elementKindSectionFooter] {
+        for supplementaryView in layoutOptions.supplementaryViews {
+            let kind = supplementaryView.kind
             for indexPath in collectionView.indexPathsForVisibleSupplementaryElements(ofKind: kind) {
                 guard let supplementaryView = collectionView.supplementaryView(forElementKind: kind, at: indexPath) as? Layout.UICollectionViewSupplementaryViewType else {
                     continue
@@ -439,7 +471,9 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
             ListCoordinator(
                 data: data,
                 layout: layout,
-                layoutOptions: .init()
+                layoutOptions: .init(
+                    supplementaryViews: []
+                )
             )
         }
 

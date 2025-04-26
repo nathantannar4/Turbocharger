@@ -28,3 +28,5 @@ jobs:
       run: xcodebuild -scheme Turbocharger -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 2 (49mm)' build
     - name: Build for tvOS
       run: xcodebuild -scheme Turbocharger -destination 'platform=tvOS Simulator,name=Apple TV 4K (3rd generation)' build
+    - name: Build for visionOS
+      run: xcodebuild -scheme Turbocharger -destination 'platform=visionOS Simulator,name=Apple Vision Pro' build

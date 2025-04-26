@@ -83,34 +83,65 @@ public struct CollectionViewLayoutContext {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-public struct CollectionViewLayoutOptions: OptionSet {
-    public var rawValue: UInt8
-    public init(rawValue: UInt8) {
-        self.rawValue = rawValue
+public struct CollectionViewLayoutOptions {
+    public var supplementaryViews: Set<CollectionViewSupplementaryView>
+
+    public init(
+        supplementaryViews: Set<CollectionViewSupplementaryView> = []
+    ) {
+        self.supplementaryViews = supplementaryViews
+    }
+}
+
+@available(iOS 14.0, *)
+@available(macOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+public struct CollectionViewSupplementaryView: Hashable, Sendable {
+
+    public enum ID: Hashable, Sendable {
+        case header
+        case footer
+        case custom(String)
+    }
+
+    public var id: ID
+    public var alignment: Alignment
+    public var contentInset: EdgeInsets
+
+    public init(id: ID, alignment: Alignment, contentInset: EdgeInsets = .zero) {
+        self.id = id
+        self.alignment = alignment
+        self.contentInset = contentInset
+    }
+
+    public var kind: String {
+        switch id {
+        case .header:
+            return UICollectionView.elementKindSectionHeader
+        case .footer:
+            return UICollectionView.elementKindSectionFooter
+        case .custom(let id):
+            return id
+        }
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 
     /// The `UICollectionViewLayout` should include a header
-    public static let header = CollectionViewLayoutOptions(rawValue: 1 << 0)
+    public static let header = CollectionViewSupplementaryView(id: .header, alignment: .topLeading)
 
     /// The `UICollectionViewLayout` should include a footer
-    public static let footer = CollectionViewLayoutOptions(rawValue: 1 << 1)
-}
+    public static let footer = CollectionViewSupplementaryView(id: .footer, alignment: .bottomLeading)
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-struct CollectionViewLayoutOptionsKey: EnvironmentKey {
-    static let defaultValue = CollectionViewLayoutOptions()
-}
-
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-extension EnvironmentValues {
-    public var collectionViewLayoutOptions: CollectionViewLayoutOptions {
-        get { self[CollectionViewLayoutOptionsKey.self] }
-        set { self[CollectionViewLayoutOptionsKey.self] = newValue }
+    /// The `UICollectionViewLayout` should include a custom kind
+    public static func custom(
+        _ id: String,
+        alignment: Alignment,
+        contentInset: EdgeInsets = .zero
+    ) -> CollectionViewSupplementaryView {
+        CollectionViewSupplementaryView(id: .custom(id), alignment: alignment, contentInset: contentInset)
     }
 }

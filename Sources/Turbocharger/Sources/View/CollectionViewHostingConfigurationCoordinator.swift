@@ -14,6 +14,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     Header: View,
     Content: View,
     Footer: View,
+    SupplementaryView: View,
     Layout: CollectionViewLayout,
     Data: RandomAccessCollection
 >: CollectionViewCoordinator<Layout, Data> where
@@ -27,11 +28,13 @@ open class CollectionViewHostingConfigurationCoordinator<
     public var header: (Data.Index) -> Header
     public var content: (Data.Element.Element) -> Content
     public var footer: (Data.Index) -> Footer
+    public var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
 
     public init(
         header: @escaping (Data.Index) -> Header,
         content: @escaping (Data.Element.Element) -> Content,
         footer: @escaping (Data.Index) -> Footer,
+        supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView,
         layout: Layout,
         data: Data,
         refresh: (() async -> Void)? = nil,
@@ -40,19 +43,47 @@ open class CollectionViewHostingConfigurationCoordinator<
         self.header = header
         self.content = content
         self.footer = footer
+        self.supplementaryView = supplementaryView
         super.init(data: data, refresh: refresh, layout: layout, layoutOptions: layoutOptions)
     }
 
-    public init(
+    public convenience init(
+        header: @escaping (Data.Index) -> Header,
+        content: @escaping (Data.Element.Element) -> Content,
+        footer: @escaping (Data.Index) -> Footer,
+        layout: Layout,
+        data: Data,
+        refresh: (() async -> Void)? = nil,
+        layoutOptions: CollectionViewLayoutOptions
+    ) where SupplementaryView == EmptyView {
+        self.init(
+            header: header,
+            content: content,
+            footer: footer,
+            supplementaryView: { _, _ in EmptyView() },
+            layout: layout,
+            data: data,
+            refresh: refresh,
+            layoutOptions: layoutOptions
+        )
+    }
+
+    public convenience init(
         content: @escaping (Data.Element.Element) -> Content,
         layout: Layout,
         data: Data,
         refresh: (() async -> Void)? = nil
-    ) where Header == EmptyView, Footer == EmptyView {
-        self.header = { _ in EmptyView() }
-        self.content = content
-        self.footer = { _ in EmptyView() }
-        super.init(data: data, refresh: refresh, layout: layout, layoutOptions: .init())
+    ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
+        self.init(
+            header: { _ in EmptyView() },
+            content: content,
+            footer: { _ in EmptyView() },
+            supplementaryView: { _, _ in EmptyView() },
+            layout: layout,
+            data: data,
+            refresh: refresh,
+            layoutOptions: .init()
+        )
     }
 
     open override func dequeueReusableCell(
@@ -96,7 +127,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         case UICollectionView.elementKindSectionFooter:
             supplementaryView.contentConfiguration = makeFooterContent(indexPath: indexPath)
         default:
-            break
+            supplementaryView.contentConfiguration = makeSupplementaryContent(kind: kind, indexPath: indexPath)
         }
     }
 
@@ -134,6 +165,19 @@ open class CollectionViewHostingConfigurationCoordinator<
             footer(section)
         }
     }
+
+    private func makeSupplementaryContent(
+        kind: String,
+        indexPath: IndexPath
+    ) -> UIContentConfiguration {
+        let section = data.index(data.startIndex, offsetBy: indexPath.section)
+        return makeHostingConfiguration(
+            id: section,
+            kind: .supplementary(kind)
+        ) {
+            supplementaryView(.custom(kind), section)
+        }
+    }
 }
 
 @available(iOS 14.0, *)
@@ -162,21 +206,7 @@ private func makeHostingConfiguration<
 private struct HostingConfigurationModifier<ID: Hashable>: VersionedViewModifier {
     var id: ID
 
-    @available(iOS 16.0, *)
-    func v4Body(content: Content) -> some View {
-        content
-            .contentTransition(.identity)
-            .transition(.identity)
-            .id(id)
-            .transaction {
-                // Animate size changes in sync with cell frame changes
-                if !$0.disablesAnimations, $0.animation == nil {
-                    $0.animation = .spring(response: 0.4, dampingFraction: 1)
-                }
-            }
-    }
-
-    func v1Body(content: Content) -> some View {
+    func body(content: Content) -> some View {
         content
             .transition(.identity)
             .id(id)
@@ -247,11 +277,7 @@ private class HostingConfigurationBackportContentView<
     }
 
     private func invalidateLayout(size: CGSize) {
-        guard
-            let collectionViewCell = superview as? UICollectionViewCell,
-            let collectionView = collectionViewCell.superview as? UICollectionView,
-            size.height != frame.size.height
-        else {
+        guard !(abs(size.height - frame.size.height) <= 1e-5) else {
             return
         }
 
@@ -259,19 +285,29 @@ private class HostingConfigurationBackportContentView<
         let ctx = UICollectionViewLayoutInvalidationContext()
         switch kind {
         case .supplementary(let kind):
-            if let indexPath = collectionView.indexPath(for: collectionViewCell) {
-                ctx.invalidateSupplementaryElements(ofKind: kind, at: [indexPath])
-            } else {
-                let indexPaths = collectionView.indexPathsForVisibleSupplementaryElements(ofKind: kind)
-                ctx.invalidateSupplementaryElements(ofKind: kind, at: indexPaths)
+            guard
+                let supplementaryView = superview as? UICollectionReusableView,
+                let collectionView = supplementaryView.superview as? UICollectionView,
+                let indexPath = collectionView.indexPath(forSupplementaryView: supplementaryView)
+            else {
+                return
             }
+            ctx.invalidateSupplementaryElements(ofKind: kind, at: [indexPath])
+            collectionView.collectionViewLayout.invalidateLayout(with: ctx)
+            supplementaryView.layoutIfNeeded()
+
         case .cell:
-            if let indexPath = collectionView.indexPath(forSupplementaryView: collectionViewCell) {
-                ctx.invalidateItems(at: [indexPath])
+            guard
+                let collectionViewCell = superview as? UICollectionViewCell,
+                let collectionView = collectionViewCell.superview as? UICollectionView,
+                let indexPath = collectionView.indexPath(for: collectionViewCell)
+            else {
+                return
             }
+            ctx.invalidateItems(at: [indexPath])
+            collectionView.collectionViewLayout.invalidateLayout(with: ctx)
+            collectionViewCell.layoutIfNeeded()
         }
-        collectionView.collectionViewLayout.invalidateLayout(with: ctx)
-        invalidateIntrinsicContentSize()
     }
 }
 
