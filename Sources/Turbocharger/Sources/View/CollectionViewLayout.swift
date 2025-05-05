@@ -116,6 +116,7 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     }
 
     public var kind: String {
+        #if os(iOS)
         switch id {
         case .header:
             return UICollectionView.elementKindSectionHeader
@@ -124,6 +125,9 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
         case .custom(let id):
             return id
         }
+        #else
+        fatalError("unreachable")
+        #endif
     }
 
     public func hash(into hasher: inout Hasher) {
