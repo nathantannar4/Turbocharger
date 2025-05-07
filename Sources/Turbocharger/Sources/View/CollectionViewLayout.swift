@@ -14,8 +14,8 @@ public protocol CollectionViewLayout {
     
     #if os(iOS)
     associatedtype UICollectionViewType: UICollectionView
-    associatedtype UICollectionViewCellType: UICollectionViewCell = UICollectionViewCell
-    associatedtype UICollectionViewSupplementaryViewType: UICollectionReusableView = UICollectionViewCell
+    associatedtype UICollectionViewCellType: UICollectionViewCell = UICollectionViewListCell
+    associatedtype UICollectionViewSupplementaryViewType: UICollectionReusableView = UICollectionViewListCell
 
     @MainActor @preconcurrency func makeUICollectionView(
         context: Context,

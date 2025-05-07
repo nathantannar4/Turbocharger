@@ -21,8 +21,8 @@ open class CollectionViewHostingConfigurationCoordinator<
     Data.Element: RandomAccessCollection,
     Data.Index: Hashable,
     Data.Element.Element: Equatable & Identifiable,
-    Layout.UICollectionViewCellType == UICollectionViewCell,
-    Layout.UICollectionViewSupplementaryViewType == UICollectionViewCell
+    Layout.UICollectionViewCellType: UICollectionViewCell,
+    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
 
     public var header: (Data.Index) -> Header

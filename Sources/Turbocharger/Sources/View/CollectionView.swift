@@ -30,8 +30,8 @@ public struct CollectionView<
     Data.Element: RandomAccessCollection,
     Data.Index: Hashable,
     Data.Element.Element: Equatable & Identifiable,
-    Layout.UICollectionViewCellType == UICollectionViewCell,
-    Layout.UICollectionViewSupplementaryViewType == UICollectionViewCell
+    Layout.UICollectionViewCellType: UICollectionViewCell,
+    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
     var layout: Layout
     var data: Data
@@ -268,8 +268,8 @@ private struct CollectionViewBody<
     Data.Element: RandomAccessCollection,
     Data.Index: Hashable,
     Data.Element.Element: Equatable & Identifiable,
-    Layout.UICollectionViewCellType == UICollectionViewCell,
-    Layout.UICollectionViewSupplementaryViewType == UICollectionViewCell
+    Layout.UICollectionViewCellType: UICollectionViewCell,
+    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
 
     var layout: Layout
