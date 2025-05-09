@@ -104,6 +104,11 @@ private struct HDRLayerViewRepresentable: UIViewRepresentable {
     func updateUIView(_ uiView: HDRLayerView, context: Context) { }
 }
 
+// Adapted from GlowGetter
+//
+// Copyright (c) 2025 Aether
+// https://github.com/Aeastr/GlowGetter
+//
 private class HDRLayerView: UIView {
 
     var commandQueue: MTLCommandQueue?

@@ -95,7 +95,8 @@ public struct ShimmerModifier: ViewModifier {
                 }
             }
             .mask(
-                mask.animation(animation, value: state.isActive)
+                mask
+                    .animation(animation, value: state.isActive)
             )
             .onChange(of: isActive) { [oldState = state] newValue in
                 switch oldState {
@@ -130,56 +131,25 @@ public struct ShimmerModifier: ViewModifier {
 
     @ViewBuilder
     private var mask: some View {
-        ZStack {
-            switch state {
-            case .inactive:
-                Rectangle()
-                    .scale(1000)
-                    .ignoresSafeArea()
-            case .transitioning, .shimmering:
-                GradientMask()
-            }
+        switch state {
+        case .inactive:
+            Rectangle()
+                .scale(1000)
+                .ignoresSafeArea()
+        case .transitioning, .shimmering:
+            GradientMask()
         }
     }
 
-    private struct GradientMask: VersionedView {
-        @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
-        var v3Body: some View {
-            _V3Body(date: .now)
-        }
+    private struct GradientMask: View {
+        @ObservedObject var clock = ShimmerClock.shared
 
-        @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
-        private struct _V3Body: View {
-            @State var date: Date
-
-            @Environment(\.calendar) var calendar
-
-            var body: some View {
-                TimelineView(
-                    .animation(minimumInterval: 1 / 60, paused: false)
-                ) { context in
-                    let phase = CGFloat(calendar.component(.nanosecond, from: context.date)) / pow(10, 9)
-                    PhasedLinearGradient(
-                        phase: phase
-                    )
-                }
-            }
-        }
-
-        var v2Body: some View {
-            _V2Body()
-        }
-
-        private struct _V2Body: View {
-            @ObservedObject var clock = ShimmerClock.shared
-
-            var body: some View {
-                PhasedLinearGradient(
-                    phase: clock.phase
-                )
-                .onAppear { clock.register() }
-                .onDisappear { clock.unregister() }
-            }
+        var body: some View {
+            PhasedLinearGradient(
+                phase: clock.phase
+            )
+            .onAppear { clock.register() }
+            .onDisappear { clock.unregister() }
         }
 
         struct PhasedLinearGradient: View {
@@ -197,6 +167,7 @@ public struct ShimmerModifier: ViewModifier {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
+                .animation(.linear(duration: 1 / 60), value: phase)
             }
         }
     }
@@ -209,7 +180,7 @@ private class ShimmerClock: ObservableObject {
 
     private var registered: UInt = 0
     #if os(iOS)
-    private weak var displayLink: CADisplayLink?
+    private var displayLink: CADisplayLink?
     #endif
 
     #if os(macOS)
@@ -234,11 +205,7 @@ private class ShimmerClock: ObservableObject {
     @objc
     private func onClockTick(displayLink: CADisplayLink) {
         let offset = CGFloat((displayLink.targetTimestamp - displayLink.timestamp) / duration)
-        if phase >= 1 {
-            phase = 0
-        } else {
-            phase += offset
-        }
+        onClockTick(offset: offset)
     }
     #endif
 
@@ -246,14 +213,17 @@ private class ShimmerClock: ObservableObject {
     @objc
     private func onClockTick(timer: Timer) {
         let offset = CGFloat(timer.timeInterval / duration)
-        if phase >= 1 {
-            phase = 0
-        } else {
-            phase += offset
-        }
+        onClockTick(offset: offset)
     }
     #endif
 
+    private func onClockTick(offset: CGFloat) {
+        if phase >= 1 {
+            phase = 0
+        } else {
+            phase = min(phase + offset, 1)
+        }
+    }
 
     func register() {
         if registered == 0 {
@@ -262,9 +232,15 @@ private class ShimmerClock: ObservableObject {
             if let displayLink = displayLink {
                 displayLink.isPaused = false
             } else {
-                let displayLink = CADisplayLink(target: self, selector: #selector(onClockTick(displayLink:)))
+                let displayLink = CADisplayLink(
+                    target: self,
+                    selector: #selector(onClockTick(displayLink:))
+                )
                 if #available(iOS 15.0, tvOS 15.0, watchOS 8.0, *) {
-                    displayLink.preferredFrameRateRange = .init(minimum: 24, maximum: 60)
+                    displayLink.preferredFrameRateRange = .init(
+                        minimum: 24,
+                        maximum: 60
+                    )
                 }
                 displayLink.add(to: .current, forMode: .common)
                 self.displayLink = displayLink
@@ -274,7 +250,14 @@ private class ShimmerClock: ObservableObject {
             #if os(macOS)
             if let timer = timer, timer.isValid {
             } else {
-                let timer = Timer(fireAt: Date(), interval: 1 / 30, target: self, selector: #selector(onClockTick(timer:)), userInfo: nil, repeats: true)
+                let timer = Timer(
+                    fireAt: Date(),
+                    interval: 1 / 60,
+                    target: self,
+                    selector: #selector(onClockTick(timer:)),
+                    userInfo: nil,
+                    repeats: true
+                )
                 RunLoop.current.add(timer, forMode: .common)
                 self.timer = timer
             }
