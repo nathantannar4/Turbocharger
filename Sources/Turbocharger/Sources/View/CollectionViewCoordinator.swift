@@ -9,9 +9,9 @@ import SwiftUI
 
 /// A collection wrapper for grouping items in a section
 public struct CollectionViewSection<
-    Data: RandomAccessCollection,
-    Section
->: RandomAccessCollection where Data.Element: Equatable & Identifiable {
+    Data: RandomAccessCollection & Equatable,
+    Section: Equatable
+>: RandomAccessCollection, Equatable where Data.Element: Equatable & Identifiable {
 
     public var items: Data
     public var section: Section
@@ -235,29 +235,35 @@ open class CollectionViewCoordinator<
     }
 
     func update(data: Data) {
-        performUpdate(data: data, animated: context.transaction.isAnimated)
+        performUpdate(data: data, animation: context.transaction.animation)
     }
 
     /// Updates the data source, you should not call this directly when using ``CollectionViewRepresentable``
     open func performUpdate(
         data: Data,
-        animated: Bool,
+        animation: Animation?,
         completion: (() -> Void)? = nil
     ) {
 
-        let (wasEmpty, updated) = updateDataSource(data: data, animated: animated, completion: completion)
+        let (wasEmpty, updated) = updateDataSource(data: data, animated: animation != nil, completion: completion)
         let hasSupplementaryViews = !layoutOptions.supplementaryViews.isEmpty
         guard (!updated.isEmpty && !wasEmpty) || hasSupplementaryViews else {
             return
         }
 
-        if animated {
-            UIView.animate(
-                withDuration: 0.35,
-                delay: 0,
-                options: [.curveEaseInOut]
-            ) { [weak self] in
-                self?.updateVisibleViews(updated: updated)
+        if let animation {
+            if #available(iOS 18.0, *) {
+                UIView.animate(animation) {
+                    self.updateVisibleViews(updated: updated)
+                }
+            } else {
+                UIView.animate(
+                    withDuration: animation.duration(defaultDuration: 0.35),
+                    delay: animation.delay ?? 0,
+                    options: [.curveEaseInOut]
+                ) {
+                    self.updateVisibleViews(updated: updated)
+                }
             }
         } else {
             var selfSizingInvalidation: Any?
@@ -265,7 +271,10 @@ open class CollectionViewCoordinator<
                 selfSizingInvalidation = collectionView.selfSizingInvalidation
                 collectionView.selfSizingInvalidation = .disabled
             }
-            updateVisibleViews(updated: updated)
+            UIView.performWithoutAnimation {
+                let context = updateVisibleViews(updated: updated)
+                collectionView.collectionViewLayout.invalidateLayout(with: context)
+            }
             if #available(iOS 16.0, *) {
                 let oldValue = selfSizingInvalidation as! UICollectionView.SelfSizingInvalidation
                 withCATransaction {
@@ -280,8 +289,9 @@ open class CollectionViewCoordinator<
         animated: Bool,
         completion: (() -> Void)? = nil
     ) -> (Bool, Set<ID>) {
-        let oldValue = dataSource.snapshot().itemIdentifiers
-        var updated = Set<ID>()
+        let oldValue = Set(dataSource.snapshot().itemIdentifiers)
+        var added = Set<ID>()
+        added.reserveCapacity(data.reduce(into: 0) { $0 += $1.count })
 
         var snapshot = NSDiffableDataSourceSnapshot<Section, ID>()
         if !data.isEmpty {
@@ -289,13 +299,16 @@ open class CollectionViewCoordinator<
             for section in data.indices {
                 let ids = data[section].map(\.id)
                 snapshot.appendItems(ids, toSection: section)
-                updated.formUnion(ids)
+                added.formUnion(ids)
             }
         }
-        updated.formIntersection(oldValue)
+        let removed = oldValue.subtracting(added)
+        added.subtract(oldValue)
+        var updated = Set<ID>()
 
         if !oldValue.isEmpty {
-            for indexPath in collectionView.indexPathsForVisibleItems {
+            let indexPathsForVisibleItems = collectionView.indexPathsForVisibleItems
+            for indexPath in indexPathsForVisibleItems {
                 guard
                     self.data.count > indexPath.section,
                     data.count > indexPath.section
@@ -311,11 +324,15 @@ open class CollectionViewCoordinator<
                 }
                 let item = data[section].index(data[section].startIndex, offsetBy: indexPath.item)
                 if self.data[section][item].id == data[section][item].id {
-                    if self.data[section][item] == data[section][item] {
-                        updated.remove(data[section][item].id)
+                    if self.data[section][item] != data[section][item] {
+                        updated.insert(data[section][item].id)
                     }
                 }
             }
+        }
+
+        guard !added.isEmpty || !updated.isEmpty || !removed.isEmpty else {
+            return (oldValue.isEmpty, updated)
         }
 
         if #available(iOS 15.0, *), !updated.isEmpty {
@@ -334,7 +351,9 @@ open class CollectionViewCoordinator<
         return (oldValue.isEmpty, updated)
     }
 
-    private func updateVisibleViews(updated: Set<ID>) {
+    @discardableResult
+    private func updateVisibleViews(updated: Set<ID>) -> UICollectionViewLayoutInvalidationContext {
+        let context = UICollectionViewLayoutInvalidationContext()
         if !updated.isEmpty {
             for indexPath in collectionView.indexPathsForVisibleItems {
                 if let cellView = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType {
@@ -343,6 +362,7 @@ open class CollectionViewCoordinator<
                     let value = data[section][item]
                     if updated.contains(value.id) {
                         configureCell(cellView, indexPath: indexPath, item: value)
+                        context.invalidateItems(at: [indexPath])
                     }
                 }
             }
@@ -354,8 +374,10 @@ open class CollectionViewCoordinator<
                     continue
                 }
                 configureSupplementaryView(supplementaryView, kind: kind, indexPath: indexPath)
+                context.invalidateSupplementaryElements(ofKind: kind, at: [indexPath])
             }
         }
+        return context
     }
 }
 

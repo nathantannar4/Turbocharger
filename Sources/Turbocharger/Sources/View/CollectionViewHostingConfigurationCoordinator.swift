@@ -30,6 +30,8 @@ open class CollectionViewHostingConfigurationCoordinator<
     public var footer: (Data.Index) -> Footer
     public var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
 
+    private var update = HostingConfigurationUpdate(animation: nil, value: 0)
+
     public init(
         header: @escaping (Data.Index) -> Header,
         content: @escaping (Data.Element.Element) -> Content,
@@ -131,12 +133,26 @@ open class CollectionViewHostingConfigurationCoordinator<
         }
     }
 
+    open override func performUpdate(
+        data: Data,
+        animation: Animation?,
+        completion: (() -> Void)? = nil
+    ) {
+        update.advance(animation: animation)
+        super.performUpdate(
+            data: data,
+            animation: animation,
+            completion: completion
+        )
+    }
+
     private func makeContent(
         value: Data.Element.Element
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: value.id,
-            kind: .cell
+            kind: .cell,
+            update: update
         ) {
             content(value)
         }
@@ -148,7 +164,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         let section = data.index(data.startIndex, offsetBy: indexPath.section)
         return makeHostingConfiguration(
             id: section,
-            kind: .supplementary(UICollectionView.elementKindSectionHeader)
+            kind: .supplementary(UICollectionView.elementKindSectionHeader),
+            update: update
         ) {
             header(section)
         }
@@ -160,7 +177,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         let section = data.index(data.startIndex, offsetBy: indexPath.section)
         return makeHostingConfiguration(
             id: section,
-            kind: .supplementary(UICollectionView.elementKindSectionFooter)
+            kind: .supplementary(UICollectionView.elementKindSectionFooter),
+            update: update
         ) {
             footer(section)
         }
@@ -173,7 +191,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         let section = data.index(data.startIndex, offsetBy: indexPath.section)
         return makeHostingConfiguration(
             id: section,
-            kind: .supplementary(kind)
+            kind: .supplementary(kind),
+            update: update
         ) {
             supplementaryView(.custom(kind), section)
         }
@@ -186,36 +205,47 @@ private func makeHostingConfiguration<
     Content: View
 >(
     id: ID,
-    kind: HostingConfigurationKind = .cell,
+    kind: HostingConfigurationKind,
+    update: HostingConfigurationUpdate,
     @ViewBuilder content: () -> Content
 ) -> UIContentConfiguration {
     if #available(iOS 16.0, *) {
         return UIHostingConfiguration {
             content()
-                .modifier(HostingConfigurationModifier(id: id))
+                .modifier(HostingConfigurationModifier(id: id, update: update))
         }
         .margins(.all, 0)
     } else {
         return HostingConfigurationBackport(kind: kind) {
             content()
-                .modifier(HostingConfigurationModifier(id: id))
+                .modifier(HostingConfigurationModifier(id: id, update: update))
         }
     }
 }
 
-private struct HostingConfigurationModifier<ID: Hashable>: VersionedViewModifier {
+private struct HostingConfigurationUpdate {
+    var animation: Animation?
+    var value: UInt
+
+    mutating func advance(animation: Animation?) {
+        self.animation = animation
+        self.value = value &+ 1
+    }
+}
+
+private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
     var id: ID
+    var update: HostingConfigurationUpdate
+
+    var animation: Animation? {
+        update.animation == .default ? .spring(response: 0.4, dampingFraction: 1) : update.animation
+    }
 
     func body(content: Content) -> some View {
         content
             .transition(.identity)
             .id(id)
-            .transaction {
-                // Animate size changes in sync with cell frame changes
-                if !$0.disablesAnimations, $0.animation == nil {
-                    $0.animation = .spring(response: 0.4, dampingFraction: 1)
-                }
-            }
+            .animation(animation, value: update.value)
     }
 }
 

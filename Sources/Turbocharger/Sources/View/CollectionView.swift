@@ -38,14 +38,14 @@ public struct CollectionView<
     var header: (Data.Index) -> Header
     var content: (Data.Element.Element) -> Content
     var footer: (Data.Index) -> Footer
-    var supplementaryViews: Set<CollectionViewSupplementaryView>
+    var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
     var refresh: (() async -> Void)?
 
     public init(
         _ layout: Layout,
         sections: Data,
-        supplementaryViews: Set<CollectionViewSupplementaryView>,
+        supplementaryViews: [CollectionViewSupplementaryView],
         refresh: (() async -> Void)? = nil,
         @ViewBuilder content: @escaping (Data.Element.Element) -> Content,
         @ViewBuilder header: @escaping (Data.Index) -> Header,
@@ -277,7 +277,7 @@ private struct CollectionViewBody<
     var header: (Data.Index) -> Header
     var content: (Data.Element.Element) -> Content
     var footer: (Data.Index) -> Footer
-    var supplementaryViews: Set<CollectionViewSupplementaryView>
+    var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
     var refresh: (() async -> Void)?
 
@@ -294,10 +294,10 @@ private struct CollectionViewBody<
     func makeCoordinator() -> Coordinator {
         var layoutOptions = CollectionViewLayoutOptions(supplementaryViews: supplementaryViews)
         if Header.self != EmptyView.self, !layoutOptions.supplementaryViews.contains(where: { $0.id == .header }) {
-            layoutOptions.supplementaryViews.insert(.header)
+            layoutOptions.supplementaryViews.append(.header)
         }
         if Footer.self != EmptyView.self, !layoutOptions.supplementaryViews.contains(where: { $0.id == .footer }) {
-            layoutOptions.supplementaryViews.insert(.footer)
+            layoutOptions.supplementaryViews.append(.footer)
         }
         return CollectionViewHostingConfigurationCoordinator(
             header: header,
@@ -334,10 +334,10 @@ struct CollectionView_Previews: PreviewProvider {
             var value = 0
         }
 
-        @State var sections: [CollectionViewSection<[Item], Void>] = (0..<10).map { index in
+        @State var sections: [CollectionViewSection<[Item], Int>] = (0..<10).map { index in
             CollectionViewSection(
                 items: (0..<10).map { Item(value: $0) },
-                section: ()
+                section: index
             )
         }
 
@@ -374,12 +374,28 @@ struct CollectionView_Previews: PreviewProvider {
 
         var body: some View {
             CollectionView(
-                .compositional(contentInsets: .init(top: 4, leading: 4, bottom: 4, trailing: 4), pinnedViews: [.header, .footer]),
+                .compositional(
+                    contentInsets: .init(top: 4, leading: 4, bottom: 4, trailing: 4),
+                    pinnedViews: [
+                        .header,
+                    ]
+                ),
                 sections: sections,
                 supplementaryViews: [
-                    .init(id: .header, alignment: .topLeading, contentInset: .init(top: 4, leading: 4, bottom: 4, trailing: 4)),
-                    .custom("banner", alignment: .topLeading, contentInset: .init(top: 0, leading: 12, bottom: 0, trailing: 12)),
-                    .custom("card", alignment: .bottom)
+                    .header(
+                        contentInset: .init(top: 4, leading: 4, bottom: 4, trailing: 4)
+                    ),
+                    .custom(
+                        "banner",
+                        alignment: .topLeading,
+                        offset: CGPoint(x: 0, y: -24),
+                        contentInset: .init(top: 0, leading: 12, bottom: 0, trailing: 12)
+                    ),
+                    .custom(
+                        "card",
+                        alignment: .bottom,
+                        offset: CGPoint(x: 0, y: 24)
+                    )
                 ]
             ) { item in
                 ItemView(item: item)

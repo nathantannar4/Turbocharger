@@ -84,10 +84,10 @@ public struct CollectionViewLayoutContext {
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 public struct CollectionViewLayoutOptions {
-    public var supplementaryViews: Set<CollectionViewSupplementaryView>
+    public var supplementaryViews: [CollectionViewSupplementaryView]
 
     public init(
-        supplementaryViews: Set<CollectionViewSupplementaryView> = []
+        supplementaryViews: [CollectionViewSupplementaryView] = []
     ) {
         self.supplementaryViews = supplementaryViews
     }
@@ -103,31 +103,45 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
         case header
         case footer
         case custom(String)
+
+        public var kind: String {
+            #if os(iOS)
+            switch self {
+            case .header:
+                return UICollectionView.elementKindSectionHeader
+            case .footer:
+                return UICollectionView.elementKindSectionFooter
+            case .custom(let id):
+                return id
+            }
+            #else
+            fatalError("unreachable")
+            #endif
+        }
     }
 
     public var id: ID
     public var alignment: Alignment
+    public var offset: CGPoint
     public var contentInset: EdgeInsets
+    public var zIndex: Int
 
-    public init(id: ID, alignment: Alignment, contentInset: EdgeInsets = .zero) {
+    private init(
+        id: ID,
+        alignment: Alignment,
+        offset: CGPoint = .zero,
+        contentInset: EdgeInsets = .zero,
+        zIndex: Int = 0
+    ) {
         self.id = id
         self.alignment = alignment
+        self.offset = offset
         self.contentInset = contentInset
+        self.zIndex = zIndex
     }
 
     public var kind: String {
-        #if os(iOS)
-        switch id {
-        case .header:
-            return UICollectionView.elementKindSectionHeader
-        case .footer:
-            return UICollectionView.elementKindSectionFooter
-        case .custom(let id):
-            return id
-        }
-        #else
-        fatalError("unreachable")
-        #endif
+        id.kind
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -135,17 +149,55 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     }
 
     /// The `UICollectionViewLayout` should include a header
-    public static let header = CollectionViewSupplementaryView(id: .header, alignment: .topLeading)
+    public static let header = CollectionViewSupplementaryView.header()
+
+    /// The `UICollectionViewLayout` should include a header
+    public static func header(
+        offset: CGPoint = .zero,
+        contentInset: EdgeInsets = .zero,
+        zIndex: Int = 2
+    ) -> CollectionViewSupplementaryView {
+        CollectionViewSupplementaryView(
+            id: .header,
+            alignment: .topLeading,
+            offset: offset,
+            contentInset: contentInset,
+            zIndex: zIndex
+        )
+    }
 
     /// The `UICollectionViewLayout` should include a footer
-    public static let footer = CollectionViewSupplementaryView(id: .footer, alignment: .bottomLeading)
+    public static let footer = CollectionViewSupplementaryView.footer()
+
+    /// The `UICollectionViewLayout` should include a footer
+    public static func footer(
+        offset: CGPoint = .zero,
+        contentInset: EdgeInsets = .zero,
+        zIndex: Int = 1
+    ) -> CollectionViewSupplementaryView {
+        CollectionViewSupplementaryView(
+            id: .footer,
+            alignment: .bottomTrailing,
+            offset: offset,
+            contentInset: contentInset,
+            zIndex: zIndex
+        )
+    }
 
     /// The `UICollectionViewLayout` should include a custom kind
     public static func custom(
         _ id: String,
         alignment: Alignment,
-        contentInset: EdgeInsets = .zero
+        offset: CGPoint = .zero,
+        contentInset: EdgeInsets = .zero,
+        zIndex: Int = 0
     ) -> CollectionViewSupplementaryView {
-        CollectionViewSupplementaryView(id: .custom(id), alignment: alignment, contentInset: contentInset)
+        CollectionViewSupplementaryView(
+            id: .custom(id),
+            alignment: alignment,
+            offset: offset,
+            contentInset: contentInset,
+            zIndex: zIndex
+        )
     }
 }

@@ -67,6 +67,15 @@ public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepr
     public func makeCoordinator() -> Coordinator {
         representable.makeCoordinator()
     }
+
+    public func _overrideSizeThatFits(
+        _ size: inout CGSize,
+        in proposedSize: _ProposedSize,
+        uiView: UIViewType
+    ) {
+        size.width = max(size.width, 10)
+        size.height = max(size.height, 10)
+    }
 }
 
 #endif
