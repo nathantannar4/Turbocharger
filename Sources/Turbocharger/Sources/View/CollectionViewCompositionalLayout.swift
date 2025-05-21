@@ -43,15 +43,15 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
     }
 
     #if os(iOS)
-    public func makeUICollectionView(
+    public func makeUICollectionViewLayout(
         context: Context,
         options: CollectionViewLayoutOptions
-    ) -> UICollectionView {
+    ) -> UICollectionViewCompositionalLayout {
         let itemSize = NSCollectionLayoutSize(
             widthDimension: axis == .vertical ? .fractionalWidth(1.0) : .estimated(estimatedDimension),
             heightDimension: axis == .vertical ? .estimated(estimatedDimension) : .fractionalHeight(1.0)
         )
-        
+
         let item = NSCollectionLayoutItem(
             layoutSize: itemSize
         )
@@ -125,7 +125,15 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
             section: section,
             configuration: configuration
         )
+        return layout
+    }
 
+    public func makeUICollectionView(
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) -> UICollectionView {
+
+        let layout = makeUICollectionViewLayout(context: context, options: options)
         let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         uiCollectionView.clipsToBounds = false
         uiCollectionView.keyboardDismissMode = .interactive

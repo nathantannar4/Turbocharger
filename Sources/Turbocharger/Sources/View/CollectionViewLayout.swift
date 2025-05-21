@@ -11,11 +11,17 @@ import Engine
 @available(watchOS, unavailable)
 @MainActor @preconcurrency
 public protocol CollectionViewLayout {
-    
+
     #if os(iOS)
+    associatedtype UICollectionViewLayoutType: UICollectionViewLayout
     associatedtype UICollectionViewType: UICollectionView
-    associatedtype UICollectionViewCellType: UICollectionViewCell = UICollectionViewListCell
-    associatedtype UICollectionViewSupplementaryViewType: UICollectionReusableView = UICollectionViewListCell
+    associatedtype UICollectionViewCellType: UICollectionViewCell = UICollectionViewCell
+    associatedtype UICollectionViewSupplementaryViewType: UICollectionReusableView = UICollectionViewCell
+
+    @MainActor @preconcurrency func makeUICollectionViewLayout(
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) -> UICollectionViewLayoutType
 
     @MainActor @preconcurrency func makeUICollectionView(
         context: Context,

@@ -12,6 +12,11 @@ import Engine
 @frozen
 public struct CollectionViewListLayout: CollectionViewLayout {
 
+    #if os(iOS)
+    public typealias UICollectionViewCellType = UICollectionViewListCell
+    public typealias UICollectionViewSupplementaryViewType = UICollectionViewListCell
+    #endif
+
     @frozen
     public enum Appearance {
         case plain
@@ -32,10 +37,10 @@ public struct CollectionViewListLayout: CollectionViewLayout {
     }
 
     #if os(iOS)
-    public func makeUICollectionView(
+    public func makeUICollectionViewLayout(
         context: Context,
         options: CollectionViewLayoutOptions
-    ) -> UICollectionView {
+    ) -> UICollectionViewCompositionalLayout {
         var configuration = UICollectionLayoutListConfiguration(appearance: {
             switch appearance {
             case .plain:
@@ -54,7 +59,15 @@ public struct CollectionViewListLayout: CollectionViewLayout {
             configuration.headerTopPadding = 0
         }
         let layout = UICollectionViewCompositionalLayout.list(using: configuration)
+        return layout
+    }
 
+    public func makeUICollectionView(
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) -> UICollectionView {
+
+        let layout = makeUICollectionViewLayout(context: context, options: options)
         let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         uiCollectionView.clipsToBounds = false
         uiCollectionView.keyboardDismissMode = .interactive

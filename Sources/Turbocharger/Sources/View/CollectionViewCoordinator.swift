@@ -289,9 +289,9 @@ open class CollectionViewCoordinator<
         animated: Bool,
         completion: (() -> Void)? = nil
     ) -> (Bool, Set<ID>) {
-        let oldValue = Set(dataSource.snapshot().itemIdentifiers)
-        var added = Set<ID>()
-        added.reserveCapacity(data.reduce(into: 0) { $0 += $1.count })
+        let oldValue = dataSource.snapshot().itemIdentifiers
+        var newValue = [ID]()
+        newValue.reserveCapacity(data.reduce(into: 0) { $0 += $1.count })
 
         var snapshot = NSDiffableDataSourceSnapshot<Section, ID>()
         if !data.isEmpty {
@@ -299,11 +299,12 @@ open class CollectionViewCoordinator<
             for section in data.indices {
                 let ids = data[section].map(\.id)
                 snapshot.appendItems(ids, toSection: section)
-                added.formUnion(ids)
+                newValue.append(contentsOf: ids)
             }
         }
-        let removed = oldValue.subtracting(added)
-        added.subtract(oldValue)
+        lazy var didChangeOrder = oldValue != newValue
+        lazy var added = Set(newValue).subtracting(oldValue)
+        lazy var removed = Set(oldValue).subtracting(newValue)
         var updated = Set<ID>()
 
         if !oldValue.isEmpty {
@@ -331,7 +332,7 @@ open class CollectionViewCoordinator<
             }
         }
 
-        guard !added.isEmpty || !updated.isEmpty || !removed.isEmpty else {
+        guard didChangeOrder || !added.isEmpty || !updated.isEmpty || !removed.isEmpty else {
             return (oldValue.isEmpty, updated)
         }
 
@@ -427,55 +428,95 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
 
     struct Preview: View {
 
-        @State var items: [ListItem] = (0..<3).map { ListItem(value: $0) }
+        @StateObject var viewModel = ListViewModel()
 
         var body: some View {
-            ListView(data: [items])
-                .ignoresSafeArea()
-                .overlay(alignment: .bottomTrailing) {
-                    VStack {
-                        Button {
-                            withAnimation {
-                                items[0].value += 1
-                            }
-                        } label: {
-                            Image(systemName: "plus")
-                                .frame(width: 44, height: 44)
-                                .background(.ultraThickMaterial)
-                        }
-
-                        Button {
-                            withAnimation {
-                                items.append(ListItem(value: items.count))
-                            }
-                        } label: {
-                            Image(systemName: "rectangle.stack.badge.plus")
-                                .frame(width: 44, height: 44)
-                                .background(.ultraThickMaterial)
-                        }
-
-                        Button {
-                            withAnimation {
-                                _ = items.popLast()
-                            }
-                        } label: {
-                            Image(systemName: "rectangle.stack.badge.minus")
-                                .frame(width: 44, height: 44)
-                                .background(.ultraThickMaterial)
-                        }
-                        .disabled(items.isEmpty)
-
-                        Button {
-                            items.shuffle()
-                        } label: {
-                            Image(systemName: "shuffle")
-                                .frame(width: 44, height: 44)
-                                .background(.ultraThickMaterial)
-                        }
+            ListView(
+                data: [viewModel.items],
+                proxy: viewModel.proxy
+            )
+            .ignoresSafeArea()
+            .overlay(alignment: .bottomTrailing) {
+                VStack {
+                    if let selected = viewModel.selected {
+                        Text(selected.value, format: .number)
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThickMaterial)
                     }
-                    .buttonStyle(.plain)
-                    .padding([.bottom, .trailing])
+
+                    Button {
+                        withAnimation {
+                            viewModel.items[0].value += 1
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThickMaterial)
+                    }
+
+                    Button {
+                        withAnimation {
+                            viewModel.items.append(ListItem(value: viewModel.items.count))
+                        }
+                    } label: {
+                        Image(systemName: "rectangle.stack.badge.plus")
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThickMaterial)
+                    }
+
+                    Button {
+                        withAnimation {
+                            _ = viewModel.items.popLast()
+                        }
+                    } label: {
+                        Image(systemName: "rectangle.stack.badge.minus")
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThickMaterial)
+                    }
+                    .disabled(viewModel.items.isEmpty)
+
+                    Button {
+                        withAnimation {
+                            viewModel.items.shuffle()
+                        }
+                    } label: {
+                        Image(systemName: "shuffle")
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThickMaterial)
+                    }
+
+                    Button {
+                        viewModel.scrollToBottom()
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThickMaterial)
+                    }
                 }
+                .buttonStyle(.plain)
+                .padding([.bottom, .trailing])
+            }
+        }
+    }
+
+    class ListViewModel: ObservableObject, ListCoordinatorProxy.OutputDelegate {
+        @Published var items: [ListItem] = (0..<3).map { ListItem(value: $0) }
+        @Published var selected: ListItem?
+
+        let proxy = ListCoordinatorProxy()
+
+        init() {
+            proxy.outputDelegate = self
+        }
+
+        func scrollToBottom() {
+            proxy.inputDelegate?.scrollToBottom()
+        }
+
+        // MARK: - ListCoordinatorProxy.OutputDelegate
+
+        func didSelectListItem(_ item: CollectionViewCoordinator_Previews.ListItem) {
+            selected = item
         }
     }
 
@@ -488,15 +529,18 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
 
         var data: [[ListItem]]
         var layout = ListLayout()
+        var proxy: ListCoordinatorProxy
 
         func makeCoordinator() -> ListCoordinator {
-            ListCoordinator(
+            let coordinator = ListCoordinator(
                 data: data,
                 layout: layout,
                 layoutOptions: .init(
                     supplementaryViews: []
                 )
             )
+            coordinator.configure(to: proxy)
+            return coordinator
         }
 
         func updateCoordinator(_ coordinator: Coordinator) { }
@@ -506,12 +550,20 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
 
         typealias UICollectionViewCellType = UICollectionViewListCell
 
+        func makeUICollectionViewLayout(
+            context: Context,
+            options: CollectionViewLayoutOptions
+        ) -> UICollectionViewCompositionalLayout {
+            let configuration = UICollectionLayoutListConfiguration(appearance: .plain)
+            let layout = UICollectionViewCompositionalLayout.list(using: configuration)
+            return layout
+        }
+
         func makeUICollectionView(
             context: Context,
             options: CollectionViewLayoutOptions
         ) -> UICollectionView {
-            let configuration = UICollectionLayoutListConfiguration(appearance: .plain)
-            let layout = UICollectionViewCompositionalLayout.list(using: configuration)
+            let layout = makeUICollectionViewLayout(context: context, options: options)
             let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
             return uiCollectionView
         }
@@ -522,9 +574,32 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
         ) { }
     }
 
+    class ListCoordinatorProxy: NSObject {
+        protocol InputDelegate: AnyObject {
+            func scrollToBottom()
+        }
+
+        protocol OutputDelegate: AnyObject {
+            func didSelectListItem(_ item: ListItem)
+        }
+
+        // To ListCoordinator
+        weak var inputDelegate: InputDelegate?
+
+        // From ListCoordinator
+        weak var outputDelegate: OutputDelegate?
+    }
+
     class ListCoordinator: CollectionViewCoordinator<
         ListLayout, Array<Array<ListItem>>
-    >, UICollectionViewDelegate {
+    >, UICollectionViewDelegate, ListCoordinatorProxy.InputDelegate {
+
+        weak var proxy: ListCoordinatorProxy?
+
+        func configure(to proxy: ListCoordinatorProxy) {
+            self.proxy = proxy
+            proxy.inputDelegate = self
+        }
 
         override func configure(to collectionView: UICollectionView) {
             super.configure(to: collectionView)
@@ -544,6 +619,21 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
 
         func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
             collectionView.deselectItem(at: indexPath, animated: true)
+            let item = item(for: indexPath)
+            proxy?.outputDelegate?.didSelectListItem(item)
+        }
+
+        // MARK: - ListCoordinatorProxy.InputDelegate
+
+        func scrollToBottom() {
+            let section = collectionView.numberOfSections - 1
+            if section >= 0 {
+                let item = collectionView.numberOfItems(inSection: section) - 1
+                if item >= 0 {
+                    let indexPath = IndexPath(item: item, section: section)
+                    collectionView.scrollToItem(at: indexPath, at: .bottom, animated: true)
+                }
+            }
         }
     }
 }

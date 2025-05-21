@@ -4,6 +4,8 @@
 
 #if os(iOS)
 
+import Engine
+
 import UIKit
 import SwiftUI
 
@@ -47,6 +49,23 @@ open class CollectionViewHostingConfigurationCoordinator<
         self.footer = footer
         self.supplementaryView = supplementaryView
         super.init(data: data, refresh: refresh, layout: layout, layoutOptions: layoutOptions)
+
+        // Invoke the view builders to trigger SwiftUI's runtime to form a
+        // dependency between any DynamicProperty that the @escaping value
+        // uses.
+        if !data.isEmpty {
+            _ = header(data.startIndex)
+            _ = footer(data.startIndex)
+
+            for supplementaryViewId in layoutOptions.supplementaryViews {
+                _ = supplementaryView(supplementaryViewId.id, data.startIndex)
+            }
+
+            if !data[data.startIndex].isEmpty {
+                let index = data[data.startIndex].startIndex
+                _ = content(data[data.startIndex][index])
+            }
+        }
     }
 
     public convenience init(
@@ -142,7 +161,10 @@ open class CollectionViewHostingConfigurationCoordinator<
         super.performUpdate(
             data: data,
             animation: animation,
-            completion: completion
+            completion: { [weak self] in
+                self?.update.animation = nil
+                completion?()
+            }
         )
     }
 
@@ -209,16 +231,37 @@ private func makeHostingConfiguration<
     update: HostingConfigurationUpdate,
     @ViewBuilder content: () -> Content
 ) -> UIContentConfiguration {
+
+    let content = content()
+    let isEmpty: Bool = {
+        var visitor = MultiViewIsEmptyVisitor()
+        content.visit(visitor: &visitor)
+        return visitor.isEmpty
+    }()
+
     if #available(iOS 16.0, *) {
         return UIHostingConfiguration {
-            content()
-                .modifier(HostingConfigurationModifier(id: id, update: update))
+            content
+                .modifier(
+                    HostingConfigurationModifier(
+                        id: id,
+                        isEmpty: isEmpty,
+                        update: update
+                    )
+                )
         }
+        .background(.clear)
         .margins(.all, 0)
     } else {
         return HostingConfigurationBackport(kind: kind) {
-            content()
-                .modifier(HostingConfigurationModifier(id: id, update: update))
+            content
+                .modifier(
+                    HostingConfigurationModifier(
+                        id: id,
+                        isEmpty: isEmpty,
+                        update: update
+                    )
+                )
         }
     }
 }
@@ -233,19 +276,18 @@ private struct HostingConfigurationUpdate {
     }
 }
 
+@available(iOS 14.0, *)
 private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
     var id: ID
+    var isEmpty: Bool
     var update: HostingConfigurationUpdate
-
-    var animation: Animation? {
-        update.animation == .default ? .spring(response: 0.4, dampingFraction: 1) : update.animation
-    }
 
     func body(content: Content) -> some View {
         content
+            .opacity(isEmpty ? 0 : 1)
             .transition(.identity)
             .id(id)
-            .animation(animation, value: update.value)
+            .animation(update.animation, value: update.value)
     }
 }
 
@@ -358,6 +400,53 @@ private struct SizeObserver: ViewModifier {
                         .onChange(of: proxy.size, perform: onChange)
                 }
             )
+    }
+}
+
+@available(iOS 15.0, *)
+@available(macOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
+    static var previews: some View {
+        Preview()
+    }
+
+    struct Preview: View {
+        struct Item: Identifiable, Equatable {
+            var id = UUID().uuidString
+            var value = 0
+        }
+
+        @State var items: [Item] = (0..<5).map { Item(value: $0) }
+        @State var showHeader = true
+
+        var body: some View {
+            CollectionView(.compositional, items: items) { item in
+                Text(item.id)
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                    .background(.white.opacity(0.3))
+            } header: { index in
+                if showHeader {
+                    Text("Header")
+                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                        .background(.white)
+                }
+            } footer: { index in
+                Text("Footer")
+            }
+            .background(.blue)
+            .ignoresSafeArea()
+            .overlay(alignment: .bottomTrailing) {
+                Button("showHeader") {
+                    withAnimation {
+                        showHeader.toggle()
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding()
+            }
+        }
     }
 }
 

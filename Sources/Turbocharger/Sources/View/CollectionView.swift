@@ -353,7 +353,9 @@ struct CollectionView_Previews: PreviewProvider {
                         .background(item.value.isMultiple(of: 2) ? .blue : .red)
                 }
                 .onTapGesture {
-                    isExpanded.toggle()
+                    withAnimation {
+                        isExpanded.toggle()
+                    }
                 }
             }
         }
@@ -367,7 +369,9 @@ struct CollectionView_Previews: PreviewProvider {
                 Text("Header/Footer \(index)")
                     .frame(maxWidth: .infinity, minHeight: isExpanded ? 44 : 22)
                     .onTapGesture {
-                        isExpanded.toggle()
+                        withAnimation {
+                            isExpanded.toggle()
+                        }
                     }
             }
         }
@@ -466,7 +470,9 @@ struct CollectionView_Previews: PreviewProvider {
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(6)
                 .onTapGesture {
-                    isExpanded.toggle()
+                    withAnimation {
+                        isExpanded.toggle()
+                    }
                 }
             }
         }
@@ -484,7 +490,7 @@ struct CollectionView_Previews: PreviewProvider {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                         Button("Show More") {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation {
                                 isExpanded.toggle()
                             }
                         }
