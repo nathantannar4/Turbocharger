@@ -281,7 +281,7 @@ struct CollectionViewLayout_Previews: PreviewProvider {
             HeaderFooter(axis: .vertical, isHeader: false)
         } supplementaryView: { id, index in
             Color.purple
-                .overlay { Text("\(id)") }
+                .overlay { Text(verbatim: "\(id)") }
                 .frame(height: 100)
                 .border(Color.pink, width: 5)
         }

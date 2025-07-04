@@ -17,16 +17,24 @@ let package = Package(
             name: "Turbocharger",
             targets: ["Turbocharger"]
         ),
+        .library(
+            name: "TurbochargerC",
+            targets: ["TurbochargerC"]
+        ),
     ],
     dependencies: [
-        .package(url: "https://github.com/nathantannar4/Engine", from: "2.1.6"),
+        .package(url: "https://github.com/nathantannar4/Engine", from: "2.1.9"),
     ],
     targets: [
         .target(
             name: "Turbocharger",
             dependencies: [
+                "TurbochargerC",
                 "Engine"
             ]
+        ),
+        .target(
+            name: "TurbochargerC"
         )
     ]
 )
