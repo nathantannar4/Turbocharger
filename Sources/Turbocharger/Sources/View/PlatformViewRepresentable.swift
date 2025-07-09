@@ -7,6 +7,12 @@ import Engine
 
 #if !os(watchOS)
 
+#if os(macOS)
+public typealias PlatformView = NSView
+#else
+public typealias PlatformView = UIView
+#endif
+
 /// A protocol for defining a `NSViewRepresentable`/`UIViewRepresentable`
 /// that has a  backwards compatible `sizeThatFits`
 @MainActor @preconcurrency

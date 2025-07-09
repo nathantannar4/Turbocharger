@@ -8,7 +8,7 @@ import Engine
 /// A ``BindingTransform`` that transforms the value
 /// with a `ParseableFormatStyle`
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
-public struct FormatTransform<F: ParseableFormatStyle>: BindingTransform where F.FormatInput: Equatable, F.FormatOutput == String {
+public struct FormatTransform<F: ParseableFormatStyle & Sendable>: BindingTransform where F.FormatInput: Equatable, F.FormatInput: Sendable, F.FormatOutput == String {
     public typealias Input = F.FormatInput
     public typealias Output = F.FormatOutput
 

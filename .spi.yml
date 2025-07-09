@@ -9,5 +9,3 @@ builder:
       platform: tvos
     - documentation_targets: [Turbocharger]
       platform: watchos
-    - documentation_targets: [Turbocharger]
-      platform: visionos

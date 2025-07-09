@@ -82,7 +82,12 @@ extension View {
         alignment: Alignment = .center,
         relativeTo textStyle: Font.TextStyle
     ) -> some View {
-        frame(width: size, height: size, alignment: alignment, relativeTo: textStyle)
+        frame(
+            width: size,
+            height: size,
+            alignment: alignment,
+            relativeTo: textStyle
+        )
     }
 
     @inlinable
@@ -95,8 +100,8 @@ extension View {
     ) -> some View {
         modifier(
             ScaledFrameModifier(
-                width: height,
-                height: width,
+                width: width,
+                height: height,
                 alignment: alignment,
                 relativeTo: textStyle
             )
