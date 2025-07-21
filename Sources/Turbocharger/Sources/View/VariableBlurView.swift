@@ -178,8 +178,6 @@ open class VariableBlurLayerView: PlatformView {
         guard let filter = makeCAFilter() else { return }
         let size = CGSize(width: 50, height: 50)
 
-        let startPoint = UnitPoint.top
-        let endPoint = UnitPoint.bottom
         let gradientFilter = CIFilter.smoothLinearGradient()
         gradientFilter.color0 = CIColor.black
         gradientFilter.color1 = CIColor.clear
