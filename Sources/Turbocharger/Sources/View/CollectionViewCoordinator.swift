@@ -53,7 +53,7 @@ public struct CollectionViewSection<
 open class CollectionViewCoordinator<
     Layout: CollectionViewLayout,
     Data: RandomAccessCollection
->: NSObject where
+>: NSObject, UICollectionViewDragDelegate, UICollectionViewDropDelegate where
     Data.Element: RandomAccessCollection,
     Data.Index: Hashable,
     Data.Element.Element: Equatable & Identifiable
@@ -75,6 +75,16 @@ open class CollectionViewCoordinator<
     }
     private var refreshTask: Task<Void, Never>?
 
+    public var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? {
+        didSet {
+            collectionView.dragInteractionEnabled = reorder != nil
+            updateSeed = updateSeed &+ 1
+        }
+    }
+
+    private var updateSeed: UInt = 0
+    private var lastUpdateSeed: UInt = 0
+
     // Defaults
     private var cellRegistration: UICollectionView.CellRegistration<Layout.UICollectionViewCellType, ID>!
     private var supplementaryViewRegistration = [String: UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>]()
@@ -82,12 +92,14 @@ open class CollectionViewCoordinator<
     public init(
         data: Data,
         refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         layout: Layout,
         layoutOptions: CollectionViewLayoutOptions
     ) {
         self.layout = layout
         self.data = data
         self.refresh = refresh
+        self.reorder = reorder
         self.layoutOptions = layoutOptions
         super.init()
     }
@@ -97,6 +109,10 @@ open class CollectionViewCoordinator<
         let item = data[section].index(data[section].startIndex, offsetBy: indexPath.item)
         let value = data[section][item]
         return value
+    }
+
+    public func indexPath(for id: Data.Element.Element.ID) -> IndexPath? {
+        dataSource.indexPath(for: id)
     }
 
     open func dequeueReusableCell(
@@ -198,6 +214,21 @@ open class CollectionViewCoordinator<
             )
             return supplementaryView
         }
+        if #available(iOS 15.0, *) {
+            dataSource.reorderingHandlers.canReorderItem = { [unowned self] id in
+                guard let indexPath = self.indexPath(for: id) else { return false }
+                return canMoveItem(at: indexPath)
+            }
+            dataSource.reorderingHandlers.willReorder = { [unowned self] transaction in
+                willReorder(transaction: transaction)
+            }
+            dataSource.reorderingHandlers.didReorder = { [unowned self] transaction in
+                didReorder(transaction: transaction)
+            }
+        }
+        collectionView.dragInteractionEnabled = reorder != nil
+        collectionView.dragDelegate = self
+        collectionView.dropDelegate = self
         self.collectionView = collectionView
         self.dataSource = dataSource
         configureRefreshControl()
@@ -244,7 +275,6 @@ open class CollectionViewCoordinator<
         animation: Animation?,
         completion: (() -> Void)? = nil
     ) {
-
         let (wasEmpty, updated) = updateDataSource(data: data, animated: animation != nil, completion: completion)
         let hasSupplementaryViews = !layoutOptions.supplementaryViews.isEmpty
         guard (!updated.isEmpty && !wasEmpty) || hasSupplementaryViews else {
@@ -289,6 +319,7 @@ open class CollectionViewCoordinator<
         animated: Bool,
         completion: (() -> Void)? = nil
     ) -> (Bool, Set<ID>) {
+        defer { lastUpdateSeed = updateSeed }
         let oldValue = dataSource.snapshot().itemIdentifiers
         var newValue = [ID]()
         newValue.reserveCapacity(data.reduce(into: 0) { $0 += $1.count })
@@ -324,7 +355,9 @@ open class CollectionViewCoordinator<
                     continue
                 }
                 let item = data[section].index(data[section].startIndex, offsetBy: indexPath.item)
-                if self.data[section][item].id == data[section][item].id {
+                if updateSeed != lastUpdateSeed {
+                    updated.insert(data[section][item].id)
+                } else if self.data[section][item].id == data[section][item].id {
                     if self.data[section][item] != data[section][item] {
                         updated.insert(data[section][item].id)
                     }
@@ -380,6 +413,108 @@ open class CollectionViewCoordinator<
         }
         return context
     }
+
+    // MARK: - Drag and Drop Reordering
+
+    open func canMoveItem(at indexPath: IndexPath) -> Bool {
+        return true
+    }
+
+    open func willReorder(transaction: NSDiffableDataSourceTransaction<Section, ID>) {
+
+    }
+
+    open func didReorder(transaction: NSDiffableDataSourceTransaction<Section, ID>) {
+        guard let reorder else { return }
+
+        var source: (section: Int, indices: IndexSet)?
+        var destination: (section: Int, index: Int)?
+
+        for sectionTransaction in transaction.sectionTransactions {
+            guard let sectionIndex = transaction.finalSnapshot.indexOfSection(sectionTransaction.sectionIdentifier)
+            else {
+                continue
+            }
+
+            // If associatedWith is non-nil, it's a move
+            for change in sectionTransaction.difference {
+                switch change {
+                case let .remove(fromIndex, _, associatedWith):
+                    if associatedWith != nil {
+                        if source == nil {
+                            source = (section: sectionIndex, indices: IndexSet())
+                        }
+                        source?.indices.insert(fromIndex)
+                    }
+
+                case let .insert(toIndex, _, associatedWith):
+                    if associatedWith != nil {
+                        destination = (section: sectionIndex, index: toIndex)
+                    }
+                }
+            }
+        }
+
+        updateSeed = updateSeed &+ 1
+        if let from = source, let to = destination {
+            reorder((from.section, from.indices), (to.section, to.index))
+        }
+    }
+
+    // MARK: - UICollectionViewDragDelegate
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        itemsForBeginning session: any UIDragSession,
+        at indexPath: IndexPath
+    ) -> [UIDragItem] {
+        return []
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        dragPreviewParametersForItemAt indexPath: IndexPath
+    ) -> UIDragPreviewParameters? {
+        guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
+        let parameters = UIDragPreviewParameters()
+        parameters.visiblePath = UIBezierPath(roundedRect: cell.bounds, cornerRadius: 12)
+        parameters.backgroundColor = .clear
+        return parameters
+    }
+
+    // MARK: - UICollectionViewDropDelegate
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        performDropWith coordinator: any UICollectionViewDropCoordinator
+    ) {
+        // Handled by UICollectionViewDiffableDataSource automatically
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        dropPreviewParametersForItemAt indexPath: IndexPath
+    ) -> UIDragPreviewParameters? {
+        guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
+        let parameters = UIDragPreviewParameters()
+        parameters.visiblePath = UIBezierPath(roundedRect: cell.bounds, cornerRadius: 12)
+        parameters.backgroundColor = .clear
+        return parameters
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        dropSessionDidUpdate session: any UIDropSession,
+        withDestinationIndexPath destinationIndexPath: IndexPath?
+    ) -> UICollectionViewDropProposal {
+        if session.allowsMoveOperation, collectionView.hasActiveDrag {
+            return UICollectionViewDropProposal(
+                operation: .move,
+                intent: .insertAtDestinationIndexPath
+            )
+        }
+        return UICollectionViewDropProposal(operation: .forbidden)
+    }
 }
 
 extension UICollectionViewDiffableDataSource {
@@ -423,10 +558,11 @@ extension UICollectionViewDiffableDataSource {
 @available(iOS 15.0, *)
 struct CollectionViewCoordinator_Previews: PreviewProvider {
     static var previews: some View {
-        Preview()
+        PreviewA()
+        PreviewB()
     }
 
-    struct Preview: View {
+    struct PreviewA: View {
 
         @StateObject var viewModel = ListViewModel()
 
@@ -633,6 +769,28 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
                     let indexPath = IndexPath(item: item, section: section)
                     collectionView.scrollToItem(at: indexPath, at: .bottom, animated: true)
                 }
+            }
+        }
+    }
+
+    struct PreviewB: View {
+        struct Item: Identifiable, Equatable {
+            var id = UUID().uuidString
+            var value = 0
+        }
+
+        @State var items: [Item] = (0..<5).map { Item(value: $0) }
+
+        var body: some View {
+            CollectionView(.compositional(spacing: 4), items: items) { item in
+                Text(item.value.description)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(.blue)
+            }
+            .reorderable { from, to in
+                items.move(fromOffsets: from.indices, toOffset: to.destination)
             }
         }
     }

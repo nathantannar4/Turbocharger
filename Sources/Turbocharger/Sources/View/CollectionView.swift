@@ -41,12 +41,14 @@ public struct CollectionView<
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
     var refresh: (() async -> Void)?
+    var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
 
     public init(
         _ layout: Layout,
         sections: Data,
         supplementaryViews: [CollectionViewSupplementaryView],
         refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         @ViewBuilder content: @escaping (Data.Element.Element) -> Content,
         @ViewBuilder header: @escaping (Data.Index) -> Header,
         @ViewBuilder footer: @escaping (Data.Index) -> Footer,
@@ -60,6 +62,7 @@ public struct CollectionView<
         self.supplementaryViews = supplementaryViews
         self.supplementaryView = supplementaryView
         self.refresh = refresh
+        self.reorder = reorder
     }
 
     public init(
@@ -89,7 +92,8 @@ public struct CollectionView<
             footer: footer,
             supplementaryViews: supplementaryViews,
             supplementaryView: supplementaryView,
-            refresh: refresh
+            refresh: refresh,
+            reorder: reorder
         )
     }
 }
@@ -97,9 +101,21 @@ public struct CollectionView<
 @available(iOS 14.0, *)
 extension CollectionView {
 
-    public func refreshable(action: @escaping @Sendable () async -> Void) -> some View {
+    public func refreshable(
+        isEnabled: Bool = true,
+        action: @escaping () async -> Void
+    ) -> Self {
         var copy = self
-        copy.refresh = action
+        copy.refresh = isEnabled ? action : nil
+        return copy
+    }
+
+    public func reorderable(
+        isEnabled: Bool = true,
+        action: @escaping (_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void
+    ) -> Self {
+        var copy = self
+        copy.reorder = isEnabled ? action : nil
         return copy
     }
 }
@@ -280,6 +296,7 @@ private struct CollectionViewBody<
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
     var refresh: (() async -> Void)?
+    var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
 
     typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Data>
 
@@ -289,6 +306,7 @@ private struct CollectionViewBody<
         coordinator.footer = footer
         coordinator.supplementaryView = supplementaryView
         coordinator.refresh = refresh
+        coordinator.reorder = reorder
     }
 
     func makeCoordinator() -> Coordinator {

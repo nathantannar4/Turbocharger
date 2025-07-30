@@ -42,13 +42,14 @@ open class CollectionViewHostingConfigurationCoordinator<
         layout: Layout,
         data: Data,
         refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         layoutOptions: CollectionViewLayoutOptions
     ) {
         self.header = header
         self.content = content
         self.footer = footer
         self.supplementaryView = supplementaryView
-        super.init(data: data, refresh: refresh, layout: layout, layoutOptions: layoutOptions)
+        super.init(data: data, refresh: refresh, reorder: reorder, layout: layout, layoutOptions: layoutOptions)
 
         // Invoke the view builders to trigger SwiftUI's runtime to form a
         // dependency between any DynamicProperty that the @escaping value
