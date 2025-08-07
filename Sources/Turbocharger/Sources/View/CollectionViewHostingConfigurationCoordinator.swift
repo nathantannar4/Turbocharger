@@ -21,8 +21,9 @@ open class CollectionViewHostingConfigurationCoordinator<
     Data: RandomAccessCollection
 >: CollectionViewCoordinator<Layout, Data> where
     Data.Element: RandomAccessCollection,
-    Data.Index: Hashable,
+    Data.Index: Hashable & Sendable,
     Data.Element.Element: Equatable & Identifiable,
+    Data.Element.Element.ID: Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -223,6 +224,7 @@ open class CollectionViewHostingConfigurationCoordinator<
 }
 
 @available(iOS 14.0, *)
+@MainActor
 private func makeHostingConfiguration<
     ID: Hashable,
     Content: View

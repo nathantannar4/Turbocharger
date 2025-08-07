@@ -172,6 +172,23 @@ struct BadgeModifier_Previews: PreviewProvider {
                     }
             }
             .padding(.horizontal)
+
+            HStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottom, anchor: .center, inset: 4) {
+                        Badge()
+                    }
+
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottom, anchor: .center, scale: 1.25) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    }
+            }
+            .padding(.horizontal)
         }
     }
 }

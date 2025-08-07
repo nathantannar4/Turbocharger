@@ -187,7 +187,7 @@ private class ShimmerClock: ObservableObject {
     private var timer: Timer?
     #endif
 
-    static let shared = ShimmerClock()
+    nonisolated(unsafe) static let shared = ShimmerClock()
     private init() {
     }
 

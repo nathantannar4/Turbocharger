@@ -67,25 +67,25 @@ public struct CALayerRepresentableContext<
 @available(watchOS, unavailable)
 extension CALayerRepresentable {
 
-    private var content: CALayerRepresentableBody<Self> {
+    private nonisolated var content: CALayerRepresentableBody<Self> {
         CALayerRepresentableBody(representable: self)
     }
 
-    public static func makeView(
+    public nonisolated static func makeView(
         view: _GraphValue<Self>,
         inputs: _ViewInputs
     ) -> _ViewOutputs {
         CALayerRepresentableBody<Self>._makeView(view: view[\.content], inputs: inputs)
     }
 
-    public static func makeViewList(
+    public nonisolated static func makeViewList(
         view: _GraphValue<Self>,
         inputs: _ViewListInputs
     ) -> _ViewListOutputs {
         CALayerRepresentableBody<Self>._makeViewList(view: view[\.content], inputs: inputs)
     }
 
-    public static func viewListCount(
+    public nonisolated static func viewListCount(
         inputs: _ViewListCountInputs
     ) -> Int? {
         CALayerRepresentableBody<Self>._viewListCount(inputs: inputs)
@@ -95,6 +95,20 @@ extension CALayerRepresentable {
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
 private struct CALayerRepresentableBody<
+    Representable: CALayerRepresentable
+>: View {
+    nonisolated(unsafe) var representable: Representable
+
+    var body: some View {
+        CALayerRepresentableRenderer(
+            representable: representable
+        )
+    }
+}
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
+@available(watchOS, unavailable)
+private struct CALayerRepresentableRenderer<
     Representable: CALayerRepresentable
 >: View {
     var representable: Representable
@@ -129,6 +143,9 @@ private struct CALayerRepresentableBody<
                 context: context
             )
         }
+        .onDisappear {
+            storage.dismantle()
+        }
     }
 
     final class Storage: ObservableObject {
@@ -139,13 +156,12 @@ private struct CALayerRepresentableBody<
             self.coordinator = coordinator
         }
 
-        deinit {
-            if let layer {
-                Representable.dismantleCALayer(
-                    layer,
-                    coordinator: coordinator
-                )
-            }
+        @MainActor
+        func dismantle() {
+            Representable.dismantleCALayer(
+                layer,
+                coordinator: coordinator
+            )
         }
     }
 }

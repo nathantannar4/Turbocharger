@@ -46,29 +46,42 @@ extension PlatformViewRepresentable where Coordinator == Void {
 
 extension PlatformViewRepresentable {
 
-    private var content: _PlatformViewRepresentableBody<Self> {
-        _PlatformViewRepresentableBody(representable: self)
+    private nonisolated var content: PlatformViewRepresentableBody<Self> {
+        PlatformViewRepresentableBody(representable: self)
     }
 
-    public static func makeView(
+    public nonisolated static func makeView(
         view: _GraphValue<Self>,
         inputs: _ViewInputs
     ) -> _ViewOutputs {
-        _PlatformViewRepresentableBody<Self>._makeView(view: view[\.content], inputs: inputs)
+        PlatformViewRepresentableBody<Self>._makeView(view: view[\.content], inputs: inputs)
     }
 
-    public static func makeViewList(
+    public nonisolated static func makeViewList(
         view: _GraphValue<Self>,
         inputs: _ViewListInputs
     ) -> _ViewListOutputs {
-        _PlatformViewRepresentableBody<Self>._makeViewList(view: view[\.content], inputs: inputs)
+        PlatformViewRepresentableBody<Self>._makeViewList(view: view[\.content], inputs: inputs)
     }
 
     @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-    public static func viewListCount(
+    public nonisolated static func viewListCount(
         inputs: _ViewListCountInputs
     ) -> Int? {
-        _PlatformViewRepresentableBody<Self>._viewListCount(inputs: inputs)
+        PlatformViewRepresentableBody<Self>._viewListCount(inputs: inputs)
+    }
+}
+
+private struct PlatformViewRepresentableBody<
+    Representable: PlatformViewRepresentable
+>: View {
+
+    nonisolated(unsafe) var representable: Representable
+
+    var body: some View {
+        _PlatformViewRepresentableBody(
+            representable: representable
+        )
     }
 }
 

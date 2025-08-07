@@ -8,6 +8,7 @@ import CoreImage.CIFilterBuiltins
 #endif
 import Engine
 
+@available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @frozen
 public struct VariableBlurView: View {
@@ -183,11 +184,11 @@ open class VariableBlurLayerView: PlatformView {
         gradientFilter.color1 = CIColor.clear
         gradientFilter.point0 = CGPoint(
             x: startPoint.x * size.width,
-            y: endPoint.y * size.height
+            y: startPoint.y * size.height
         )
         gradientFilter.point1 = CGPoint(
             x: endPoint.x * size.width,
-            y: startPoint.y * size.height
+            y: endPoint.y * size.height
         )
         let mask = CIContext().createCGImage(
             gradientFilter.outputImage!,
@@ -240,6 +241,75 @@ struct VariableBlurView_Previews: PreviewProvider {
                 Text(radius.rounded().description)
 
                 Slider(value: $radius, in: 0...50)
+
+                HStack {
+                    Text("Hello\nWorld")
+                        .overlay(
+                            VariableBlurView(
+                                radius: 1,
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+
+                    Text("Hello\nWorld")
+                        .overlay(
+                            VariableBlurView(
+                                radius: 1,
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                }
+
+                HStack {
+                    Text("Hello\nWorld")
+                        .overlay(
+                            VariableBlurView(
+                                radius: 1,
+                                startPoint: .top,
+                                endPoint: .init(x: 0.5, y: 2)
+                            )
+                        )
+
+                    Text("Hello\nWorld")
+                        .overlay(
+                            VariableBlurView(
+                                radius: 1,
+                                startPoint: .bottom,
+                                endPoint: .init(x: 0.5, y: -1)
+                            )
+                        )
+                }
+
+                HStack {
+                    Text("Hello World")
+                        .overlay(
+                            VariableBlurView(
+                                radius: 1,
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+
+                    Text("Hello World")
+                        .overlay(
+                            VariableBlurView(
+                                radius: 1,
+                                startPoint: .trailing,
+                                endPoint: .leading
+                            )
+                        )
+                }
+
+                Text("Hello World")
+                    .overlay(
+                        VariableBlurView(
+                            radius: 1,
+                            startPoint: .leading,
+                            endPoint: .init(x: 2, y: 0.5)
+                        )
+                    )
             }
         }
     }

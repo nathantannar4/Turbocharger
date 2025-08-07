@@ -103,8 +103,10 @@ public struct CollectionViewLayoutOptions {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
+@MainActor
 public struct CollectionViewSupplementaryView: Hashable, Sendable {
 
+    @MainActor
     public enum ID: Hashable, Sendable {
         case header
         case footer
@@ -126,7 +128,7 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
         }
     }
 
-    public var id: ID
+    public nonisolated var id: ID
     public var alignment: Alignment
     public var offset: CGPoint
     public var contentInset: EdgeInsets
@@ -150,7 +152,7 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
         id.kind
     }
 
-    public func hash(into hasher: inout Hasher) {
+    public nonisolated func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
 

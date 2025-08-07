@@ -55,8 +55,9 @@ open class CollectionViewCoordinator<
     Data: RandomAccessCollection
 >: NSObject, UICollectionViewDragDelegate, UICollectionViewDropDelegate where
     Data.Element: RandomAccessCollection,
-    Data.Index: Hashable,
-    Data.Element.Element: Equatable & Identifiable
+    Data.Index: Hashable & Sendable,
+    Data.Element.Element: Equatable & Identifiable,
+    Data.Element.Element.ID: Sendable
 {
     public typealias Section = Data.Index
     public typealias ID = Data.Element.Element.ID
@@ -645,6 +646,7 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
             proxy.outputDelegate = self
         }
 
+        @MainActor
         func scrollToBottom() {
             proxy.inputDelegate?.scrollToBottom()
         }
@@ -711,6 +713,7 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
     }
 
     class ListCoordinatorProxy: NSObject {
+        @MainActor
         protocol InputDelegate: AnyObject {
             func scrollToBottom()
         }

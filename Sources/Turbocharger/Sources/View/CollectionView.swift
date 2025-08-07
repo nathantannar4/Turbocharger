@@ -28,8 +28,9 @@ public struct CollectionView<
     Data: RandomAccessCollection
 >: View where
     Data.Element: RandomAccessCollection,
-    Data.Index: Hashable,
+    Data.Index: Hashable & Sendable,
     Data.Element.Element: Equatable & Identifiable,
+    Data.Element.Element.ID: Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -282,8 +283,9 @@ private struct CollectionViewBody<
     Data: RandomAccessCollection
 >: CollectionViewRepresentable where
     Data.Element: RandomAccessCollection,
-    Data.Index: Hashable,
+    Data.Index: Hashable & Sendable,
     Data.Element.Element: Equatable & Identifiable,
+    Data.Element.Element.ID: Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {

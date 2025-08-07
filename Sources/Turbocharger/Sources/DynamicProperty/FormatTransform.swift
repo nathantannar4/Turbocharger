@@ -41,11 +41,13 @@ public struct FormatTransform<F: ParseableFormatStyle & Sendable>: BindingTransf
 
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
 extension Binding {
+
     @inlinable
-    public func format<F: ParseableFormatStyle>(
+    @MainActor @preconcurrency
+    public func format<F: ParseableFormatStyle & Sendable>(
         _ format: F,
         defaultValue: F.FormatInput? = nil
-    ) -> Binding<F.FormatOutput> where F.FormatInput: Equatable, F.FormatOutput == String, Value == F.FormatInput {
+    ) -> Binding<F.FormatOutput> where F.FormatInput: Equatable, F.FormatOutput == String, Value == F.FormatInput, Value: Sendable {
         projecting(FormatTransform(format: format, defaultValue: defaultValue))
     }
 }

@@ -9,7 +9,7 @@ public struct AsyncForEach<
     Content: View
 >: View where Data.Element: Identifiable {
 
-    var values: [AsyncValue<Data.Element>]
+    nonisolated(unsafe) var values: [AsyncValue<Data.Element>]
     var content: (Optional<Data.Element>) -> Content
 
     public init(
@@ -55,7 +55,7 @@ extension AsyncForEach {
 }
 
 extension AsyncForEach: DynamicViewContent {
-    public var data: [Data.Element] {
+    public nonisolated var data: [Data.Element] {
         values.compactMap { $0.asOptional() }
     }
 }

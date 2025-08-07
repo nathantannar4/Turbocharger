@@ -4,6 +4,7 @@
 
 import SwiftUI
 
+@MainActor
 extension AnyTransition {
 
     /// Returns a transition that blurs the view.

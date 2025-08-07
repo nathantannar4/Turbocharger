@@ -6,10 +6,9 @@ import SwiftUI
 import Engine
 
 /// A view that arranges its subviews along multiple horizontal lines.
-///
-/// > Warning: Version 4+ is required for non-leading alignment
 @frozen
-public struct FlowStack<Content: View>: VersionedView {
+@available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+public struct FlowStack<Content: View>: View {
 
     public var alignment: Alignment
     public var spacing: CGFloat?
@@ -25,44 +24,9 @@ public struct FlowStack<Content: View>: VersionedView {
         self.content = content()
     }
 
-    @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
-    public var v4Body: some View {
+    public var body: some View {
         FlowStackLayout(alignment: alignment, spacing: spacing) {
             content
-        }
-    }
-
-    public var v1Body: some View {
-        let spacing = spacing ?? 8
-        ZStack(alignment: alignment) {
-            var width: CGFloat = 0
-            var x: CGFloat = 0
-            var y: CGFloat = 0
-
-            Color.clear
-                .frame(height: 0)
-                .hidden()
-                .alignmentGuide(alignment.horizontal) { d in
-                    width = d.width
-                    x = 0
-                    y = 0
-                    return 0
-                }
-
-            content
-                .alignmentGuide(alignment.horizontal) { d in
-                    if x + d.width > width {
-                        x = 0
-                        y += d.height + spacing
-                    }
-
-                    let result = x
-                    x += d.width + spacing
-                    return -result
-                }
-                .alignmentGuide(alignment.vertical) { d in
-                    d.height - y
-                }
         }
     }
 }
@@ -201,6 +165,7 @@ extension Sequence where Element == CGRect {
 
 // MARK: - Previews
 
+@available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 struct FlowStack_Previews: PreviewProvider {
     static var previews: some View {
         Preview()

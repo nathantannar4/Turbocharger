@@ -11,7 +11,7 @@ import Engine
 @MainActor @preconcurrency
 public protocol CollectionViewRepresentable: View {
 
-    associatedtype Data: RandomAccessCollection where Data.Element: RandomAccessCollection, Data.Index: Hashable, Data.Element.Element: Equatable & Identifiable
+    associatedtype Data: RandomAccessCollection where Data.Element: RandomAccessCollection, Data.Index: Hashable & Sendable, Data.Element.Element: Equatable & Identifiable, Data.Element.Element.ID: Sendable
     associatedtype Layout: CollectionViewLayout
     associatedtype Coordinator: CollectionViewCoordinator<Layout, Data>
 

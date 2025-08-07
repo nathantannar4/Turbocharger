@@ -9,7 +9,8 @@ import Combine
 /// object and invalidates a view whenever the observable object changes.
 @propertyWrapper
 @frozen
-public struct OptionalObservedObject<ObjectType: ObservableObject>: DynamicProperty {
+@MainActor @preconcurrency
+public struct OptionalObservedObject<ObjectType: ObservableObject>: @preconcurrency DynamicProperty {
 
     @usableFromInline
     class Storage: ObservableObject {
