@@ -9,11 +9,11 @@ import SwiftUI
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 public struct SizeThatFitsRelativeFrameModifier: ViewModifier {
 
-    public var transform: (CGSize) -> CGSize
+    public var transform: @Sendable (CGSize) -> CGSize
 
     @inlinable
     public init(
-        transform: @escaping (CGSize) -> CGSize
+        transform: @Sendable @escaping (CGSize) -> CGSize
     ) {
         self.transform = transform
     }
@@ -31,7 +31,7 @@ extension View {
     /// A view modifier that transforms a views frame based on its size that fits
     @inlinable
     public func sizeThatFitsRelativeFrame(
-        transform: @escaping (CGSize) -> CGSize
+        transform: @Sendable @escaping (CGSize) -> CGSize
     ) -> some View {
         modifier(SizeThatFitsRelativeFrameModifier(transform: transform))
     }
@@ -41,10 +41,10 @@ extension View {
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 public struct SizeThatFitsRelativeFrameLayout: Layout {
 
-    public var transform: (CGSize) -> CGSize
+    public var transform: @Sendable (CGSize) -> CGSize
 
     @inlinable
-    public init(transform: @escaping (CGSize) -> CGSize) {
+    public init(transform: @Sendable @escaping (CGSize) -> CGSize) {
         self.transform = transform
     }
 
