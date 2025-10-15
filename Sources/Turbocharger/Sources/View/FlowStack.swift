@@ -11,7 +11,8 @@ import Engine
 public struct FlowStack<Content: View>: View {
 
     public var alignment: Alignment
-    public var spacing: CGFloat?
+    public var columnSpacing: CGFloat?
+    public var rowSpacing: CGFloat?
     public var content: Content
 
     public init(
@@ -19,13 +20,32 @@ public struct FlowStack<Content: View>: View {
         spacing: CGFloat? = nil,
         @ViewBuilder content: () -> Content
     ) {
+        self.init(
+            alignment: alignment,
+            columnSpacing: spacing,
+            rowSpacing: spacing,
+            content: content
+        )
+    }
+
+    public init(
+        alignment: Alignment = .center,
+        columnSpacing: CGFloat? = nil,
+        rowSpacing: CGFloat? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
         self.alignment = alignment
-        self.spacing = spacing
+        self.columnSpacing = columnSpacing
+        self.rowSpacing = rowSpacing
         self.content = content()
     }
 
     public var body: some View {
-        FlowStackLayout(alignment: alignment, spacing: spacing) {
+        FlowStackLayout(
+            alignment: alignment,
+            columnSpacing: columnSpacing,
+            rowSpacing: rowSpacing,
+        ) {
             content
         }
     }
@@ -37,14 +57,28 @@ public struct FlowStack<Content: View>: View {
 public struct FlowStackLayout: Layout {
 
     public var alignment: Alignment = .center
-    public var spacing: CGFloat?
+    public var columnSpacing: CGFloat?
+    public var rowSpacing: CGFloat?
 
     public init(
         alignment: Alignment,
         spacing: CGFloat? = nil
     ) {
+        self.init(
+            alignment: alignment,
+            columnSpacing: spacing,
+            rowSpacing: spacing
+        )
+    }
+
+    public init(
+        alignment: Alignment,
+        columnSpacing: CGFloat? = nil,
+        rowSpacing: CGFloat? = nil
+    ) {
         self.alignment = alignment
-        self.spacing = spacing
+        self.columnSpacing = columnSpacing
+        self.rowSpacing = rowSpacing
     }
 
     public func sizeThatFits(
@@ -54,9 +88,7 @@ public struct FlowStackLayout: Layout {
     ) -> CGSize {
         let layoutProposal = layoutProposal(
             subviews: subviews,
-            spacing: spacing,
-            proposal: proposal,
-            alignment: alignment
+            proposal: proposal
         )
         return layoutProposal.frames.union.size
     }
@@ -69,9 +101,7 @@ public struct FlowStackLayout: Layout {
     ) {
         let layoutProposal = layoutProposal(
             subviews: subviews,
-            spacing: spacing,
-            proposal: proposal,
-            alignment: alignment
+            proposal: proposal
         )
         for (frame, subview) in zip(layoutProposal.frames, subviews) {
             subview.place(
@@ -89,9 +119,7 @@ public struct FlowStackLayout: Layout {
     }
     private func layoutProposal(
         subviews: Subviews,
-        spacing: CGFloat?,
         proposal: ProposedViewSize,
-        alignment: Alignment
     ) -> LayoutProposal {
 
         var result: [CGRect] = []
@@ -110,7 +138,7 @@ public struct FlowStackLayout: Layout {
             currentPosition.x = 0
             currentPosition.y += union.height
             if index < subviews.endIndex {
-                let spacing = spacing ?? subviews[index - 1].spacing.distance(
+                let spacing = rowSpacing ?? subviews[index - 1].spacing.distance(
                     to: subviews[index].spacing,
                     along: .vertical
                 )
@@ -122,7 +150,7 @@ public struct FlowStackLayout: Layout {
         for index in subviews.indices {
             let dimension = subviews[index].dimensions(in: proposal)
             if index > 0 {
-                let spacing = spacing ?? subviews[index - 1].spacing.distance(
+                let spacing = columnSpacing ?? subviews[index - 1].spacing.distance(
                     to: subviews[index].spacing,
                     along: .horizontal
                 )
@@ -236,7 +264,11 @@ struct FlowStack_Previews: PreviewProvider {
                                 }
                             }
 
-                            FlowStack(alignment: .trailing) {
+                            FlowStack(
+                                alignment: .trailing,
+                                columnSpacing: 12,
+                                rowSpacing: 4
+                            ) {
                                 ForEach(1..<16) { num in
                                     Text(String(num))
                                         .frame(minWidth: 30, minHeight: 30)

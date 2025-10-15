@@ -210,6 +210,10 @@ open class VariableBlurLayerView: PlatformView {
     open override func hitTest(_ point: NSPoint) -> NSView? {
         return nil
     }
+    #else
+    open override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        return nil
+    }
     #endif
 }
 
@@ -224,7 +228,7 @@ struct VariableBlurView_Previews: PreviewProvider {
                 Rectangle()
                     .fill(
                         LinearGradient(
-                            colors: [.blue, .red, .yellow],
+                            colors: [.blue, .yellow, .red],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )

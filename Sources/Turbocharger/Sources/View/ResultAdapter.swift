@@ -31,6 +31,25 @@ public struct ResultAdapter<
 
     @inlinable
     public init<Success, Failure: Error>(
+        _ value: Result<Success, Failure>?,
+        @ViewBuilder success : (Success) -> SuccessContent,
+        @ViewBuilder failure: (Failure?) -> FailureContent
+    ) {
+        switch value {
+        case .some(let value):
+            switch value {
+            case .success(let value):
+                self.content = .init(success(value))
+            case .failure(let error):
+                self.content = .init(failure(error))
+            }
+        case .none:
+            self.content = .init(failure(nil))
+        }
+    }
+
+    @inlinable
+    public init<Success, Failure: Error>(
         _ value: Binding<Result<Success, Failure>>,
         @ViewBuilder success: (Binding<Success>) -> SuccessContent,
         @ViewBuilder failure: (Binding<Failure>) -> FailureContent
@@ -51,10 +70,19 @@ public struct ResultAdapter<
 }
 
 extension ResultAdapter where FailureContent == EmptyView {
+
     @inlinable
     public init<Success, Failure: Error>(
         _ value: Result<Success, Failure>,
         @ViewBuilder success: (Success) -> SuccessContent
+    ) {
+        self.init(value, success: success, failure: { _ in EmptyView() })
+    }
+
+    @inlinable
+    public init<Success, Failure: Error>(
+        _ value: Result<Success, Failure>?,
+        @ViewBuilder success : (Success) -> SuccessContent
     ) {
         self.init(value, success: success, failure: { _ in EmptyView() })
     }

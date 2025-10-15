@@ -9,78 +9,74 @@ import SwiftUI
 @resultBuilder
 public struct ArrayBuilder<Element> {
 
-    @inlinable
-    public static func buildBlock() -> [Optional<Element>] {
-        []
-    }
+    public static func buildBlock() -> [Element] { [] }
 
-    @inlinable
     public static func buildPartialBlock(
-        first: [Optional<Element>]
-    ) -> [Optional<Element>] {
-        first
-    }
+        first: Void
+    ) -> [Element] { [] }
 
-    @inlinable
     public static func buildPartialBlock(
-        accumulated: [Optional<Element>],
-        next: [Optional<Element>]
-    ) -> [Optional<Element>] {
-        accumulated + next
-    }
+        first: Never
+    ) -> [Element] {}
 
-    @inlinable
     public static func buildExpression(
-        _ expression: Element
-    ) -> [Optional<Element>] {
-        [expression]
+        _ component: Element?
+    ) -> [Element] {
+        guard let component else { return []}
+        return [component]
     }
 
-    @inlinable
-    public static func buildEither(
-        first component: [Optional<Element>]
-    ) -> [Optional<Element>] {
-        component
-    }
-
-    @inlinable
-    public static func buildEither(
-        second component: [Optional<Element>]
-    ) -> [Optional<Element>] {
-        component
-    }
-
-    @inlinable
-    public static func buildOptional(
-        _ component: [Optional<Element>]?
-    ) -> [Optional<Element>] {
-        component ?? []
-    }
-
-    @inlinable
-    public static func buildLimitedAvailability(
-        _ component: [Optional<Element>]
-    ) -> [Optional<Element>] {
-        component
-    }
-
-    @inlinable
-    public static func buildArray(
-        _ components: [Optional<Element>]
-    ) -> [Optional<Element>] {
+    public static func buildExpression(
+        _ components: [Element]
+    ) -> [Element] {
         components
     }
 
-    @inlinable
-    public static func buildBlock(
-        _ components: [Optional<Element>]...
-    ) -> [Optional<Element>] {
+    public static func buildIf(
+        _ component: [Element]?
+    ) -> [Element] {
+        component ?? []
+    }
+
+    public static func buildEither(
+        first: [Element]
+    ) -> [Element] { first }
+
+    public static func buildEither(
+        second: [Element]
+    ) -> [Element] {
+        second
+    }
+
+    public static func buildArray(
+        _ components: [[Element]]
+    ) -> [Element] {
         components.flatMap { $0 }
     }
 
-    public static func buildFinalResult(
-        _ component: [Optional<Element>]
+    public static func buildPartialBlock(
+        first: Element
     ) -> [Element] {
-        component.compactMap { $0 }
+        [first]
+    }
+
+    public static func buildPartialBlock(
+        first: [Element]
+    ) -> [Element] {
+        first
+    }
+
+    public static func buildPartialBlock(
+        accumulated: [Element],
+        next: Element
+    ) -> [Element] {
+        accumulated + [next]
+    }
+
+    public static func buildPartialBlock(
+        accumulated: [Element],
+        next: [Element]
+    ) -> [Element] {
+        accumulated + next
     }
 }

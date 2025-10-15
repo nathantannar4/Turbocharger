@@ -14,7 +14,7 @@
 ## Requirements
 
 - Deployment target: iOS 13.0, macOS 10.15, tvOS 13.0, or watchOS 6.0
-- Xcode 15+
+- Xcode 16.4+
 
 ## Installation
 
