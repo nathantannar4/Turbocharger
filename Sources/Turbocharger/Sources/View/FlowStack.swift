@@ -132,6 +132,17 @@ public struct FlowStackLayout: Layout {
             result.append(contentsOf: currentLine.map { rect in
                 var copy = rect
                 copy.origin.y += currentPosition.y - union.minY
+                if result.count > 0 {
+                    switch alignment.horizontal {
+                    case .leading:
+                        break
+                    case .trailing:
+                        copy.origin.x = result.union.width - copy.origin.x - copy.size.width
+                    default:
+                        let delta = result.union.width - union.width
+                        copy.origin.x += delta / 2
+                    }
+                }
                 return copy
             })
 
@@ -196,6 +207,57 @@ extension Sequence where Element == CGRect {
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 struct FlowStack_Previews: PreviewProvider {
     static var previews: some View {
+        VStack(spacing: 24) {
+            FlowStack(alignment: .center) {
+                ForEach(1..<5) { num in
+                    Text(String(num))
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background(Circle().fill(Color.red))
+                }
+            }
+            .border(Color.red)
+
+            FlowStack(alignment: .leading) {
+                ForEach(1..<18) { num in
+                    Text(String(num))
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background(Circle().fill(Color.red))
+                }
+            }
+            .border(Color.red)
+
+            FlowStack(alignment: .center) {
+                ForEach(1..<18) { num in
+                    Text(String(num))
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background(Circle().fill(Color.red))
+                }
+            }
+            .border(Color.red)
+
+            FlowStack(alignment: .trailing) {
+                ForEach(1..<18) { num in
+                    Text(String(num))
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background(Circle().fill(Color.red))
+                }
+            }
+            .border(Color.red)
+
+            FlowStack(
+                alignment: .center,
+                columnSpacing: 0,
+                rowSpacing: 0
+            ) {
+                ForEach(1..<18) { num in
+                    Text(String(num))
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background(Circle().fill(Color.red))
+                }
+            }
+            .border(Color.red)
+        }
+
         Preview()
     }
 
@@ -238,42 +300,6 @@ struct FlowStack_Previews: PreviewProvider {
 
                                 Text("Hello World")
                                     .font(.title)
-                            }
-
-                            FlowStack(alignment: .center) {
-                                ForEach(1..<5) { num in
-                                    Text(String(num))
-                                        .frame(minWidth: 30, minHeight: 30)
-                                        .background(Circle().fill(Color.red))
-                                }
-                            }
-
-                            FlowStack(alignment: .leading) {
-                                ForEach(1..<18) { num in
-                                    Text(String(num))
-                                        .frame(minWidth: 30, minHeight: 30)
-                                        .background(Circle().fill(Color.red))
-                                }
-                            }
-
-                            FlowStack(alignment: .center) {
-                                ForEach(1..<23) { num in
-                                    Text(String(num))
-                                        .frame(minWidth: 30, minHeight: 30)
-                                        .background(Circle().fill(Color.red))
-                                }
-                            }
-
-                            FlowStack(
-                                alignment: .trailing,
-                                columnSpacing: 12,
-                                rowSpacing: 4
-                            ) {
-                                ForEach(1..<16) { num in
-                                    Text(String(num))
-                                        .frame(minWidth: 30, minHeight: 30)
-                                        .background(Circle().fill(Color.red))
-                                }
                             }
                         }
                         .frame(width: width)

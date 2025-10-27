@@ -177,22 +177,31 @@ open class VariableBlurLayerView: PlatformView {
     private func updateFilter() {
         needsFilterUpdate = false
         guard let filter = makeCAFilter() else { return }
-        let size = CGSize(width: 50, height: 50)
+        let size: CGFloat = 10
 
-        let gradientFilter = CIFilter.smoothLinearGradient()
+        let gradientFilter = CIFilter.linearGradient()
         gradientFilter.color0 = CIColor.black
         gradientFilter.color1 = CIColor.clear
         gradientFilter.point0 = CGPoint(
-            x: startPoint.x * size.width,
-            y: startPoint.y * size.height
+            x: startPoint.x * size,
+            y: endPoint.y * size
         )
         gradientFilter.point1 = CGPoint(
-            x: endPoint.x * size.width,
-            y: endPoint.y * size.height
+            x: endPoint.x * size,
+            y: startPoint.y * size
         )
         let mask = CIContext().createCGImage(
             gradientFilter.outputImage!,
-            from: CGRect(origin: .zero, size: size)
+            from: CGRect(
+                origin: CGPoint(
+                    x: 0,
+                    y: (endPoint.y + startPoint.y - 1) * size
+                ),
+                size: CGSize(
+                    width: size,
+                    height: size
+                )
+            )
         )!
 
         filter.setValue(radius, forKey: "inputRadius")
@@ -222,9 +231,58 @@ open class VariableBlurLayerView: PlatformView {
 @available(watchOS, unavailable)
 struct VariableBlurView_Previews: PreviewProvider {
     struct Preview: View {
-        @State var radius: CGFloat = 20
+        @State var radius: CGFloat = 40
         var body: some View {
             VStack {
+                VStack(spacing: 0) {
+                    Text("Title")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+
+                    Text("Subtitle")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .background(
+                    GeometryReader { proxy in
+                        let startPoint = UnitPoint(
+                            x: 0.5,
+                            y: (proxy.size.height / (proxy.size.height + proxy.safeAreaInsets.top - 22))
+                        )
+                        let endPoint = UnitPoint(
+                            x: 0.5,
+                            y: 1
+                        )
+                        HStack(spacing: 0) {
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
+                                startPoint: startPoint,
+                                endPoint: endPoint
+                            )
+                            .edgesIgnoringSafeArea(.all)
+
+                            VariableBlurView(
+                                radius: 2,
+                                startPoint: startPoint,
+                                endPoint: endPoint
+                            )
+                            .edgesIgnoringSafeArea(.all)
+                        }
+                        .onAppear {
+                            print(startPoint, endPoint)
+                        }
+                    }
+                )
+                .background(
+                    Text(String(repeating: "*", count: 1000))
+                        .truncationMode(.middle)
+                        .frame(height: 140)
+                        .edgesIgnoringSafeArea(.all)
+                )
+
+                Spacer()
+
                 Rectangle()
                     .fill(
                         LinearGradient(
@@ -233,7 +291,7 @@ struct VariableBlurView_Previews: PreviewProvider {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 300, height: 300)
+                    .frame(width: 200, height: 200)
                     .overlay(
                         VariableBlurView(
                             radius: radius,
@@ -245,21 +303,93 @@ struct VariableBlurView_Previews: PreviewProvider {
                 Text(radius.rounded().description)
 
                 Slider(value: $radius, in: 0...50)
+                    .padding(.horizontal)
+
+                let content = Text("Hello World\nHello World\nHello World")
+                let radius = radius / 10
 
                 HStack {
-                    Text("Hello\nWorld")
+                    content
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
+                                startPoint: .init(x: 0.5, y: -2),
+                                endPoint: .bottom
+                            )
+                        )
+
+                    content
                         .overlay(
                             VariableBlurView(
-                                radius: 1,
+                                radius: radius,
+                                startPoint: .init(x: 0.5, y: -2),
+                                endPoint: .bottom
+                            )
+                        )
+
+                    content
+                        .overlay(
+                            VariableBlurView(
+                                radius: radius,
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
                         )
 
-                    Text("Hello\nWorld")
+                    content
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+
+                HStack {
+                    content
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
+                                startPoint: .init(x: 0.5, y: 2),
+                                endPoint: .top
+                            )
+                        )
+
+                    content
                         .overlay(
                             VariableBlurView(
-                                radius: 1,
+                                radius: radius,
+                                startPoint: .init(x: 0.5, y: 2),
+                                endPoint: .top
+                            )
+                        )
+
+                    content
+                        .overlay(
+                            VariableBlurView(
+                                radius: radius,
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+
+                    content
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
                                 startPoint: .bottom,
                                 endPoint: .top
                             )
@@ -267,53 +397,92 @@ struct VariableBlurView_Previews: PreviewProvider {
                 }
 
                 HStack {
-                    Text("Hello\nWorld")
+                    content
                         .overlay(
-                            VariableBlurView(
-                                radius: 1,
-                                startPoint: .top,
-                                endPoint: .init(x: 0.5, y: 2)
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
+                                startPoint: .init(x: -1, y: 0.5),
+                                endPoint: .trailing
                             )
                         )
 
-                    Text("Hello\nWorld")
+                    content
                         .overlay(
                             VariableBlurView(
-                                radius: 1,
-                                startPoint: .bottom,
-                                endPoint: .init(x: 0.5, y: -1)
+                                radius: radius,
+                                startPoint: .init(x: -1, y: 0.5),
+                                endPoint: .trailing
                             )
                         )
-                }
 
-                HStack {
-                    Text("Hello World")
+                    content
                         .overlay(
                             VariableBlurView(
-                                radius: 1,
+                                radius: radius,
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
 
-                    Text("Hello World")
+                    content
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                }
+
+                HStack {
+                    content
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
+                                startPoint: .init(x: 2, y: 0.5),
+                                endPoint: .leading
+                            )
+                        )
+
+                    content
                         .overlay(
                             VariableBlurView(
-                                radius: 1,
+                                radius: radius,
+                                startPoint: .init(x: 2, y: 0.5),
+                                endPoint: .leading
+                            )
+                        )
+
+                    content
+                        .overlay(
+                            VariableBlurView(
+                                radius: radius,
+                                startPoint: .trailing,
+                                endPoint: .leading
+                            )
+                        )
+
+                    content
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    .black,
+                                    .clear
+                                ],
                                 startPoint: .trailing,
                                 endPoint: .leading
                             )
                         )
                 }
-
-                Text("Hello World")
-                    .overlay(
-                        VariableBlurView(
-                            radius: 1,
-                            startPoint: .leading,
-                            endPoint: .init(x: 2, y: 0.5)
-                        )
-                    )
             }
         }
     }
