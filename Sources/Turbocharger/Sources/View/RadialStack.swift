@@ -27,12 +27,12 @@ public struct RadialStack<Content: View>: VersionedView {
     public var v1Body: some View {
         VariadicViewAdapter {
             content
-        } content: { source in
+        } content: { children in
             ZStack(alignment: .topLeading) {
                 GeometryReader { proxy in
                     let radius = (radius ?? min(proxy.size.width, proxy.size.height) / 2) / 1.5
-                    let angle = 2.0 / CGFloat(source.children.count) * .pi
-                    ForEachSubview(source) { index, subview in
+                    let angle = 2.0 / CGFloat(children.count) * .pi
+                    ForEachSubview(children) { index, subview in
                         subview
                             .position(
                                 x: proxy.size.width / 2 + cos(angle * CGFloat(index) - .pi / 2) * radius,

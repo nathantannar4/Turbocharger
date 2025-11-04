@@ -18,7 +18,7 @@ extension LayoutSubviews.Element {
     }
 }
 
-extension AnyVariadicView.Subview {
+extension VariadicView.Subview {
     var layoutWeightPriority: Double {
         self[LayoutWeightPriority.self]
     }

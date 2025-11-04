@@ -69,7 +69,7 @@ public struct MarqueeHStack<Selection: Hashable, Content: View>: View {
                 ) { ctx in
                     MarqueeHStackBody(
                         selection: selection,
-                        views: source.children,
+                        views: source,
                         keyframe: max(0, ctx.date.timeIntervalSince(startAt)),
                         speed: speed,
                         spacing: spacing
@@ -99,7 +99,7 @@ private struct MarqueeHStackNodeProxy {
 private struct MarqueeHStackBody<Selection: Hashable>: View {
 
     var selection: Binding<Selection>?
-    var views: AnyVariadicView
+    var views: VariadicView
     var keyframe: TimeInterval
     var speed: Double
     var spacing: CGFloat
@@ -108,7 +108,7 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
 
     init(
         selection: Binding<Selection>? = nil,
-        views: AnyVariadicView,
+        views: VariadicView,
         keyframe: TimeInterval,
         speed: Double,
         spacing: CGFloat

@@ -45,9 +45,8 @@ public struct WeightedHStack<Content: View>: VersionedView {
             GeometryReader { proxy in
                 VariadicViewAdapter {
                     content
-                } content: { source in
+                } content: { children in
                     HStack(alignment: alignment, spacing: spacing) {
-                        let children = source.children
                         let availableWidth = (proxy.size.width - (CGFloat(children.count - 1) * spacing))
                         let weights = children.reduce(into: 0) { value, subview in
                             value += max(0, min(subview.layoutWeightPriority, CGFloat(children.count)))
