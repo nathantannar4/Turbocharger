@@ -25,38 +25,39 @@ public struct CollectionView<
     Footer: View,
     SupplementaryView: View,
     Layout: CollectionViewLayout,
-    Data: RandomAccessCollection
+    Section: Equatable & Identifiable,
+    Items: RandomAccessCollection
 >: View where
-    Data.Element: RandomAccessCollection,
-    Data.Index: Hashable & Sendable,
-    Data.Element.Element: Equatable & Identifiable,
-    Data.Element.Element.ID: Sendable,
+    Items.Index: Hashable & Sendable,
+    Items.Element: Equatable & Identifiable,
+    Items.Element.ID: Sendable,
+    Section.ID: Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
     var layout: Layout
-    var data: Data
-    var header: (Data.Index) -> Header
-    var content: (Data.Element.Element) -> Content
-    var footer: (Data.Index) -> Footer
+    var sections: [CollectionViewSection<Section, Items>]
+    var header: (Section) -> Header
+    var content: (Items.Element) -> Content
+    var footer: (Section) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
-    var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
+    var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
 
     public init(
         _ layout: Layout,
-        sections: Data,
+        sections: [CollectionViewSection<Section, Items>],
         supplementaryViews: [CollectionViewSupplementaryView],
         refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Data.Element.Element) -> Content,
-        @ViewBuilder header: @escaping (Data.Index) -> Header,
-        @ViewBuilder footer: @escaping (Data.Index) -> Footer,
-        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
+        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
+        @ViewBuilder content: @escaping (Items.Element) -> Content,
+        @ViewBuilder header: @escaping (Section) -> Header,
+        @ViewBuilder footer: @escaping (Section) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
     ) {
         self.layout = layout
-        self.data = sections
+        self.sections = sections
         self.header = header
         self.content = content
         self.footer = footer
@@ -68,15 +69,19 @@ public struct CollectionView<
 
     public init(
         _ layout: Layout,
-        sections: Data,
-        @ViewBuilder content: @escaping (Data.Element.Element) -> Content,
-        @ViewBuilder header: @escaping (Data.Index) -> Header,
-        @ViewBuilder footer: @escaping (Data.Index) -> Footer
+        sections: [CollectionViewSection<Section, Items>],
+        refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
+        @ViewBuilder content: @escaping (Items.Element) -> Content,
+        @ViewBuilder header: @escaping (Section) -> Header,
+        @ViewBuilder footer: @escaping (Section) -> Footer
     ) where SupplementaryView == EmptyView {
         self.init(
             layout,
             sections: sections,
             supplementaryViews: [],
+            refresh: refresh,
+            reorder: reorder,
             content: content,
             header: header,
             footer: footer,
@@ -87,7 +92,7 @@ public struct CollectionView<
     public var body: some View {
         CollectionViewBody(
             layout: layout,
-            data: data,
+            sections: sections,
             header: header,
             content: content,
             footer: footer,
@@ -125,136 +130,82 @@ extension CollectionView {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-extension CollectionView where SupplementaryView == EmptyView {
+extension CollectionView {
 
-    public init<
-        Items: RandomAccessCollection
-    >(
+    public init(
         _ layout: Layout,
+        supplementaryViews: [CollectionViewSupplementaryView],
         items: Items,
+        refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
         @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Data.Index) -> Header,
-        @ViewBuilder footer: @escaping (Data.Index) -> Footer
-    ) where Items.Element: Equatable & Identifiable, Data == Array<Items>
+        @ViewBuilder header: @escaping (Section) -> Header,
+        @ViewBuilder footer: @escaping (Section) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+    ) where
+        Section == CollectionViewSectionIndex
     {
-        self.init(layout, sections: [items], content: content, header: header, footer: footer)
+        self.init(
+            layout,
+            sections: [
+                CollectionViewSection(items: items, section: 0)
+            ],
+            supplementaryViews: supplementaryViews,
+            refresh: refresh,
+            reorder: reorder,
+            content: content,
+            header: header,
+            footer: footer,
+            supplementaryView: supplementaryView
+        )
     }
 
-    @_disfavoredOverload
-    public init<
-        Items: RandomAccessCollection
-    >(
+    public init(
         _ layout: Layout,
         items: Items,
+        refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
         @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Data.Index) -> Header,
-        @ViewBuilder footer: @escaping (Data.Index) -> Footer
-    ) where Items.Element: Identifiable, Data == Array<Array<EquatableBox<Items.Element>>>
+        @ViewBuilder header: @escaping (Section) -> Header,
+        @ViewBuilder footer: @escaping (Section) -> Footer
+    ) where
+        Section == CollectionViewSectionIndex,
+        SupplementaryView == EmptyView
     {
-        let items = items.map { EquatableBox($0) }
-        self.init(layout, sections: [items], content: { content($0.value) }, header: header, footer: footer)
-    }
-}
-
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-extension CollectionView where SupplementaryView == EmptyView {
-
-    public init<
-        Sections: RandomAccessCollection,
-        ID: Hashable
-    >(
-        _ layout: Layout,
-        sections: Sections,
-        id: KeyPath<Sections.Element.Element, ID>,
-        @ViewBuilder content: @escaping (Sections.Element.Element) -> Content,
-        @ViewBuilder header: @escaping (Data.Index) -> Header,
-        @ViewBuilder footer: @escaping (Data.Index) -> Footer
-    ) where Sections.Element: RandomAccessCollection, Sections.Index: Hashable, Sections.Element.Element: Equatable, Data == Array<Array<IdentifiableBox<Sections.Element.Element, ID>>>
-    {
-        let data: Data = sections.compactMap { items in
-            items.compactMap { IdentifiableBox($0, id: id) }
-        }
-        self.init(layout, sections: data, content: { content($0.value) }, header: header, footer: footer)
+        self.init(
+            layout,
+            supplementaryViews: [],
+            items: items,
+            refresh: refresh,
+            reorder: reorder,
+            content: content,
+            header: header,
+            footer: footer,
+            supplementaryView: { _, _ in EmptyView() }
+        )
     }
 
-    @_disfavoredOverload
-    public init<
-        Sections: RandomAccessCollection,
-        ID: Hashable
-    >(
-        _ layout: Layout,
-        sections: Sections,
-        id: KeyPath<Sections.Element.Element, ID>,
-        @ViewBuilder content: @escaping (Sections.Element.Element) -> Content,
-        @ViewBuilder header: @escaping (Data.Index) -> Header,
-        @ViewBuilder footer: @escaping (Data.Index) -> Footer
-    ) where Sections.Element: RandomAccessCollection, Sections.Index: Hashable, Data == Array<Array<EquatableBox<IdentifiableBox<Sections.Element.Element, ID>>>>
-    {
-        let data: Data = sections.compactMap { items in
-            items.compactMap { EquatableBox(IdentifiableBox($0, id: id)) }
-        }
-        self.init(layout, sections: data, content: { content($0.value.value) }, header: header, footer: footer)
-    }
-}
-
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-extension CollectionView where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
-
-    public init<
-        Items: RandomAccessCollection
-    >(
+    public init(
         _ layout: Layout,
         items: Items,
+        refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
         @ViewBuilder content: @escaping (Items.Element) -> Content
-    ) where Items.Element: Equatable & Identifiable, Data == Array<Items>
+    ) where
+        Section == CollectionViewSectionIndex,
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView
     {
-        self.init(layout, items: items, content: content, header: { _ in EmptyView() }, footer: { _ in EmptyView() })
-    }
-
-    @_disfavoredOverload
-    public init<
-        Items: RandomAccessCollection
-    >(
-        _ layout: Layout,
-        items: Items,
-        @ViewBuilder content: @escaping (Items.Element) -> Content
-    ) where Items.Element: Identifiable, Data == Array<Array<EquatableBox<Items.Element>>>
-    {
-        let items = items.map { EquatableBox($0) }
-        self.init(layout, items: items, content: { content($0.value) }, header: { _ in EmptyView() }, footer: { _ in EmptyView() })
-    }
-
-    public init<
-        Items: RandomAccessCollection,
-        ID: Hashable
-    >(
-        _ layout: Layout,
-        items: Items,
-        id: KeyPath<Items.Element, ID>,
-        @ViewBuilder content: @escaping (Items.Element) -> Content
-    ) where Data == Array<Array<IdentifiableBox<Items.Element, ID>>>
-    {
-        self.init(layout, sections: [items], id: id, content: content, header: { _ in EmptyView() }, footer: { _ in EmptyView() })
-    }
-
-    @_disfavoredOverload
-    public init<
-        Items: RandomAccessCollection,
-        ID: Hashable
-    >(
-        _ layout: Layout,
-        items: Items,
-        id: KeyPath<Items.Element, ID>,
-        @ViewBuilder content: @escaping (Items.Element) -> Content
-    ) where Data == Array<Array<EquatableBox<IdentifiableBox<Items.Element, ID>>>>
-    {
-        self.init(layout, sections: [items], id: id, content: content, header: { _ in EmptyView() }, footer: { _ in EmptyView() })
+        self.init(
+            layout,
+            items: items,
+            refresh: refresh,
+            reorder: reorder,
+            content: content,
+            header: { _ in EmptyView() },
+            footer: { _ in EmptyView() }
+        )
     }
 
     public init<
@@ -263,13 +214,41 @@ extension CollectionView where Header == EmptyView, Footer == EmptyView, Supplem
         _ layout: Layout,
         @ViewBuilder views: () -> Views
     ) where
+        Section == CollectionViewSectionIndex,
         Content == MultiViewSubviewVisitor.Subview,
-        Data == Array<Array<EquatableBox<MultiViewSubviewVisitor.Subview>>>
+        Items == Array<EquatableBox<MultiViewSubviewVisitor.Subview>>,
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView
     {
         var visitor = MultiViewSubviewVisitor()
         let content = views()
         content.visit(visitor: &visitor)
-        self.init(layout, items: visitor.subviews, content: { $0 })
+        let items = visitor.subviews.map { EquatableBox($0) }
+        self.init(
+            layout,
+            items: items,
+            content: { $0.value }
+        )
+    }
+
+    public init(
+        _ layout: Layout,
+        views: VariadicView,
+        content: @escaping (VariadicView.Subview) -> Content = { $0 }
+    ) where
+        Section == CollectionViewSectionIndex,
+        Items == Array<EquatableBox<VariadicView.Subview>>,
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView
+    {
+        let items = views.map { EquatableBox($0) }
+        self.init(
+            layout,
+            items: items,
+            content: { content($0.value) }
+        )
     }
 }
 
@@ -280,27 +259,28 @@ private struct CollectionViewBody<
     Footer: View,
     SupplementaryView: View,
     Layout: CollectionViewLayout,
-    Data: RandomAccessCollection
+    Section: Equatable & Identifiable,
+    Items: RandomAccessCollection,
 >: CollectionViewRepresentable where
-    Data.Element: RandomAccessCollection,
-    Data.Index: Hashable & Sendable,
-    Data.Element.Element: Equatable & Identifiable,
-    Data.Element.Element.ID: Sendable,
+    Items.Index: Hashable & Sendable,
+    Items.Element: Equatable & Identifiable,
+    Items.Element.ID: Sendable,
+    Section.ID: Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
 
     var layout: Layout
-    var data: Data
-    var header: (Data.Index) -> Header
-    var content: (Data.Element.Element) -> Content
-    var footer: (Data.Index) -> Footer
+    var sections: [CollectionViewSection<Section, Items>]
+    var header: (Section) -> Header
+    var content: (Items.Element) -> Content
+    var footer: (Section) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
-    var supplementaryView: (CollectionViewSupplementaryView.ID, Data.Index) -> SupplementaryView
+    var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
 
-    typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Data>
+    typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items>
 
     func updateCoordinator(_ coordinator: Coordinator) {
         coordinator.header = header
@@ -325,7 +305,7 @@ private struct CollectionViewBody<
             footer: footer,
             supplementaryView: supplementaryView,
             layout: layout,
-            data: data,
+            sections: sections,
             refresh: refresh,
             layoutOptions: layoutOptions
         )
@@ -346,6 +326,7 @@ struct CollectionView_Previews: PreviewProvider {
     static var previews: some View {
         PreviewA()
         PreviewB()
+        PreviewC()
     }
 
     struct PreviewA: View {
@@ -354,7 +335,7 @@ struct CollectionView_Previews: PreviewProvider {
             var value = 0
         }
 
-        @State var sections: [CollectionViewSection<[Item], Int>] = (0..<10).map { index in
+        @State var sections: [CollectionViewSection<CollectionViewSectionIndex, [Item]>] = (0..<10).map { index in
             CollectionViewSection(
                 items: (0..<10).map { Item(value: $0) },
                 section: index
@@ -423,14 +404,14 @@ struct CollectionView_Previews: PreviewProvider {
                 ]
             ) { item in
                 ItemView(item: item)
-            } header: { index in
-                HeaderFooterView(index: index)
+            } header: { section in
+                HeaderFooterView(index: section.index)
                     .background(.yellow)
-            } footer: { index in
-                HeaderFooterView(index: index)
+            } footer: { section in
+                HeaderFooterView(index: section.index)
                     .background(.orange)
-            } supplementaryView: { id, index in
-                if id == .custom("banner"), index == 0 {
+            } supplementaryView: { id, section in
+                if id == .custom("banner"), section.index == 0 {
                     Color.purple
                         .frame(height: 200)
                         .overlay {
@@ -583,6 +564,44 @@ struct CollectionView_Previews: PreviewProvider {
                 }
                 .buttonStyle(.plain)
                 .padding([.bottom, .trailing])
+            }
+        }
+    }
+
+    struct PreviewC: View {
+        @State var flag = false
+
+        var body: some View {
+            VStack {
+                Button {
+                    flag.toggle()
+                } label: {
+                    Text("Toggle")
+                }
+
+                CollectionView(.compositional) {
+                    CellView(flag: flag)
+                    CellView(flag: flag)
+                }
+            }
+            .animation(.default, value: flag)
+        }
+
+        struct CellView: View {
+            var flag: Bool
+
+            var body: some View {
+                HStack {
+                    Text("Hello, World")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if flag {
+                        Circle()
+                            .frame(width: 20, height: 20)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                }
+                .padding()
             }
         }
     }

@@ -108,8 +108,10 @@ struct CollectionViewListLayout_Previews: PreviewProvider {
         VStack(spacing: 12) {
             CollectionView(
                 .plain,
-                sections: [[1, 2], [3]],
-                id: \.self
+                sections: [
+                    CollectionViewSection(items: [1, 2], id: \.self, section: 0),
+                    CollectionViewSection(items: [3], id: \.self, section: 0),
+                ]
             ) { id in
                 CellView("Cell \(id)")
             } header: { _ in
@@ -120,8 +122,10 @@ struct CollectionViewListLayout_Previews: PreviewProvider {
 
             CollectionView(
                 .grouped,
-                sections: [[1, 2], [3]],
-                id: \.self
+                sections: [
+                    CollectionViewSection(items: [1, 2], id: \.self, section: 0),
+                    CollectionViewSection(items: [3], id: \.self, section: 0),
+                ]
             ) { id in
                 CellView("Cell \(id)")
             } header: { _ in
@@ -132,8 +136,10 @@ struct CollectionViewListLayout_Previews: PreviewProvider {
 
             CollectionView(
                 .insetGrouped,
-                sections: [[1, 2], [3]],
-                id: \.self
+                sections: [
+                    CollectionViewSection(items: [1, 2], id: \.self, section: 0),
+                    CollectionViewSection(items: [3], id: \.self, section: 0),
+                ]
             ) { id in
                 CellView("Cell \(id)")
             } header: { _ in
@@ -152,7 +158,7 @@ struct CollectionViewListLayout_Previews: PreviewProvider {
 
         var body: some View {
             Text(text)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
                 .background(Color.red)
         }

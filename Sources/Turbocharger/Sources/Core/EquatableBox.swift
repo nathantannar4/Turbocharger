@@ -14,7 +14,12 @@ public struct EquatableBox<Value>: Equatable {
     }
 
     public static func == (lhs: EquatableBox<Value>, rhs: EquatableBox<Value>) -> Bool {
-        return false
+        return withUnsafeBytes(of: lhs.value) { lhsBytes in
+            withUnsafeBytes(of: rhs.value) { rhsBytes in
+                guard lhsBytes.count == rhsBytes.count else { return false }
+                return lhsBytes.elementsEqual(rhsBytes)
+            }
+        }
     }
 }
 

@@ -202,8 +202,9 @@ struct CollectionViewLayout_Previews: PreviewProvider {
     static var previews: some View {
         CollectionView(
             .compositional(spacing: 12, pinnedViews: [.header]),
-            sections: [[1, 2, 3]],
-            id: \.self
+            sections: [
+                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+            ]
         ) { id in
             CellView(axis: .vertical, text: "Cell \(id)")
         } header: { _ in
@@ -218,8 +219,10 @@ struct CollectionViewLayout_Previews: PreviewProvider {
                 sectionSpacing: 4,
                 contentInsets: .init(top: 8, leading: 8, bottom: 8, trailing: 8)
             ),
-            sections: [[1, 2, 3], [4, 5, 6]],
-            id: \.self
+            sections: [
+                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+                CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
+            ]
         ) { id in
             CellView(axis: .vertical, text: "Cell \(id)")
         } header: { _ in
@@ -230,8 +233,10 @@ struct CollectionViewLayout_Previews: PreviewProvider {
 
         CollectionView(
             .compositional(axis: .horizontal, spacing: 12, pinnedViews: [.header]),
-            sections: [[1, 2, 3], [4, 5, 6]],
-            id: \.self
+            sections: [
+                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+                CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
+            ]
         ) { id in
             CellView(axis: .horizontal, text: "Cell \(id)")
         } header: { _ in
@@ -243,8 +248,10 @@ struct CollectionViewLayout_Previews: PreviewProvider {
         ScrollView {
             CollectionView(
                 .compositional(axis: .horizontal, spacing: 12, pinnedViews: [.header]),
-                sections: [[1, 2, 3], [4, 5, 6]],
-                id: \.self
+                sections: [
+                    CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+                    CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
+                ]
             ) { id in
                 CellView(axis: .horizontal, text: "Cell \(id)")
             } header: { _ in
@@ -259,7 +266,9 @@ struct CollectionViewLayout_Previews: PreviewProvider {
                 spacing: 12,
                 pinnedViews: [.header]
             ),
-            sections: [(0..<3).map { IdentifiableBox($0, id: \.self) }],
+            sections: [
+                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+            ],
             supplementaryViews: [
                 .header,
                 .custom(

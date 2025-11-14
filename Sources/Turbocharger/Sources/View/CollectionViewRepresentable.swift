@@ -11,12 +11,13 @@ import Engine
 @MainActor @preconcurrency
 public protocol CollectionViewRepresentable: View {
 
-    associatedtype Data: RandomAccessCollection where Data.Element: RandomAccessCollection, Data.Index: Hashable & Sendable, Data.Element.Element: Equatable & Identifiable, Data.Element.Element.ID: Sendable
     associatedtype Layout: CollectionViewLayout
-    associatedtype Coordinator: CollectionViewCoordinator<Layout, Data>
+    associatedtype Section: Equatable & Identifiable where Section.ID: Sendable
+    associatedtype Items: RandomAccessCollection where Items.Index: Hashable & Sendable, Items.Element: Equatable & Identifiable, Items.Element.ID: Sendable
+    associatedtype Coordinator: CollectionViewCoordinator<Layout, Section, Items>
 
-    var data: Data { get }
     var layout: Layout { get }
+    var sections: [CollectionViewSection<Section, Items>] { get }
 
     func updateCoordinator(_ coordinator: Coordinator)
 
@@ -61,7 +62,7 @@ public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepr
         )
         representable.updateCoordinator(context.coordinator)
         context.coordinator.update(layout: representable.layout)
-        context.coordinator.update(data: representable.data)
+        context.coordinator.update(sections: representable.sections)
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -73,8 +74,12 @@ public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepr
         in proposedSize: _ProposedSize,
         uiView: UIViewType
     ) {
-        size.width = max(size.width, 10)
-        size.height = max(size.height, 10)
+        let proposedSize = ProposedSize(proposedSize)
+        representable.layout.overrideSizeThatFits(
+            &size,
+            in: proposedSize,
+            collectionView: uiView
+        )
     }
 }
 

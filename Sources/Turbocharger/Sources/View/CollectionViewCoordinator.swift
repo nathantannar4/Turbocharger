@@ -8,23 +8,49 @@ import UIKit
 import SwiftUI
 
 /// A collection wrapper for grouping items in a section
+@frozen
 public struct CollectionViewSection<
-    Data: RandomAccessCollection & Equatable,
-    Section: Equatable
->: RandomAccessCollection, Equatable where Data.Element: Equatable & Identifiable {
+    Section: Equatable & Identifiable,
+    Items: RandomAccessCollection
+>: RandomAccessCollection where
+    Items.Element: Equatable & Identifiable,
+    Items.Element.ID: Sendable,
+    Section.ID: Sendable
+{
 
-    public var items: Data
+    public var items: Items
     public var section: Section
 
-    public init(items: Data, section: Section) {
+    public init(items: Items, section: Section) {
         self.items = items
         self.section = section
     }
 
+    public init<
+        _Items: RandomAccessCollection,
+        ID: Hashable & Sendable
+    >(
+        items: _Items,
+        id: KeyPath<_Items.Element, ID>,
+        section: Int
+    ) where
+        _Items.Element: Equatable,
+        Items == Array<IdentifiableBox<_Items.Element, ID>>,
+        Section == CollectionViewSectionIndex
+    {
+        let items = items.map { IdentifiableBox($0, id: id) }
+        self.init(items: items, section: section)
+    }
+
+    public init(items: Items, section: Int) where Section == CollectionViewSectionIndex {
+        self.items = items
+        self.section = CollectionViewSectionIndex(index: section)
+    }
+
     // MARK: - RandomAccessCollection
 
-    public typealias Index = Data.Index
-    public typealias Element = Data.Element
+    public typealias Index = Items.Index
+    public typealias Element = Items.Element
 
     public var startIndex: Index {
         items.startIndex
@@ -47,26 +73,38 @@ public struct CollectionViewSection<
     }
 }
 
+@frozen
+public struct CollectionViewSectionIndex: Hashable, Identifiable, Sendable {
+
+    public var index: Int
+
+    public var id: CollectionViewSectionIndex { self }
+
+    public init(index: Int) {
+        self.index = index
+    }
+}
+
 /// A `UICollectionViewDiffableDataSource` wrapper
 @MainActor
 @available(iOS 14.0, *)
 open class CollectionViewCoordinator<
     Layout: CollectionViewLayout,
-    Data: RandomAccessCollection
+    Section: Equatable & Identifiable,
+    Items: RandomAccessCollection
 >: NSObject, UICollectionViewDragDelegate, UICollectionViewDropDelegate where
-    Data.Element: RandomAccessCollection,
-    Data.Index: Hashable & Sendable,
-    Data.Element.Element: Equatable & Identifiable,
-    Data.Element.Element.ID: Sendable
+    Items.Index: Hashable & Sendable,
+    Items.Element: Equatable & Identifiable,
+    Items.Element.ID: Sendable,
+    Section.ID: Sendable
 {
-    public typealias Section = Data.Index
-    public typealias ID = Data.Element.Element.ID
+    public typealias ID = Items.Element.ID
 
     public let layoutOptions: CollectionViewLayoutOptions
     public var context: CollectionViewLayoutContext = .init(environment: .init(), transaction: .init())
     public private(set) var layout: Layout
-    public private(set) var data: Data
-    public private(set) var dataSource: UICollectionViewDiffableDataSource<Section, ID>!
+    public private(set) var sections: [CollectionViewSection<Section, Items>]
+    public private(set) var dataSource: UICollectionViewDiffableDataSource<Section.ID, ID>!
     public private(set) weak var collectionView: Layout.UICollectionViewType!
 
     public var refresh: (() async -> Void)? {
@@ -91,28 +129,28 @@ open class CollectionViewCoordinator<
     private var supplementaryViewRegistration = [String: UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>]()
 
     public init(
-        data: Data,
+        sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil,
         reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         layout: Layout,
         layoutOptions: CollectionViewLayoutOptions
     ) {
         self.layout = layout
-        self.data = data
+        self.sections = sections
         self.refresh = refresh
         self.reorder = reorder
         self.layoutOptions = layoutOptions
         super.init()
     }
 
-    public func item(for indexPath: IndexPath) -> Data.Element.Element {
-        let section = data.index(data.startIndex, offsetBy: indexPath.section)
-        let item = data[section].index(data[section].startIndex, offsetBy: indexPath.item)
-        let value = data[section][item]
+    public func item(for indexPath: IndexPath) -> Items.Element {
+        let section = sections[indexPath.section]
+        let index = section.items.index(section.items.startIndex, offsetBy: indexPath.item)
+        let value = section.items[index]
         return value
     }
 
-    public func indexPath(for id: Data.Element.Element.ID) -> IndexPath? {
+    public func indexPath(for id: Items.Element.ID) -> IndexPath? {
         dataSource.indexPath(for: id)
     }
 
@@ -131,7 +169,7 @@ open class CollectionViewCoordinator<
     open func configureCell(
         _ cell: Layout.UICollectionViewCellType,
         indexPath: IndexPath,
-        item: Data.Element.Element
+        item: Items.Element
     ) {
         fatalError("\(#function) should be overridden by class \(Self.self)")
     }
@@ -180,7 +218,7 @@ open class CollectionViewCoordinator<
             }
         }
 
-        let dataSource = UICollectionViewDiffableDataSource<Section, ID>(
+        let dataSource = UICollectionViewDiffableDataSource<Section.ID, ID>(
             collectionView: collectionView
         ) { [unowned self] (collectionView: UICollectionView, indexPath: IndexPath, item: ID) -> Layout.UICollectionViewCellType? in
             guard let cell = dequeueReusableCell(
@@ -266,17 +304,21 @@ open class CollectionViewCoordinator<
         layout.updateUICollectionView(collectionView, context: context)
     }
 
-    func update(data: Data) {
-        performUpdate(data: data, animation: context.transaction.animation)
+    func update(sections: [CollectionViewSection<Section, Items>]) {
+        performUpdate(sections: sections, animation: context.transaction.animation)
     }
 
     /// Updates the data source, you should not call this directly when using ``CollectionViewRepresentable``
     open func performUpdate(
-        data: Data,
+        sections: [CollectionViewSection<Section, Items>],
         animation: Animation?,
         completion: (() -> Void)? = nil
     ) {
-        let (wasEmpty, updated) = updateDataSource(data: data, animated: animation != nil, completion: completion)
+        let (wasEmpty, updated) = updateDataSource(
+            sections: sections,
+            animated: animation != nil,
+            completion: completion
+        )
         let hasSupplementaryViews = !layoutOptions.supplementaryViews.isEmpty
         guard (!updated.isEmpty && !wasEmpty) || hasSupplementaryViews else {
             return
@@ -316,21 +358,21 @@ open class CollectionViewCoordinator<
     }
 
     private func updateDataSource(
-        data: Data,
+        sections: [CollectionViewSection<Section, Items>],
         animated: Bool,
         completion: (() -> Void)? = nil
     ) -> (Bool, Set<ID>) {
         defer { lastUpdateSeed = updateSeed }
         let oldValue = dataSource.snapshot().itemIdentifiers
         var newValue = [ID]()
-        newValue.reserveCapacity(data.reduce(into: 0) { $0 += $1.count })
+        newValue.reserveCapacity(sections.reduce(into: 0) { $0 += $1.count })
 
-        var snapshot = NSDiffableDataSourceSnapshot<Section, ID>()
-        if !data.isEmpty {
-            snapshot.appendSections(Array(data.indices))
-            for section in data.indices {
-                let ids = data[section].map(\.id)
-                snapshot.appendItems(ids, toSection: section)
+        var snapshot = NSDiffableDataSourceSnapshot<Section.ID, ID>()
+        if !sections.isEmpty {
+            snapshot.appendSections(sections.map({ $0.section.id }))
+            for section in sections {
+                let ids = section.items.map({ $0.id })
+                snapshot.appendItems(ids, toSection: section.section.id)
                 newValue.append(contentsOf: ids)
             }
         }
@@ -343,24 +385,27 @@ open class CollectionViewCoordinator<
             let indexPathsForVisibleItems = collectionView.indexPathsForVisibleItems
             for indexPath in indexPathsForVisibleItems {
                 guard
-                    self.data.count > indexPath.section,
-                    data.count > indexPath.section
+                    self.sections.count > indexPath.section,
+                    sections.count > indexPath.section
                 else {
                     continue
                 }
-                let section = data.index(data.startIndex, offsetBy: indexPath.section)
                 guard
-                    self.data[section].count > indexPath.item,
-                    data[section].count > indexPath.item
+                    self.sections[indexPath.section].items.count > indexPath.item,
+                    sections[indexPath.section].items.count > indexPath.item
                 else {
                     continue
                 }
-                let item = data[section].index(data[section].startIndex, offsetBy: indexPath.item)
+                let index = sections[indexPath.section].items.index(
+                    sections[indexPath.section].items.startIndex,
+                    offsetBy: indexPath.item
+                )
+                let id = sections[indexPath.section].items[index].id
                 if updateSeed != lastUpdateSeed {
-                    updated.insert(data[section][item].id)
-                } else if self.data[section][item].id == data[section][item].id {
-                    if self.data[section][item] != data[section][item] {
-                        updated.insert(data[section][item].id)
+                    updated.insert(id)
+                } else if self.sections[indexPath.section].items[index].id == sections[indexPath.section].items[index].id {
+                    if self.sections[indexPath.section].items[index] != sections[indexPath.section].items[index] {
+                        updated.insert(id)
                     }
                 }
             }
@@ -375,7 +420,7 @@ open class CollectionViewCoordinator<
             updated = []
         }
 
-        self.data = data
+        self.sections = sections
         // Preserve content offset during snapshot update to prevent jumpy glitch
         let isRefreshing = collectionView.refreshControl?.isRefreshing ?? false
         let contentOffset = collectionView.contentOffset
@@ -392,11 +437,11 @@ open class CollectionViewCoordinator<
         if !updated.isEmpty {
             for indexPath in collectionView.indexPathsForVisibleItems {
                 if let cellView = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType {
-                    let section = data.index(data.startIndex, offsetBy: indexPath.section)
-                    let item = data[section].index(data[section].startIndex, offsetBy: indexPath.item)
-                    let value = data[section][item]
-                    if updated.contains(value.id) {
-                        configureCell(cellView, indexPath: indexPath, item: value)
+                    let section = sections[indexPath.section]
+                    let index = section.items.index(section.items.startIndex, offsetBy: indexPath.item)
+                    let item = section.items[index]
+                    if updated.contains(item.id) {
+                        configureCell(cellView, indexPath: indexPath, item: item)
                         context.invalidateItems(at: [indexPath])
                     }
                 }
@@ -421,45 +466,37 @@ open class CollectionViewCoordinator<
         return true
     }
 
-    open func willReorder(transaction: NSDiffableDataSourceTransaction<Section, ID>) {
+    open func willReorder(transaction: NSDiffableDataSourceTransaction<Section.ID, ID>) {
 
     }
 
-    open func didReorder(transaction: NSDiffableDataSourceTransaction<Section, ID>) {
+    open func didReorder(transaction: NSDiffableDataSourceTransaction<Section.ID, ID>) {
         guard let reorder else { return }
 
-        var source: (section: Int, indices: IndexSet)?
-        var destination: (section: Int, index: Int)?
+        var indices = IndexSet()
+        var fromSection: Int?
+        var toIndex: IndexPath?
 
-        for sectionTransaction in transaction.sectionTransactions {
-            guard let sectionIndex = transaction.finalSnapshot.indexOfSection(sectionTransaction.sectionIdentifier)
-            else {
-                continue
-            }
-
-            // If associatedWith is non-nil, it's a move
-            for change in sectionTransaction.difference {
-                switch change {
-                case let .remove(fromIndex, _, associatedWith):
-                    if associatedWith != nil {
-                        if source == nil {
-                            source = (section: sectionIndex, indices: IndexSet())
-                        }
-                        source?.indices.insert(fromIndex)
-                    }
-
-                case let .insert(toIndex, _, associatedWith):
-                    if associatedWith != nil {
-                        destination = (section: sectionIndex, index: toIndex)
-                    }
+        for change in transaction.difference.inferringMoves() {
+            switch change {
+            case .insert(let offset, let id, let associatedWith):
+                if let sectionId = transaction.finalSnapshot.sectionIdentifier(containingItem: id),
+                    let section = transaction.finalSnapshot.indexOfSection(sectionId)
+                {
+                    let item = offset + (associatedWith.map({ $0 < offset ? 1 : 0 }) ?? 0)
+                    toIndex = IndexPath(item: item, section: section)
                 }
+            case .remove(let offset, let id, _):
+                fromSection = transaction.initialSnapshot.sectionIdentifier(containingItem: id)
+                    .flatMap { transaction.initialSnapshot.indexOfSection($0) }
+                indices.insert(offset)
             }
         }
+
+        guard !indices.isEmpty, let fromSection, let toIndex else { return }
 
         updateSeed = updateSeed &+ 1
-        if let from = source, let to = destination {
-            reorder((from.section, from.indices), (to.section, to.index))
-        }
+        reorder((fromSection, indices), (toIndex.section, toIndex.item))
     }
 
     // MARK: - UICollectionViewDragDelegate
@@ -478,7 +515,7 @@ open class CollectionViewCoordinator<
     ) -> UIDragPreviewParameters? {
         guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
         let parameters = UIDragPreviewParameters()
-        parameters.visiblePath = UIBezierPath(roundedRect: cell.bounds, cornerRadius: 12)
+        parameters.visiblePath = UIBezierPath(rect: cell.bounds)
         parameters.backgroundColor = .clear
         return parameters
     }
@@ -498,7 +535,7 @@ open class CollectionViewCoordinator<
     ) -> UIDragPreviewParameters? {
         guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
         let parameters = UIDragPreviewParameters()
-        parameters.visiblePath = UIBezierPath(roundedRect: cell.bounds, cornerRadius: 12)
+        parameters.visiblePath = UIBezierPath(rect: cell.bounds)
         parameters.backgroundColor = .clear
         return parameters
     }
@@ -569,7 +606,9 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
 
         var body: some View {
             ListView(
-                data: [viewModel.items],
+                sections: [
+                    CollectionViewSection(items: viewModel.items, section: 0)
+                ],
                 proxy: viewModel.proxy
             )
             .ignoresSafeArea()
@@ -665,13 +704,13 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
 
     struct ListView: CollectionViewRepresentable {
 
-        var data: [[ListItem]]
+        var sections: [CollectionViewSection<CollectionViewSectionIndex, [ListItem]>]
         var layout = ListLayout()
         var proxy: ListCoordinatorProxy
 
         func makeCoordinator() -> ListCoordinator {
             let coordinator = ListCoordinator(
-                data: data,
+                sections: sections,
                 layout: layout,
                 layoutOptions: .init(
                     supplementaryViews: []
@@ -730,7 +769,7 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
     }
 
     class ListCoordinator: CollectionViewCoordinator<
-        ListLayout, Array<Array<ListItem>>
+        ListLayout, CollectionViewSectionIndex, Array<ListItem>
     >, UICollectionViewDelegate, ListCoordinatorProxy.InputDelegate {
 
         weak var proxy: ListCoordinatorProxy?
@@ -785,15 +824,21 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
         @State var items: [Item] = (0..<5).map { Item(value: $0) }
 
         var body: some View {
-            CollectionView(.compositional(spacing: 4), items: items) { item in
+            CollectionView(
+                .compositional(spacing: 4),
+                items: items,
+                reorder: { from, to in
+                    items.move(
+                        fromOffsets: from.indices,
+                        toOffset: to.destination
+                    )
+                }
+            ) { item in
                 Text(item.value.description)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(.blue)
-            }
-            .reorderable { from, to in
-                items.move(fromOffsets: from.indices, toOffset: to.destination)
             }
         }
     }

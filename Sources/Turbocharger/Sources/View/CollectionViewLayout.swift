@@ -47,6 +47,12 @@ public protocol CollectionViewLayout {
         indexPath: IndexPath,
         context: Context
     )
+
+    @MainActor @preconcurrency func overrideSizeThatFits(
+        _ size: inout CGSize,
+        in proposedSize: ProposedSize,
+        collectionView: UICollectionViewType
+    )
     #endif
 
     typealias Context = CollectionViewLayoutContext
@@ -70,6 +76,12 @@ extension CollectionViewLayout {
         kind: String,
         indexPath: IndexPath,
         context: Context
+    ) { }
+
+    public func overrideSizeThatFits(
+        _ size: inout CGSize,
+        in proposedSize: ProposedSize,
+        collectionView: UICollectionViewType
     ) { }
 }
 #endif
