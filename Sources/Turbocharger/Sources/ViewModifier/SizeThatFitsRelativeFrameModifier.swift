@@ -56,10 +56,18 @@ public struct SizeThatFitsRelativeFrameLayout: Layout {
         var size = CGSize.zero
         for subview in subviews {
             let sizeThatFits = subview.sizeThatFits(proposal)
+            print(sizeThatFits, proposal)
             size.width = max(size.width, sizeThatFits.width)
             size.height = max(size.height, sizeThatFits.height)
         }
-        return transform(size)
+        size = transform(size)
+        if let proposedWidth = proposal.width {
+            size.width = min(size.width, proposedWidth)
+        }
+        if let proposedHeight = proposal.height {
+            size.height = min(size.height, proposedHeight)
+        }
+        return size
     }
 
     public func placeSubviews(
@@ -128,24 +136,45 @@ extension View {
 struct SizeThatFitsRelativeFrameModifier_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
-            Text("Hello, World")
-                .sizeThatFitsRelativeFrame { size in
-                    CGSize(
-                        width: size.width + size.height,
-                        height: size.height
-                    )
+            let views = Group {
+                Text("Hello, World")
+                    .sizeThatFitsRelativeFrame { size in
+                        CGSize(
+                            width: size.width + size.height,
+                            height: size.height
+                        )
+                    }
+                    .background(Capsule().fill(Color.blue))
+
+                Text("Hello, World")
+                    .padding(.vertical, 8)
+                    .shapeRelativeFrame(.capsule)
+                    .background(Capsule().fill(Color.blue))
+
+                Text("Hello, World")
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity)
+                    .shapeRelativeFrame(.capsule)
+                    .background(Capsule().fill(Color.blue))
+
+                Text("Hello, World")
+                    .padding(.horizontal, 8)
+                    .shapeRelativeFrame(.circle)
+                    .background(Circle().fill(Color.blue))
+            }
+            views
+
+            ScrollView {
+                VStack {
+                    views
                 }
-                .background(Capsule().fill(Color.blue))
+            }
 
-            Text("Hello, World")
-                .padding(.vertical, 8)
-                .shapeRelativeFrame(.capsule)
-                .background(Capsule().fill(Color.blue))
-
-            Text("Hello, World")
-                .padding(.horizontal, 8)
-                .shapeRelativeFrame(.circle)
-                .background(Circle().fill(Color.blue))
+            ScrollView(.horizontal) {
+                HStack {
+                    views
+                }
+            }
         }
     }
 }

@@ -4,18 +4,6 @@
 
 import SwiftUI
 
-extension EdgeInsets {
-    public static let zero = EdgeInsets()
-
-    public static func horizontal(_ inset: CGFloat) -> EdgeInsets {
-        EdgeInsets(top: 0, leading: inset, bottom: 0, trailing: inset)
-    }
-
-    public static func vertical(_ inset: CGFloat) -> EdgeInsets {
-        EdgeInsets(top: inset, leading: 0, bottom: inset, trailing: 0)
-    }
-}
-
 #if os(macOS)
 extension NSEdgeInsets {
     public init(

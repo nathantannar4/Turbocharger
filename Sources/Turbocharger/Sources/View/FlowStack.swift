@@ -228,8 +228,10 @@ public struct FlowStackLayout: Layout {
                 } else if minimumNumberOfRows > 0 {
                     let lines = (layoutProposal.lines + [currentLine])
                     var enumeratedLines = Array(zip(lines.indices, lines))
-                    if !options.contains(.fill) {
+                    if options.contains(.fill) {
                         enumeratedLines = Array(enumeratedLines.sorted(by: { $0.1.frame.maxX < $1.1.frame.maxX }))
+                    } else {
+                        enumeratedLines = Array(enumeratedLines.sorted(by: { $0.1.frames.count <= $1.1.frames.count }))
                     }
                     for (lineIndex, line) in enumeratedLines {
                         let spacing = columnSpacing ?? {
@@ -349,6 +351,42 @@ struct FlowStack_Previews: PreviewProvider {
         Preview1()
         Preview2()
         Preview3()
+        Preview4()
+    }
+
+    struct TagView: View {
+        var label: String
+        var color: Color
+        var padding: CGFloat = 0
+
+        var body: some View {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(color)
+                    .frame(width: 10, height: 10)
+
+                if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *) {
+                    Text(label)
+                        .geometryGroup()
+                } else {
+                    Text(label)
+                }
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .padding(padding)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(color.opacity(0.1))
+
+                    RoundedRectangle(cornerRadius: 24)
+                        .inset(by: 0.5)
+                        .strokeBorder(color, lineWidth: 1)
+                }
+            }
+        }
     }
 
     struct Preview1: View {
@@ -551,35 +589,6 @@ struct FlowStack_Previews: PreviewProvider {
                 }
             }
         }
-
-        struct TagView: View {
-            var label: String
-            var color: Color
-            var padding: CGFloat = 0
-
-            var body: some View {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(color)
-                        .frame(width: 10, height: 10)
-
-                    Text(label)
-                }
-                .padding(.vertical, 4)
-                .padding(.horizontal, 8)
-                .padding(padding)
-                .background {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(color.opacity(0.1))
-
-                        RoundedRectangle(cornerRadius: 24)
-                            .inset(by: 0.5)
-                            .strokeBorder(color, lineWidth: 1)
-                    }
-                }
-            }
-        }
     }
 
     struct Preview3: View {
@@ -614,6 +623,62 @@ struct FlowStack_Previews: PreviewProvider {
                 }
             }
             .padding()
+        }
+    }
+
+    struct Preview4: View {
+        @State var isLoading = false
+
+        @ViewBuilder
+        var tagViews: some View {
+            TagView(label: isLoading ? "******" : "Tech", color: .yellow)
+            TagView(label: isLoading ? "******" : "Food & Drink", color: .orange)
+            TagView(label: isLoading ? "******" : "AI", color: .pink)
+            TagView(label: isLoading ? "******" : "Arts & Culture", color: .indigo)
+            TagView(label: isLoading ? "******" : "Climate", color: .green)
+            TagView(label: isLoading ? "******" : "Fitness", color: .red)
+            TagView(label: isLoading ? "******" : "Wellness", color: .blue)
+            TagView(label: isLoading ? "******" : "Crypto", color: .purple)
+        }
+
+        var body: some View {
+            VStack(alignment: .leading) {
+                Text("No Fill")
+                    .font(.title)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    FlowStack(
+                        alignment: .leading,
+                        spacing: 8,
+                        minimumNumberOfRows: 2
+                    ) {
+                        tagViews
+                    }
+                    .redacted(reason: isLoading ? .placeholder : [])
+                }
+
+                Divider()
+
+                Text("Fill")
+                    .font(.title)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    FlowStack(
+                        alignment: .leading,
+                        options: [.fill],
+                        spacing: 8,
+                        minimumNumberOfRows: 2
+                    ) {
+                        tagViews
+                    }
+                    .redacted(reason: isLoading ? .placeholder : [])
+                }
+            }
+            .onTapGesture {
+                withAnimation {
+                    isLoading.toggle()
+                }
+            }
         }
     }
 }

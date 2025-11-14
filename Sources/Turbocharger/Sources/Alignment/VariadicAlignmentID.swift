@@ -30,46 +30,25 @@ extension VariadicAlignmentID {
     }
 }
 
-extension View {
-
-    /// A modifier that transforms a vertical alignment to another
-    @inlinable
-    public func alignmentGuide(
-        _ g: VerticalAlignment,
-        value: VerticalAlignment
-    ) -> some View {
-        alignmentGuide(g) { $0[value] }
-    }
-
-    /// A modifier that transforms a horizontal alignment to another
-    @inlinable
-    public func alignmentGuide(
-        _ g: HorizontalAlignment,
-        value: HorizontalAlignment
-    ) -> some View {
-        alignmentGuide(g) { $0[value] }
-    }
-}
-
 // MARK: - Previews
 
-struct SecondTextBaseline: VariadicAlignmentID {
-    static func defaultValue(in context: ViewDimensions) -> CGFloat {
-        context[.firstTextBaseline]
-    }
+extension VerticalAlignment {
+    struct SecondTextBaseline: VariadicAlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat {
+            context[.firstTextBaseline]
+        }
 
-    static func reduce(value: inout CGFloat?, n: Int, nextValue: CGFloat) {
-        if n == 1 {
-            value = nextValue
+        static func reduce(value: inout CGFloat?, n: Int, nextValue: CGFloat) {
+            if n == 1 {
+                value = nextValue
+            }
         }
     }
-}
 
-extension VerticalAlignment {
     static let secondTextBaseline = VerticalAlignment(SecondTextBaseline.self)
 }
 
-struct VariadicAlignmentID_Previews: PreviewProvider {
+struct VariadicAlignment_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 48) {
             HStack(alignment: .firstTextBaseline) {
@@ -87,14 +66,18 @@ struct VariadicAlignmentID_Previews: PreviewProvider {
                 Text("Label")
 
                 VStack(alignment: .trailing) {
-                    Group {
-                        Text("One")
-                        Text("Two")
-                        Text("Three")
-                    }
-                    .alignmentGuide(.secondTextBaseline) { d in
-                        d[VerticalAlignment.firstTextBaseline]
-                    }
+                    Text("One")
+                        .alignmentGuide(.secondTextBaseline) { d in
+                            d[VerticalAlignment.firstTextBaseline]
+                        }
+                    Text("Two")
+                        .alignmentGuide(.secondTextBaseline) { d in
+                            d[VerticalAlignment.firstTextBaseline]
+                        }
+                    Text("Three")
+                        .alignmentGuide(.secondTextBaseline) { d in
+                            d[VerticalAlignment.firstTextBaseline]
+                        }
                 }
                 .font(.title)
             }

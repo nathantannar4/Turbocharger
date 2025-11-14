@@ -12,12 +12,12 @@ public struct ShimmerAdapter<Value, Content: View>: View {
 
     public var content: Content
     public var isActive: Bool
-    public var animation: Animation?
+    public var animation: ShimmerAnimation
 
     @inlinable
     public init(
         _ value: Optional<Value>,
-        animation: Animation? = .linear(duration: 0.3),
+        animation: ShimmerAnimation = .default,
         _ content: (Optional<Value>) -> Content
     ) {
         self.content = content(value)
@@ -33,13 +33,56 @@ public struct ShimmerAdapter<Value, Content: View>: View {
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 8.0, *)
 extension View {
-    /// Redacts content and overlays a shimmering effect
+
+    /// Redacts content with a shimmering effect
     public func shimmer(
         isActive: Bool = true,
-        animation: Animation? = .linear(duration: 0.3)
+        duration: TimeInterval = 1.25,
+        delay: TimeInterval = 0,
+        isSynchronized: Bool = false
+    ) -> some View {
+        shimmer(
+            isActive: isActive,
+            animation: ShimmerAnimation(
+                duration: duration,
+                delay: delay,
+                isSynchronized: isSynchronized
+            )
+        )
+    }
+
+    /// Redacts content with a shimmering effect
+    public func shimmer(
+        isActive: Bool = true,
+        animation: ShimmerAnimation = .default
     ) -> some View {
         modifier(ShimmerModifier(isActive: isActive, animation: animation))
     }
+}
+
+@frozen
+public struct ShimmerAnimation: Sendable {
+    public var duration: TimeInterval
+    public var delay: TimeInterval
+    public var isSynchronized: Bool
+    public var startPoint: UnitPoint
+    public var endPoint: UnitPoint
+
+    public init(
+        duration: TimeInterval,
+        delay: TimeInterval,
+        isSynchronized: Bool = false,
+        startPoint: UnitPoint = .topLeading,
+        endPoint: UnitPoint = .bottomTrailing
+    ) {
+        self.duration = duration
+        self.delay = delay
+        self.isSynchronized = isSynchronized
+        self.startPoint = startPoint
+        self.endPoint = endPoint
+    }
+
+    public static let `default` = ShimmerAnimation(duration: 1.25, delay: 0)
 }
 
 /// A modifier that redacts content and overlays a shimmering effect.
@@ -49,134 +92,124 @@ extension View {
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 8.0, *)
 public struct ShimmerModifier: ViewModifier {
     var isActive: Bool
-    var animation: Animation?
+    var animation: ShimmerAnimation
 
-    enum ShimmerState {
-        case inactive
-        case transitioning(DispatchWorkItem?)
-        case shimmering
-
-        var completion: DispatchWorkItem? {
-            if case .transitioning(let item) = self {
-                return item
-            }
-            return nil
-        }
-
-        var isActive: Bool {
-            switch self {
-            case .inactive:
-                return false
-            case .transitioning, .shimmering:
-                return true
-            }
-        }
-    }
-
-    @State var state: ShimmerState
-
-    public init(isActive: Bool, animation: Animation? = .linear(duration: 0.3)) {
+    public init(isActive: Bool, animation: ShimmerAnimation = .default) {
         self.isActive = isActive
         self.animation = animation
-        self._state = State(initialValue: isActive ? .shimmering : .inactive)
     }
 
     public func body(content: Content) -> some View {
         content
-            .transformEnvironment(\.self) { environment in
-                if state.isActive {
-                    environment.isEnabled = false
-                    environment.redactionReasons.insert(.placeholder)
-                }
-                if isActive {
-                    if #available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *) {
-                        environment.contentTransition = .identity
-                    }
-                }
-            }
-            .mask(
-                mask
-                    .animation(animation, value: state.isActive)
-            )
-            .onChange(of: isActive) { [oldState = state] newValue in
-                switch oldState {
-                case .inactive:
-                    state = newValue ? .shimmering : .inactive
-
-                case .transitioning(let completion):
-                    if newValue {
-                        completion?.cancel()
-                        state = .shimmering
-                    }
-                case .shimmering:
-                    if !newValue {
-                        let duration = (animation?.duration(defaultDuration: 0.3) ?? 0) / 2
-                        if duration > 0 {
-                            let completion = DispatchWorkItem {
-                                var transaction = Transaction(animation: animation?.speed(2))
-                                transaction.disablesAnimations = true
-                                withTransaction(transaction) {
-                                    state = .inactive
-                                }
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: completion)
-                            state = .transitioning(completion)
-                        } else {
-                            state = .inactive
-                        }
-                    }
-                }
-            }
+            .disabled(isActive)
+            .redacted(reason: isActive ? .placeholder : [])
+            .mask(mask)
     }
 
     @ViewBuilder
     private var mask: some View {
-        switch state {
-        case .inactive:
+        ZStack {
             Rectangle()
                 .scale(1000)
                 .ignoresSafeArea()
-        case .transitioning, .shimmering:
-            GradientMask()
+                .invertedMask {
+                    if isActive {
+                        Rectangle()
+                    }
+                }
+
+            if isActive {
+                GradientMask(animation: animation)
+            }
         }
     }
 
     private struct GradientMask: View {
+        var animation: ShimmerAnimation
+
+        var body: some View {
+            if animation.isSynchronized {
+                SynchronizedGradientMask(animation: animation)
+            } else {
+                LocalizedGradientMask(animation: animation)
+            }
+        }
+    }
+
+    private struct SynchronizedGradientMask: View {
+        var animation: ShimmerAnimation
+
         @ObservedObject var clock = ShimmerClock.shared
 
         var body: some View {
-            PhasedLinearGradient(
-                phase: clock.phase
+            let phase = clock.phase(
+                duration: animation.duration,
+                delay: animation.delay
+            )
+            LinearGradient(
+                gradient:
+                    Gradient(
+                        stops: [
+                            .init(color: Color.black, location: -1 + (2 * phase)),
+                            .init(color: Color.black.opacity(0.3), location: (2 * phase) - 2 / 3),
+                            .init(color: Color.black.opacity(0.3), location: (2 * phase) - 1 / 3),
+                            .init(color: Color.black, location: 2 * phase)
+                        ]
+                    )
+                ,
+                startPoint: animation.startPoint,
+                endPoint: animation.endPoint
             )
             .onAppear { clock.register() }
             .onDisappear { clock.unregister() }
         }
+    }
 
-        struct PhasedLinearGradient: View {
-            var phase: CGFloat
+    private struct LocalizedGradientMask: View {
+        var animation: ShimmerAnimation
 
-            var body: some View {
-                LinearGradient(
-                    gradient:
-                        Gradient(stops: [
-                            .init(color: Color.black.opacity(0.3), location: phase * 2 - 1),
-                            .init(color: Color.black, location: phase * 2 - 0.5),
-                            .init(color: Color.black.opacity(0.3), location: phase * 2)
-                        ])
-                    ,
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+        @State var isAnimating = false
+
+        var body: some View {
+            LinearGradient(
+                gradient:
+                    Gradient(
+                        colors: [
+                            .black,
+                            .black.opacity(0.3),
+                            .black.opacity(0.3),
+                            .black,
+                        ]
+                    )
+                ,
+                startPoint: .init(
+                    x: animation.startPoint.x + (isAnimating ? 1 : -1),
+                    y: animation.startPoint.y + (isAnimating ? 1 : -1)
+                ),
+                endPoint: .init(
+                    x: animation.endPoint.x + (isAnimating ? 1 : -1),
+                    y: animation.endPoint.y + (isAnimating ? 1 : -1)
                 )
-                .animation(.linear(duration: 1 / 60), value: phase)
+            )
+            .animation(.linear(duration: animation.duration).delay(animation.delay).repeatForever(autoreverses: false), value: isAnimating)
+            .onAppear {
+                #if os(watchOS)
+                DispatchQueue.main.async {
+                    isAnimating = true
+                }
+                #else
+                withCATransaction {
+                    isAnimating = true
+                }
+                #endif
             }
         }
     }
 }
 
 private class ShimmerClock: ObservableObject {
-    @Published var phase: CGFloat = 0
 
-    private let duration: Double = 1.25
+    @Published private var elapsed: TimeInterval = 0
 
     private var registered: UInt = 0
     #if os(iOS)
@@ -204,25 +237,27 @@ private class ShimmerClock: ObservableObject {
     #if os(iOS)
     @objc
     private func onClockTick(displayLink: CADisplayLink) {
-        let offset = CGFloat((displayLink.targetTimestamp - displayLink.timestamp) / duration)
-        onClockTick(offset: offset)
+        let elapsed = displayLink.targetTimestamp - displayLink.timestamp
+        onClockTick(step: elapsed)
     }
     #endif
 
     #if os(macOS)
     @objc
     private func onClockTick(timer: Timer) {
-        let offset = CGFloat(timer.timeInterval / duration)
-        onClockTick(offset: offset)
+        onClockTick(step: timer.timeInterval)
     }
     #endif
 
-    private func onClockTick(offset: CGFloat) {
-        if phase >= 1 {
-            phase = 0
-        } else {
-            phase = min(phase + offset, 1)
-        }
+    private func onClockTick(step: TimeInterval) {
+        elapsed += step
+    }
+
+    func phase(duration: TimeInterval, delay: TimeInterval) -> CGFloat {
+        let total = duration + delay
+        let interval = elapsed.truncatingRemainder(dividingBy: total)
+        let phase = max(0, min((interval - delay) / duration, 1))
+        return phase
     }
 
     func register() {
@@ -270,7 +305,7 @@ private class ShimmerClock: ObservableObject {
     func unregister() {
         if registered == 1 {
             registered -= 1
-            phase = 0
+            elapsed = 0
             #if os(iOS)
             displayLink?.isPaused = true
             #endif
@@ -292,12 +327,64 @@ struct ShimmerModifier_Previews: PreviewProvider {
         var body: some View {
             VStack(alignment: .leading) {
                 VStack(alignment: .leading) {
+                    HStack {
+                        Color.blue
+                            .frame(width: 150, height: 150)
+                            .overlay(
+                                Color.red
+                                    .frame(width: 50, height: 50)
+                                    .offset(x: 0, y: -75)
+                            )
+                            .shimmer(isActive: isActive)
+
+                        Color.blue
+                            .frame(width: 150, height: 150)
+                            .overlay(
+                                Color.red
+                                    .frame(width: 50, height: 50)
+                                    .offset(x: 0, y: -75)
+                            )
+                            .shimmer(isActive: isActive, isSynchronized: true)
+                    }
+
+                    HStack {
+                        Color.blue
+                            .frame(width: 100, height: 100)
+                            .shimmer(
+                                isActive: isActive,
+                                duration: 0.3
+                            )
+
+                        Color.blue
+                            .frame(width: 100, height: 100)
+                            .shimmer(
+                                isActive: isActive,
+                                animation: .init(
+                                    duration: 2,
+                                    delay: 0.3,
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+
+                        Color.blue
+                            .frame(width: 100, height: 100)
+                            .shimmer(
+                                isActive: isActive,
+                                animation: .init(
+                                    duration: 2,
+                                    delay: 0.3,
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+
                     Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
                         .border(Color.red)
 
                     HStack {
                         Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
-                            .border(Color.red)
                             .shimmer(isActive: isActive)
 
                         Text("Trailing")
@@ -305,7 +392,11 @@ struct ShimmerModifier_Previews: PreviewProvider {
 
                     HStack {
                         Text(verbatim: isActive ? "Placeholder" : "Line 1, Line 2, Line 3")
-                            .shimmer(isActive: isActive)
+                            .shimmer(
+                                isActive: isActive,
+                                duration: 1.5,
+                                delay: 0.25
+                            )
 
                         Text("Trailing")
                     }
@@ -335,6 +426,22 @@ struct ShimmerModifier_Previews: PreviewProvider {
                         }
                     }
                 }
+
+                #if os(iOS)
+                CollectionView(.compositional(axis: .horizontal, spacing: 8)) {
+                    ForEach(0..<10, id: \.self) { _ in
+                        Color.blue
+                            .frame(width: 100, height: 100)
+                            .shimmer(
+                                isActive: isActive,
+                                duration: 2,
+                                delay: 0,
+                                isSynchronized: true
+                            )
+                    }
+                }
+                .frame(height: 100)
+                #endif
 
                 HStack {
                     Text(isActive.description)

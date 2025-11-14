@@ -5,7 +5,7 @@
 import SwiftUI
 
 extension VerticalAlignment {
-    private enum FirstTextMidline: AlignmentID {
+    private enum FirstTextMidlineAlignment: AlignmentID {
         static func defaultValue(in context: ViewDimensions) -> CGFloat {
             let dy = context[.lastTextBaseline] - context[.firstTextBaseline]
             let lineHeight = context.height - dy
@@ -13,12 +13,12 @@ extension VerticalAlignment {
         }
     }
 
-    public static let firstTextMidline = VerticalAlignment(FirstTextMidline.self)
+    public static let firstTextMidline = VerticalAlignment(FirstTextMidlineAlignment.self)
 }
 
 // MARK: - Previews
 
-struct FirstTextMidline_Previews: PreviewProvider {
+struct FirstTextMidlineAlignment_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
             HStack(alignment: .firstTextMidline) {

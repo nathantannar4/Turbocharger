@@ -89,16 +89,6 @@ extension LabeledViewStyle where Self == DefaultLabeledViewStyle {
     public static var automatic: DefaultLabeledViewStyle { DefaultLabeledViewStyle() }
 }
 
-extension VerticalAlignment {
-    private struct LabelAlignment: AlignmentID {
-        static func defaultValue(in context: ViewDimensions) -> CGFloat {
-            context[VerticalAlignment.firstTextBaseline]
-        }
-    }
-
-    public static let label = VerticalAlignment(LabelAlignment.self)
-}
-
 public struct DefaultLabeledViewStyle: LabeledViewStyle {
 
     @Environment(\.labelsHidden) var labelsHidden

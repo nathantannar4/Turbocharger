@@ -32,8 +32,8 @@ public struct ResultAdapter<
     @inlinable
     public init<Success, Failure: Error>(
         _ value: Result<Success, Failure>?,
-        @ViewBuilder success : (Success) -> SuccessContent,
-        @ViewBuilder failure: (Failure?) -> FailureContent
+        @ViewBuilder success : (Success?) -> SuccessContent,
+        @ViewBuilder failure: (Failure) -> FailureContent
     ) {
         switch value {
         case .some(let value):
@@ -44,7 +44,7 @@ public struct ResultAdapter<
                 self.content = .init(failure(error))
             }
         case .none:
-            self.content = .init(failure(nil))
+            self.content = .init(success(nil))
         }
     }
 
@@ -82,7 +82,7 @@ extension ResultAdapter where FailureContent == EmptyView {
     @inlinable
     public init<Success, Failure: Error>(
         _ value: Result<Success, Failure>?,
-        @ViewBuilder success : (Success) -> SuccessContent
+        @ViewBuilder success: (Success?) -> SuccessContent
     ) {
         self.init(value, success: success, failure: { _ in EmptyView() })
     }

@@ -117,6 +117,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         let cell = super.dequeueReusableCell(collectionView: collectionView, indexPath: indexPath, id: id)
         cell?.automaticallyUpdatesContentConfiguration = false
         cell?.automaticallyUpdatesBackgroundConfiguration = false
+        cell?.layoutIfNeeded()
         return cell
     }
 
@@ -136,6 +137,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         let supplementaryView = super.dequeueReusableSupplementaryView(collectionView: collectionView, kind: kind, indexPath: indexPath)
         supplementaryView?.automaticallyUpdatesContentConfiguration = false
         supplementaryView?.automaticallyUpdatesBackgroundConfiguration = false
+        supplementaryView?.layoutIfNeeded()
         return supplementaryView
     }
 

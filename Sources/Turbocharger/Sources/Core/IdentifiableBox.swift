@@ -19,3 +19,4 @@ public struct IdentifiableBox<Value, ID: Hashable>: Identifiable {
 }
 
 extension IdentifiableBox: Equatable where Value: Equatable { }
+extension IdentifiableBox: Hashable where Value: Hashable { }
