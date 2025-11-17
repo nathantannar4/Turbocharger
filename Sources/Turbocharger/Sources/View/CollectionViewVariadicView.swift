@@ -65,7 +65,12 @@ struct CollectionViewVariadicView_Previews: PreviewProvider {
                     Text("Hello, World")
                     Text("Hello, World")
                 }
-                Text("Hello, World")
+                HStack {
+                    Circle()
+                        .frame(width: 24, height: 24)
+
+                    Text("Hello, World")
+                }
                 ForEach(0..<3, id: \.self) { value in
                     Text(value, format: .number)
                 }

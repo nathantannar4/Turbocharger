@@ -56,7 +56,6 @@ public struct SizeThatFitsRelativeFrameLayout: Layout {
         var size = CGSize.zero
         for subview in subviews {
             let sizeThatFits = subview.sizeThatFits(proposal)
-            print(sizeThatFits, proposal)
             size.width = max(size.width, sizeThatFits.width)
             size.height = max(size.height, sizeThatFits.height)
         }

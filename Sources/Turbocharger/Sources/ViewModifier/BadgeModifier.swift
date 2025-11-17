@@ -287,7 +287,7 @@ struct BadgeModifier_Previews: PreviewProvider {
                         }
                     }
 
-                #if canImport(FoundationModels)
+                #if canImport(FoundationModels) // Xcode 26
                 if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, visionOS 26.0, *) {
                     // Glass effect doesn't work with default masking
                     RoundedRectangle(cornerRadius: 8)

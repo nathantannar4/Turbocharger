@@ -10,7 +10,7 @@ import Engine
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @MainActor @preconcurrency
-public protocol CollectionViewLayout {
+public protocol CollectionViewLayout: Equatable, Sendable {
 
     #if os(iOS)
     associatedtype UICollectionViewLayoutType: UICollectionViewLayout
@@ -53,6 +53,12 @@ public protocol CollectionViewLayout {
         in proposedSize: ProposedSize,
         collectionView: UICollectionViewType
     )
+
+    @MainActor @preconcurrency func shouldInvalidateLayout(
+        from oldValue: Self,
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) -> Bool
     #endif
 
     typealias Context = CollectionViewLayoutContext
@@ -83,6 +89,14 @@ extension CollectionViewLayout {
         in proposedSize: ProposedSize,
         collectionView: UICollectionViewType
     ) { }
+
+    public func shouldInvalidateLayout(
+        from oldValue: Self,
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) -> Bool {
+        return oldValue != self
+    }
 }
 #endif
 

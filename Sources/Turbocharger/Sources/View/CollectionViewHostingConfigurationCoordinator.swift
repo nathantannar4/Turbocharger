@@ -29,18 +29,22 @@ open class CollectionViewHostingConfigurationCoordinator<
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
 
-    public var header: (Section) -> Header
-    public var content: (Items.Element) -> Content
-    public var footer: (Section) -> Footer
-    public var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+    public typealias HeaderProvider = (IndexPath, CollectionViewSection<Section, Items>) -> Header
+    public var header: HeaderProvider
+    public typealias ContentProvider = (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
+    public var content: ContentProvider
+    public typealias FooterProvider = (IndexPath, CollectionViewSection<Section, Items>) -> Footer
+    public var footer: FooterProvider
+    public typealias SupplementaryViewProvider = (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
+    public var supplementaryView: SupplementaryViewProvider
 
     private var update = HostingConfigurationUpdate(animation: nil, value: 0)
 
     public init(
-        header: @escaping (Section) -> Header,
-        content: @escaping (Items.Element) -> Content,
-        footer: @escaping (Section) -> Footer,
-        supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView,
+        header: @escaping HeaderProvider,
+        content: @escaping ContentProvider,
+        footer: @escaping FooterProvider,
+        supplementaryView: @escaping SupplementaryViewProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil,
@@ -62,24 +66,25 @@ open class CollectionViewHostingConfigurationCoordinator<
         // Invoke the view builders to trigger SwiftUI's runtime to form a
         // dependency between any DynamicProperty that the @escaping value
         // uses.
-        for section in sections {
-            _ = header(section.section)
-            _ = footer(section.section)
+        for (index, section) in sections.enumerated() {
+            let indexPath = IndexPath(item: 0, section: index)
+            _ = header(indexPath, section)
+            _ = footer(indexPath, section)
 
             for supplementaryViewId in layoutOptions.supplementaryViews {
-                _ = supplementaryView(supplementaryViewId.id, section.section)
+                _ = supplementaryView(indexPath, section, supplementaryViewId.id)
             }
 
             if let first = section.items.first {
-                _ = content(first)
+                _ = content(indexPath, section, first)
             }
         }
     }
 
     public convenience init(
-        header: @escaping (Section) -> Header,
-        content: @escaping (Items.Element) -> Content,
-        footer: @escaping (Section) -> Footer,
+        header: @escaping HeaderProvider,
+        content: @escaping ContentProvider,
+        footer: @escaping FooterProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil,
@@ -89,7 +94,7 @@ open class CollectionViewHostingConfigurationCoordinator<
             header: header,
             content: content,
             footer: footer,
-            supplementaryView: { _, _ in EmptyView() },
+            supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
             refresh: refresh,
@@ -98,16 +103,16 @@ open class CollectionViewHostingConfigurationCoordinator<
     }
 
     public convenience init(
-        content: @escaping (Items.Element) -> Content,
+        content: @escaping ContentProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil
     ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
         self.init(
-            header: { _ in EmptyView() },
+            header: { _, _ in EmptyView() },
             content: content,
-            footer: { _ in EmptyView() },
-            supplementaryView: { _, _ in EmptyView() },
+            footer: { _, _ in EmptyView() },
+            supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
             refresh: refresh,
@@ -132,7 +137,12 @@ open class CollectionViewHostingConfigurationCoordinator<
         indexPath: IndexPath,
         item: Items.Element
     ) {
-        cell.contentConfiguration = makeContent(value: item)
+        let section = sections[indexPath.section]
+        cell.contentConfiguration = makeContent(
+            indexPath: indexPath,
+            section: section,
+            value: item
+        )
     }
 
     open override func dequeueReusableSupplementaryView(
@@ -152,13 +162,24 @@ open class CollectionViewHostingConfigurationCoordinator<
         kind: String,
         indexPath: IndexPath
     ) {
+        let section = sections[indexPath.section]
         switch kind {
         case UICollectionView.elementKindSectionHeader:
-            supplementaryView.contentConfiguration = makeHeaderContent(indexPath: indexPath)
+            supplementaryView.contentConfiguration = makeHeaderContent(
+                indexPath: indexPath,
+                section: section
+            )
         case UICollectionView.elementKindSectionFooter:
-            supplementaryView.contentConfiguration = makeFooterContent(indexPath: indexPath)
+            supplementaryView.contentConfiguration = makeFooterContent(
+                indexPath: indexPath,
+                section: section
+            )
         default:
-            supplementaryView.contentConfiguration = makeSupplementaryContent(kind: kind, indexPath: indexPath)
+            supplementaryView.contentConfiguration = makeSupplementaryContent(
+                indexPath: indexPath,
+                section: section,
+                kind: kind
+            )
         }
     }
 
@@ -179,6 +200,8 @@ open class CollectionViewHostingConfigurationCoordinator<
     }
 
     private func makeContent(
+        indexPath: IndexPath,
+        section: CollectionViewSection<Section, Items>,
         value: Items.Element
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
@@ -186,47 +209,47 @@ open class CollectionViewHostingConfigurationCoordinator<
             kind: .cell,
             update: update
         ) {
-            content(value)
+            content(indexPath, section, value)
         }
     }
 
     private func makeHeaderContent(
-        indexPath: IndexPath
+        indexPath: IndexPath,
+        section: CollectionViewSection<Section, Items>
     ) -> UIContentConfiguration {
-        let section = sections[indexPath.section].section
-        return makeHostingConfiguration(
-            id: section.id,
+        makeHostingConfiguration(
+            id: section.section.id,
             kind: .supplementary(UICollectionView.elementKindSectionHeader),
             update: update
         ) {
-            header(section)
+            header(indexPath, section)
         }
     }
 
     private func makeFooterContent(
-        indexPath: IndexPath
+        indexPath: IndexPath,
+        section: CollectionViewSection<Section, Items>,
     ) -> UIContentConfiguration {
-        let section = sections[indexPath.section].section
-        return makeHostingConfiguration(
-            id: section.id,
+        makeHostingConfiguration(
+            id: section.section.id,
             kind: .supplementary(UICollectionView.elementKindSectionFooter),
             update: update
         ) {
-            footer(section)
+            footer(indexPath, section)
         }
     }
 
     private func makeSupplementaryContent(
-        kind: String,
-        indexPath: IndexPath
+        indexPath: IndexPath,
+        section: CollectionViewSection<Section, Items>,
+        kind: String
     ) -> UIContentConfiguration {
-        let section = sections[indexPath.section].section
-        return makeHostingConfiguration(
-            id: section.id,
+        makeHostingConfiguration(
+            id: section.section.id,
             kind: .supplementary(kind),
             update: update
         ) {
-            supplementaryView(.custom(kind), section)
+            supplementaryView(indexPath, section, .custom(kind))
         }
     }
 }
@@ -430,36 +453,28 @@ struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
         }
 
         @State var items: [Item] = (0..<5).map { Item(value: $0) }
-        @State var showHeader = true
 
         var body: some View {
             CollectionView(
-                .compositional,
+                .compositional(pinnedViews: [.header]),
                 items: items
-            ) { item in
+            ) { indexPath, section, item in
                 Text(item.id)
                     .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                    .background(.white.opacity(0.3))
-            } header: { index in
-                if showHeader {
-                    Text("Header")
-                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                        .background(.white)
-                }
-            } footer: { index in
-                Text("Footer")
-            }
-            .background(.blue)
-            .ignoresSafeArea()
-            .overlay(alignment: .bottomTrailing) {
-                Button("showHeader") {
-                    withAnimation {
-                        showHeader.toggle()
+                    .background(alignment: .bottom) {
+                        if item.id != section.items.last?.id {
+                            Divider()
+                        }
                     }
-                }
-                .foregroundStyle(.white)
-                .padding()
+            } header: { indexPath, index in
+                Text("Header")
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                    .background(Material.ultraThin)
+            } footer: { indexPath, index in
+                Text("Footer")
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
             }
+            .ignoresSafeArea()
         }
     }
 }

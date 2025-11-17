@@ -37,24 +37,24 @@ public struct CollectionView<
 {
     var layout: Layout
     var sections: [CollectionViewSection<Section, Items>]
-    var header: (Section) -> Header
-    var content: (Items.Element) -> Content
-    var footer: (Section) -> Footer
+    var header: (IndexPath, CollectionViewSection<Section, Items>) -> Header
+    var content: (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
+    var footer: (IndexPath, CollectionViewSection<Section, Items>) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
-    var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+    var supplementaryView: (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
+    var onSelect: ((IndexPath, Items.Element) -> Void)?
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
+    var onScroll: ((CGPoint) -> Void)?
 
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         supplementaryViews: [CollectionViewSupplementaryView],
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer,
-        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
     ) {
         self.layout = layout
         self.sections = sections
@@ -63,29 +63,23 @@ public struct CollectionView<
         self.footer = footer
         self.supplementaryViews = supplementaryViews
         self.supplementaryView = supplementaryView
-        self.refresh = refresh
-        self.reorder = reorder
     }
 
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
     ) where SupplementaryView == EmptyView {
         self.init(
             layout,
             sections: sections,
             supplementaryViews: [],
-            refresh: refresh,
-            reorder: reorder,
             content: content,
             header: header,
             footer: footer,
-            supplementaryView: { _, _ in EmptyView() }
+            supplementaryView: { _, _, _ in EmptyView() }
         )
     }
 
@@ -99,13 +93,23 @@ public struct CollectionView<
             supplementaryViews: supplementaryViews,
             supplementaryView: supplementaryView,
             refresh: refresh,
-            reorder: reorder
+            reorder: reorder,
+            onScroll: onScroll
         )
     }
 }
 
 @available(iOS 14.0, *)
 extension CollectionView {
+
+    public func onSelect(
+        isEnabled: Bool = true,
+        action: @escaping (IndexPath, Items.Element) -> Void
+    ) -> Self {
+        var copy = self
+        copy.onSelect = isEnabled ? action : nil
+        return copy
+    }
 
     public func refreshable(
         isEnabled: Bool = true,
@@ -124,6 +128,14 @@ extension CollectionView {
         copy.reorder = isEnabled ? action : nil
         return copy
     }
+
+    public func onScrollContentOffsetChange(
+        action: @escaping (CGPoint) -> Void
+    ) -> Self {
+        var copy = self
+        copy.onScroll = action
+        return copy
+    }
 }
 
 @available(iOS 14.0, *)
@@ -134,14 +146,30 @@ extension CollectionView {
 
     public init(
         _ layout: Layout,
+        sections: [CollectionViewSection<Section, Items>],
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
+    ) where
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView
+    {
+        self.init(
+            layout,
+            sections: sections,
+            content: content,
+            header: { _, _ in EmptyView() },
+            footer: { _, _ in EmptyView() }
+        )
+    }
+
+    public init(
+        _ layout: Layout,
         supplementaryViews: [CollectionViewSupplementaryView],
         items: Items,
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer,
-        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
     ) where
         Section == CollectionViewSectionIndex
     {
@@ -151,8 +179,6 @@ extension CollectionView {
                 CollectionViewSection(items: items, section: 0)
             ],
             supplementaryViews: supplementaryViews,
-            refresh: refresh,
-            reorder: reorder,
             content: content,
             header: header,
             footer: footer,
@@ -163,11 +189,9 @@ extension CollectionView {
     public init(
         _ layout: Layout,
         items: Items,
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
     ) where
         Section == CollectionViewSectionIndex,
         SupplementaryView == EmptyView
@@ -176,21 +200,17 @@ extension CollectionView {
             layout,
             supplementaryViews: [],
             items: items,
-            refresh: refresh,
-            reorder: reorder,
             content: content,
             header: header,
             footer: footer,
-            supplementaryView: { _, _ in EmptyView() }
+            supplementaryView: { _, _, _ in EmptyView() }
         )
     }
 
     public init(
         _ layout: Layout,
         items: Items,
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
     ) where
         Section == CollectionViewSectionIndex,
         Header == EmptyView,
@@ -200,11 +220,9 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
-            refresh: refresh,
-            reorder: reorder,
             content: content,
-            header: { _ in EmptyView() },
-            footer: { _ in EmptyView() }
+            header: { _, _ in EmptyView() },
+            footer: { _, _ in EmptyView() }
         )
     }
 
@@ -228,7 +246,7 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
-            content: { $0.value }
+            content: { $2.value }
         )
     }
 
@@ -247,7 +265,7 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
-            content: { content($0.value) }
+            content: { content($2.value) }
         )
     }
 }
@@ -272,13 +290,14 @@ private struct CollectionViewBody<
 
     var layout: Layout
     var sections: [CollectionViewSection<Section, Items>]
-    var header: (Section) -> Header
-    var content: (Items.Element) -> Content
-    var footer: (Section) -> Footer
+    var header: Coordinator.HeaderProvider
+    var content: Coordinator.ContentProvider
+    var footer: Coordinator.FooterProvider
     var supplementaryViews: [CollectionViewSupplementaryView]
-    var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+    var supplementaryView: Coordinator.SupplementaryViewProvider
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
+    var onScroll: ((CGPoint) -> Void)?
 
     typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items>
 
@@ -289,6 +308,7 @@ private struct CollectionViewBody<
         coordinator.supplementaryView = supplementaryView
         coordinator.refresh = refresh
         coordinator.reorder = reorder
+        coordinator.onScroll = onScroll
     }
 
     func makeCoordinator() -> Coordinator {
@@ -402,16 +422,16 @@ struct CollectionView_Previews: PreviewProvider {
                         offset: CGPoint(x: 0, y: 24)
                     )
                 ]
-            ) { item in
+            ) { indexPath, section, item in
                 ItemView(item: item)
-            } header: { section in
-                HeaderFooterView(index: section.index)
+            } header: { indexPath, section in
+                HeaderFooterView(index: section.id.index)
                     .background(.yellow)
-            } footer: { section in
-                HeaderFooterView(index: section.index)
+            } footer: { indexPath, section in
+                HeaderFooterView(index: section.id.index)
                     .background(.orange)
-            } supplementaryView: { id, section in
-                if id == .custom("banner"), section.index == 0 {
+            } supplementaryView: { indexPath, section, id in
+                if id == .custom("banner"), section.id.index == 0 {
                     Color.purple
                         .frame(height: 200)
                         .overlay {
@@ -509,11 +529,11 @@ struct CollectionView_Previews: PreviewProvider {
         }
 
         var body: some View {
-            CollectionView(.plain, items: items) { item in
+            CollectionView(.plain, items: items) { indexPath, section, item in
                 ItemView(item: item)
-            } header: { index in
+            } header: { indexPath, section in
                 HeaderFooterView(text: "Header")
-            } footer: { index in
+            } footer: { indexPath, section in
                 HeaderFooterView(text: "Footer")
             }
             .refreshable {

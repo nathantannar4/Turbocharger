@@ -7,84 +7,6 @@
 import UIKit
 import SwiftUI
 
-/// A collection wrapper for grouping items in a section
-@frozen
-public struct CollectionViewSection<
-    Section: Equatable & Identifiable,
-    Items: RandomAccessCollection
->: RandomAccessCollection where
-    Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable
-{
-
-    public var items: Items
-    public var section: Section
-
-    public init(items: Items, section: Section) {
-        self.items = items
-        self.section = section
-    }
-
-    public init<
-        _Items: RandomAccessCollection,
-        ID: Hashable & Sendable
-    >(
-        items: _Items,
-        id: KeyPath<_Items.Element, ID>,
-        section: Int
-    ) where
-        _Items.Element: Equatable,
-        Items == Array<IdentifiableBox<_Items.Element, ID>>,
-        Section == CollectionViewSectionIndex
-    {
-        let items = items.map { IdentifiableBox($0, id: id) }
-        self.init(items: items, section: section)
-    }
-
-    public init(items: Items, section: Int) where Section == CollectionViewSectionIndex {
-        self.items = items
-        self.section = CollectionViewSectionIndex(index: section)
-    }
-
-    // MARK: - RandomAccessCollection
-
-    public typealias Index = Items.Index
-    public typealias Element = Items.Element
-
-    public var startIndex: Index {
-        items.startIndex
-    }
-
-    public var endIndex: Index {
-        items.endIndex
-    }
-
-    public subscript(position: Index) -> Element {
-        items[position]
-    }
-
-    public func index(after i: Index) -> Index {
-        items.index(after: i)
-    }
-
-    public func index(before i: Index) -> Index {
-        items.index(before: i)
-    }
-}
-
-@frozen
-public struct CollectionViewSectionIndex: Hashable, Identifiable, Sendable {
-
-    public var index: Int
-
-    public var id: CollectionViewSectionIndex { self }
-
-    public init(index: Int) {
-        self.index = index
-    }
-}
-
 /// A `UICollectionViewDiffableDataSource` wrapper
 @MainActor
 @available(iOS 14.0, *)
@@ -92,7 +14,7 @@ open class CollectionViewCoordinator<
     Layout: CollectionViewLayout,
     Section: Equatable & Identifiable,
     Items: RandomAccessCollection
->: NSObject, UICollectionViewDragDelegate, UICollectionViewDropDelegate where
+>: NSObject, UICollectionViewDelegate, UICollectionViewDragDelegate, UICollectionViewDropDelegate where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
     Items.Element.ID: Sendable,
@@ -106,6 +28,8 @@ open class CollectionViewCoordinator<
     public private(set) var sections: [CollectionViewSection<Section, Items>]
     public private(set) var dataSource: UICollectionViewDiffableDataSource<Section.ID, ID>!
     public private(set) weak var collectionView: Layout.UICollectionViewType!
+
+    public var onSelect: ((IndexPath, Items.Element) -> Void)?
 
     public var refresh: (() async -> Void)? {
         didSet {
@@ -121,6 +45,8 @@ open class CollectionViewCoordinator<
         }
     }
 
+    public var onScroll: ((CGPoint) -> Void)?
+
     private var updateSeed: UInt = 0
     private var lastUpdateSeed: UInt = 0
 
@@ -130,6 +56,7 @@ open class CollectionViewCoordinator<
 
     public init(
         sections: [CollectionViewSection<Section, Items>],
+        onSelect: ((IndexPath, Items.Element) -> Void)? = nil,
         refresh: (() async -> Void)? = nil,
         reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         layout: Layout,
@@ -137,6 +64,7 @@ open class CollectionViewCoordinator<
     ) {
         self.layout = layout
         self.sections = sections
+        self.onSelect = onSelect
         self.refresh = refresh
         self.reorder = reorder
         self.layoutOptions = layoutOptions
@@ -268,6 +196,7 @@ open class CollectionViewCoordinator<
         collectionView.dragInteractionEnabled = reorder != nil
         collectionView.dragDelegate = self
         collectionView.dropDelegate = self
+        collectionView.delegate = self
         self.collectionView = collectionView
         self.dataSource = dataSource
         configureRefreshControl()
@@ -339,19 +268,21 @@ open class CollectionViewCoordinator<
                 }
             }
         } else {
-            var selfSizingInvalidation: Any?
+            var selfSizingInvalidation: Int?
             if #available(iOS 16.0, *) {
-                selfSizingInvalidation = collectionView.selfSizingInvalidation
+                selfSizingInvalidation = collectionView.selfSizingInvalidation.rawValue
                 collectionView.selfSizingInvalidation = .disabled
             }
             UIView.performWithoutAnimation {
                 let context = updateVisibleViews(updated: updated)
                 collectionView.collectionViewLayout.invalidateLayout(with: context)
             }
-            if #available(iOS 16.0, *) {
-                let oldValue = selfSizingInvalidation as! UICollectionView.SelfSizingInvalidation
-                withCATransaction {
-                    self.collectionView.selfSizingInvalidation = oldValue
+            if #available(iOS 16.0, *),
+                let selfSizingInvalidation,
+                let oldValue = UICollectionView.SelfSizingInvalidation(rawValue: selfSizingInvalidation)
+            {
+                withCATransaction { [weak self] in
+                    self?.collectionView.selfSizingInvalidation = oldValue
                 }
             }
         }
@@ -516,7 +447,6 @@ open class CollectionViewCoordinator<
         guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
         let parameters = UIDragPreviewParameters()
         parameters.visiblePath = UIBezierPath(rect: cell.bounds)
-        parameters.backgroundColor = .clear
         return parameters
     }
 
@@ -536,7 +466,6 @@ open class CollectionViewCoordinator<
         guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
         let parameters = UIDragPreviewParameters()
         parameters.visiblePath = UIBezierPath(rect: cell.bounds)
-        parameters.backgroundColor = .clear
         return parameters
     }
 
@@ -553,6 +482,251 @@ open class CollectionViewCoordinator<
         }
         return UICollectionViewDropProposal(operation: .forbidden)
     }
+
+    // MARK: - UICollectionViewDelegate
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        shouldHighlightItemAt indexPath: IndexPath
+    ) -> Bool {
+        return onSelect != nil
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didHighlightItemAt indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didUnhighlightItemAt indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        shouldSelectItemAt indexPath: IndexPath
+    ) -> Bool {
+        return onSelect != nil
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didSelectItemAt indexPath: IndexPath
+    ) {
+        onSelect?(indexPath, item(for: indexPath))
+        collectionView.deselectItem(at: indexPath, animated: true)
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didDeselectItemAt indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        shouldDeselectItemAt indexPath: IndexPath
+    ) -> Bool {
+        return true
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        canPerformPrimaryActionForItemAt indexPath: IndexPath
+    ) -> Bool {
+        return false
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        performPrimaryActionForItemAt indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        shouldBeginMultipleSelectionInteractionAt indexPath: IndexPath
+    ) -> Bool {
+        return false
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didBeginMultipleSelectionInteractionAt indexPath: IndexPath
+    ) {}
+
+    open func collectionViewDidEndMultipleSelectionInteraction(
+        _ collectionView: UICollectionView
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        return nil
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        willDisplayContextMenu configuration: UIContextMenuConfiguration,
+        animator: (any UIContextMenuInteractionAnimating)?
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
+        animator: (any UIContextMenuInteractionAnimating)?
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfiguration configuration: UIContextMenuConfiguration,
+        dismissalPreviewForItemAt indexPath: IndexPath
+    ) -> UITargetedPreview? {
+        return nil
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfiguration configuration: UIContextMenuConfiguration,
+        highlightPreviewForItemAt indexPath: IndexPath
+    ) -> UITargetedPreview? {
+        return nil
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+        animator: any UIContextMenuInteractionCommitAnimating
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        canFocusItemAt indexPath: IndexPath
+    ) -> Bool {
+        return true
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        selectionFollowsFocusForItemAt indexPath: IndexPath
+    ) -> Bool {
+        return false
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        shouldUpdateFocusIn context: UICollectionViewFocusUpdateContext
+    ) -> Bool {
+        return false
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didUpdateFocusIn context: UICollectionViewFocusUpdateContext,
+        with coordinator: UIFocusAnimationCoordinator
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        shouldSpringLoadItemAt indexPath: IndexPath,
+        with context: UISpringLoadedInteractionContext
+    ) -> Bool {
+        return false
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        willDisplay cell: UICollectionViewCell,
+        forItemAt indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didEndDisplaying cell: UICollectionViewCell,
+        forItemAt indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        willDisplaySupplementaryView view: UICollectionReusableView,
+        forElementKind elementKind: String,
+        at indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        didEndDisplayingSupplementaryView view: UICollectionReusableView,
+        forElementOfKind elementKind: String,
+        at indexPath: IndexPath
+    ) {}
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        canEditItemAt indexPath: IndexPath
+    ) -> Bool {
+        return false
+    }
+
+    open func collectionView(
+        _ collectionView: UICollectionView,
+        transitionLayoutForOldLayout fromLayout: UICollectionViewLayout,
+        newLayout toLayout: UICollectionViewLayout
+    ) -> UICollectionViewTransitionLayout {
+        return UICollectionViewTransitionLayout(
+            currentLayout: fromLayout,
+            nextLayout: toLayout
+        )
+    }
+
+    // MARK: - UIScrollViewDelegate
+
+    open func scrollViewDidScroll(
+        _ scrollView: UIScrollView
+    ) {
+        onScroll?(scrollView.contentOffset)
+    }
+
+    open func scrollViewDidZoom(_ scrollView: UIScrollView) {}
+
+    open func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {}
+
+    open func scrollViewWillEndDragging(
+        _ scrollView: UIScrollView,
+        withVelocity velocity: CGPoint,
+        targetContentOffset: UnsafeMutablePointer<CGPoint>
+    ) {}
+
+    open func scrollViewDidEndDragging(
+        _ scrollView: UIScrollView,
+        willDecelerate decelerate: Bool
+    ) {}
+
+    open func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {}
+
+    open func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {}
+
+    open func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {}
+
+    open func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+        return nil
+    }
+
+    open func scrollViewWillBeginZooming(
+        _ scrollView: UIScrollView,
+        with view: UIView?
+    ) {}
+
+    open func scrollViewDidEndZooming(
+        _ scrollView: UIScrollView,
+        with view: UIView?,
+        atScale scale: CGFloat
+    ) {}
+
+    open func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
+        return true
+    }
+
+    open func scrollViewDidScrollToTop(_ scrollView: UIScrollView) { }
 }
 
 extension UICollectionViewDiffableDataSource {
@@ -598,6 +772,7 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
     static var previews: some View {
         PreviewA()
         PreviewB()
+        PreviewC()
     }
 
     struct PreviewA: View {
@@ -770,18 +945,16 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
 
     class ListCoordinator: CollectionViewCoordinator<
         ListLayout, CollectionViewSectionIndex, Array<ListItem>
-    >, UICollectionViewDelegate, ListCoordinatorProxy.InputDelegate {
+    >, ListCoordinatorProxy.InputDelegate {
 
         weak var proxy: ListCoordinatorProxy?
 
         func configure(to proxy: ListCoordinatorProxy) {
             self.proxy = proxy
             proxy.inputDelegate = self
-        }
-
-        override func configure(to collectionView: UICollectionView) {
-            super.configure(to: collectionView)
-            collectionView.delegate = self
+            onSelect = { indexPath, item in
+                proxy.outputDelegate?.didSelectListItem(item)
+            }
         }
 
         override func configureCell(
@@ -793,12 +966,6 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
             content.text = item.id.uuidString
             content.secondaryText = item.value.description
             cell.contentConfiguration = content
-        }
-
-        func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-            collectionView.deselectItem(at: indexPath, animated: true)
-            let item = item(for: indexPath)
-            proxy?.outputDelegate?.didSelectListItem(item)
         }
 
         // MARK: - ListCoordinatorProxy.InputDelegate
@@ -826,19 +993,53 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
         var body: some View {
             CollectionView(
                 .compositional(spacing: 4),
-                items: items,
-                reorder: { from, to in
-                    items.move(
-                        fromOffsets: from.indices,
-                        toOffset: to.destination
-                    )
-                }
-            ) { item in
+                items: items
+            ) { indexPath, section, item in
                 Text(item.value.description)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
                     .background(.blue)
+            }
+            .reorderable { from, to in
+                items.move(
+                    fromOffsets: from.indices,
+                    toOffset: to.destination
+                )
+            }
+        }
+    }
+
+    struct PreviewC: View {
+
+        var body: some View {
+            CollectionView(
+                .compositional(
+                    axis: .vertical,
+                    spacing: 12,
+                    pinnedViews: [.header]
+                ),
+                sections: [
+                    CollectionViewSection(items: Array(0..<20), id: \.self, section: 0),
+                    CollectionViewSection(items: Array(20..<40), id: \.self, section: 1),
+                    CollectionViewSection(items: Array(40..<60), id: \.self, section: 2),
+                ]
+            ) { indexPath, section, id in
+                Text("Cell \(id.value)")
+            } header: { _, _ in
+                Header()
+            } footer: { _, _ in
+
+            }
+            .ignoresSafeArea()
+        }
+
+        struct Header: View {
+            var body: some View {
+                Text("Header")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                    .background(Material.ultraThin)
             }
         }
     }

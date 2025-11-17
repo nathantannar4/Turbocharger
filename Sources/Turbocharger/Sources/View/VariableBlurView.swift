@@ -269,9 +269,6 @@ struct VariableBlurView_Previews: PreviewProvider {
                             )
                             .edgesIgnoringSafeArea(.all)
                         }
-                        .onAppear {
-                            print(startPoint, endPoint)
-                        }
                     }
                 )
                 .background(
