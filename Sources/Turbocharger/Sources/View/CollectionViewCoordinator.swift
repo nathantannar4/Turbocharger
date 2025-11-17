@@ -339,19 +339,21 @@ open class CollectionViewCoordinator<
                 }
             }
         } else {
-            var selfSizingInvalidation: Any?
+            var selfSizingInvalidation: Int?
             if #available(iOS 16.0, *) {
-                selfSizingInvalidation = collectionView.selfSizingInvalidation
+                selfSizingInvalidation = collectionView.selfSizingInvalidation.rawValue
                 collectionView.selfSizingInvalidation = .disabled
             }
             UIView.performWithoutAnimation {
                 let context = updateVisibleViews(updated: updated)
                 collectionView.collectionViewLayout.invalidateLayout(with: context)
             }
-            if #available(iOS 16.0, *) {
-                let oldValue = selfSizingInvalidation as! UICollectionView.SelfSizingInvalidation
-                withCATransaction {
-                    self.collectionView.selfSizingInvalidation = oldValue
+            if #available(iOS 16.0, *),
+                let selfSizingInvalidation,
+                let oldValue = UICollectionView.SelfSizingInvalidation(rawValue: selfSizingInvalidation)
+            {
+                withCATransaction { [weak self] in
+                    self?.collectionView.selfSizingInvalidation = oldValue
                 }
             }
         }
@@ -516,7 +518,6 @@ open class CollectionViewCoordinator<
         guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
         let parameters = UIDragPreviewParameters()
         parameters.visiblePath = UIBezierPath(rect: cell.bounds)
-        parameters.backgroundColor = .clear
         return parameters
     }
 
@@ -536,7 +537,6 @@ open class CollectionViewCoordinator<
         guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
         let parameters = UIDragPreviewParameters()
         parameters.visiblePath = UIBezierPath(rect: cell.bounds)
-        parameters.backgroundColor = .clear
         return parameters
     }
 
@@ -833,7 +833,7 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
                         toOffset: to.destination
                     )
                 }
-            ) { item in
+            ) { indexPath, item in
                 Text(item.value.description)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)

@@ -61,7 +61,22 @@ public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepr
             transaction: context.transaction
         )
         representable.updateCoordinator(context.coordinator)
+        let shouldInvalidateLayout = representable.layout.shouldInvalidateLayout(
+            from: context.coordinator.layout,
+            context: context.coordinator.context,
+            options: context.coordinator.layoutOptions
+        )
         context.coordinator.update(layout: representable.layout)
+        if shouldInvalidateLayout {
+            let layout = representable.layout.makeUICollectionViewLayout(
+                context: context.coordinator.context,
+                options: context.coordinator.layoutOptions
+            )
+            uiView.setCollectionViewLayout(
+                layout,
+                animated: context.coordinator.context.transaction.isAnimated
+            )
+        }
         context.coordinator.update(sections: representable.sections)
     }
 

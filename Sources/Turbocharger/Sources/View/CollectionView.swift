@@ -37,11 +37,11 @@ public struct CollectionView<
 {
     var layout: Layout
     var sections: [CollectionViewSection<Section, Items>]
-    var header: (Section) -> Header
-    var content: (Items.Element) -> Content
-    var footer: (Section) -> Footer
+    var header: (IndexPath, Section) -> Header
+    var content: (IndexPath, Items.Element) -> Content
+    var footer: (IndexPath, Section) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
-    var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+    var supplementaryView: (CollectionViewSupplementaryView.ID, IndexPath, Section) -> SupplementaryView
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
 
@@ -51,10 +51,10 @@ public struct CollectionView<
         supplementaryViews: [CollectionViewSupplementaryView],
         refresh: (() async -> Void)? = nil,
         reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer,
-        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+        @ViewBuilder content: @escaping (IndexPath, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, Section) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, Section) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, IndexPath, Section) -> SupplementaryView
     ) {
         self.layout = layout
         self.sections = sections
@@ -72,9 +72,9 @@ public struct CollectionView<
         sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil,
         reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer
+        @ViewBuilder content: @escaping (IndexPath, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, Section) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, Section) -> Footer
     ) where SupplementaryView == EmptyView {
         self.init(
             layout,
@@ -85,7 +85,7 @@ public struct CollectionView<
             content: content,
             header: header,
             footer: footer,
-            supplementaryView: { _, _ in EmptyView() }
+            supplementaryView: { _, _, _ in EmptyView() }
         )
     }
 
@@ -134,14 +134,36 @@ extension CollectionView {
 
     public init(
         _ layout: Layout,
+        sections: [CollectionViewSection<Section, Items>],
+        refresh: (() async -> Void)? = nil,
+        reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
+        @ViewBuilder content: @escaping (IndexPath, Items.Element) -> Content
+    ) where
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView
+    {
+        self.init(
+            layout,
+            sections: sections,
+            refresh: refresh,
+            reorder: reorder,
+            content: content,
+            header: { _, _ in EmptyView() },
+            footer: { _, _ in EmptyView() }
+        )
+    }
+
+    public init(
+        _ layout: Layout,
         supplementaryViews: [CollectionViewSupplementaryView],
         items: Items,
         refresh: (() async -> Void)? = nil,
         reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer,
-        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+        @ViewBuilder content: @escaping (IndexPath, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, Section) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, Section) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (CollectionViewSupplementaryView.ID, IndexPath, Section) -> SupplementaryView
     ) where
         Section == CollectionViewSectionIndex
     {
@@ -165,9 +187,9 @@ extension CollectionView {
         items: Items,
         refresh: (() async -> Void)? = nil,
         reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content,
-        @ViewBuilder header: @escaping (Section) -> Header,
-        @ViewBuilder footer: @escaping (Section) -> Footer
+        @ViewBuilder content: @escaping (IndexPath, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, Section) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, Section) -> Footer
     ) where
         Section == CollectionViewSectionIndex,
         SupplementaryView == EmptyView
@@ -181,7 +203,7 @@ extension CollectionView {
             content: content,
             header: header,
             footer: footer,
-            supplementaryView: { _, _ in EmptyView() }
+            supplementaryView: { _, _, _ in EmptyView() }
         )
     }
 
@@ -190,7 +212,7 @@ extension CollectionView {
         items: Items,
         refresh: (() async -> Void)? = nil,
         reorder: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)? = nil,
-        @ViewBuilder content: @escaping (Items.Element) -> Content
+        @ViewBuilder content: @escaping (IndexPath, Items.Element) -> Content
     ) where
         Section == CollectionViewSectionIndex,
         Header == EmptyView,
@@ -203,8 +225,8 @@ extension CollectionView {
             refresh: refresh,
             reorder: reorder,
             content: content,
-            header: { _ in EmptyView() },
-            footer: { _ in EmptyView() }
+            header: { _, _ in EmptyView() },
+            footer: { _, _ in EmptyView() }
         )
     }
 
@@ -228,7 +250,7 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
-            content: { $0.value }
+            content: { $1.value }
         )
     }
 
@@ -247,7 +269,7 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
-            content: { content($0.value) }
+            content: { content($1.value) }
         )
     }
 }
@@ -272,11 +294,11 @@ private struct CollectionViewBody<
 
     var layout: Layout
     var sections: [CollectionViewSection<Section, Items>]
-    var header: (Section) -> Header
-    var content: (Items.Element) -> Content
-    var footer: (Section) -> Footer
+    var header: (IndexPath, Section) -> Header
+    var content: (IndexPath, Items.Element) -> Content
+    var footer: (IndexPath, Section) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
-    var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+    var supplementaryView: (CollectionViewSupplementaryView.ID, IndexPath, Section) -> SupplementaryView
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
 
@@ -402,15 +424,15 @@ struct CollectionView_Previews: PreviewProvider {
                         offset: CGPoint(x: 0, y: 24)
                     )
                 ]
-            ) { item in
+            ) { indexPath, item in
                 ItemView(item: item)
-            } header: { section in
+            } header: { indexPath, section in
                 HeaderFooterView(index: section.index)
                     .background(.yellow)
-            } footer: { section in
+            } footer: { indexPath, section in
                 HeaderFooterView(index: section.index)
                     .background(.orange)
-            } supplementaryView: { id, section in
+            } supplementaryView: { id, indexPath, section in
                 if id == .custom("banner"), section.index == 0 {
                     Color.purple
                         .frame(height: 200)
@@ -509,11 +531,11 @@ struct CollectionView_Previews: PreviewProvider {
         }
 
         var body: some View {
-            CollectionView(.plain, items: items) { item in
+            CollectionView(.plain, items: items) { indexPath, item in
                 ItemView(item: item)
-            } header: { index in
+            } header: { indexPath, index in
                 HeaderFooterView(text: "Header")
-            } footer: { index in
+            } footer: { indexPath, index in
                 HeaderFooterView(text: "Footer")
             }
             .refreshable {

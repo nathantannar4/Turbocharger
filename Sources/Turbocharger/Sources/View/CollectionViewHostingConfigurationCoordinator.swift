@@ -29,18 +29,18 @@ open class CollectionViewHostingConfigurationCoordinator<
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
 
-    public var header: (Section) -> Header
-    public var content: (Items.Element) -> Content
-    public var footer: (Section) -> Footer
-    public var supplementaryView: (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView
+    public var header: (IndexPath, Section) -> Header
+    public var content: (IndexPath, Items.Element) -> Content
+    public var footer: (IndexPath, Section) -> Footer
+    public var supplementaryView: (CollectionViewSupplementaryView.ID, IndexPath, Section) -> SupplementaryView
 
     private var update = HostingConfigurationUpdate(animation: nil, value: 0)
 
     public init(
-        header: @escaping (Section) -> Header,
-        content: @escaping (Items.Element) -> Content,
-        footer: @escaping (Section) -> Footer,
-        supplementaryView: @escaping (CollectionViewSupplementaryView.ID, Section) -> SupplementaryView,
+        header: @escaping (IndexPath, Section) -> Header,
+        content: @escaping (IndexPath, Items.Element) -> Content,
+        footer: @escaping (IndexPath, Section) -> Footer,
+        supplementaryView: @escaping (CollectionViewSupplementaryView.ID, IndexPath, Section) -> SupplementaryView,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil,
@@ -62,24 +62,25 @@ open class CollectionViewHostingConfigurationCoordinator<
         // Invoke the view builders to trigger SwiftUI's runtime to form a
         // dependency between any DynamicProperty that the @escaping value
         // uses.
-        for section in sections {
-            _ = header(section.section)
-            _ = footer(section.section)
+        for (index, section) in sections.enumerated() {
+            let indexPath = IndexPath(item: 0, section: index)
+            _ = header(indexPath, section.section)
+            _ = footer(indexPath, section.section)
 
             for supplementaryViewId in layoutOptions.supplementaryViews {
-                _ = supplementaryView(supplementaryViewId.id, section.section)
+                _ = supplementaryView(supplementaryViewId.id, indexPath, section.section)
             }
 
             if let first = section.items.first {
-                _ = content(first)
+                _ = content(indexPath, first)
             }
         }
     }
 
     public convenience init(
-        header: @escaping (Section) -> Header,
-        content: @escaping (Items.Element) -> Content,
-        footer: @escaping (Section) -> Footer,
+        header: @escaping (IndexPath, Section) -> Header,
+        content: @escaping (IndexPath, Items.Element) -> Content,
+        footer: @escaping (IndexPath, Section) -> Footer,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil,
@@ -89,7 +90,7 @@ open class CollectionViewHostingConfigurationCoordinator<
             header: header,
             content: content,
             footer: footer,
-            supplementaryView: { _, _ in EmptyView() },
+            supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
             refresh: refresh,
@@ -98,16 +99,16 @@ open class CollectionViewHostingConfigurationCoordinator<
     }
 
     public convenience init(
-        content: @escaping (Items.Element) -> Content,
+        content: @escaping (IndexPath, Items.Element) -> Content,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         refresh: (() async -> Void)? = nil
     ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
         self.init(
-            header: { _ in EmptyView() },
+            header: { _, _ in EmptyView() },
             content: content,
-            footer: { _ in EmptyView() },
-            supplementaryView: { _, _ in EmptyView() },
+            footer: { _, _ in EmptyView() },
+            supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
             refresh: refresh,
@@ -132,7 +133,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         indexPath: IndexPath,
         item: Items.Element
     ) {
-        cell.contentConfiguration = makeContent(value: item)
+        cell.contentConfiguration = makeContent(indexPath: indexPath, value: item)
     }
 
     open override func dequeueReusableSupplementaryView(
@@ -179,6 +180,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     }
 
     private func makeContent(
+        indexPath: IndexPath,
         value: Items.Element
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
@@ -186,7 +188,7 @@ open class CollectionViewHostingConfigurationCoordinator<
             kind: .cell,
             update: update
         ) {
-            content(value)
+            content(indexPath, value)
         }
     }
 
@@ -199,7 +201,7 @@ open class CollectionViewHostingConfigurationCoordinator<
             kind: .supplementary(UICollectionView.elementKindSectionHeader),
             update: update
         ) {
-            header(section)
+            header(indexPath, section)
         }
     }
 
@@ -212,7 +214,7 @@ open class CollectionViewHostingConfigurationCoordinator<
             kind: .supplementary(UICollectionView.elementKindSectionFooter),
             update: update
         ) {
-            footer(section)
+            footer(indexPath, section)
         }
     }
 
@@ -226,7 +228,7 @@ open class CollectionViewHostingConfigurationCoordinator<
             kind: .supplementary(kind),
             update: update
         ) {
-            supplementaryView(.custom(kind), section)
+            supplementaryView(.custom(kind), indexPath, section)
         }
     }
 }
@@ -430,36 +432,25 @@ struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
         }
 
         @State var items: [Item] = (0..<5).map { Item(value: $0) }
-        @State var showHeader = true
 
         var body: some View {
             CollectionView(
                 .compositional,
                 items: items
-            ) { item in
+            ) { indexPath, item in
                 Text(item.id)
                     .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                    .background(.white.opacity(0.3))
-            } header: { index in
-                if showHeader {
-                    Text("Header")
-                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
-                        .background(.white)
-                }
-            } footer: { index in
+                    .background(Color.red)
+            } header: { indexPath, index in
+                Text("Header")
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                    .background(Color.blue)
+            } footer: { indexPath, index in
                 Text("Footer")
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                    .background(Color.blue)
             }
-            .background(.blue)
             .ignoresSafeArea()
-            .overlay(alignment: .bottomTrailing) {
-                Button("showHeader") {
-                    withAnimation {
-                        showHeader.toggle()
-                    }
-                }
-                .foregroundStyle(.white)
-                .padding()
-            }
         }
     }
 }

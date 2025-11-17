@@ -26,14 +26,20 @@ public struct CollectionViewListLayout: CollectionViewLayout {
 
     public var appearance: Appearance
     public var showsSeparators: Bool
+    public var backgroundColor: Color?
+    public var headerTopPadding: CGFloat?
 
     @inlinable
     public init(
         appearance: Appearance,
-        showsSeparators: Bool = false
+        showsSeparators: Bool,
+        backgroundColor: Color? = nil,
+        headerTopPadding: CGFloat? = nil
     ) {
         self.appearance = appearance
         self.showsSeparators = showsSeparators
+        self.backgroundColor = backgroundColor
+        self.headerTopPadding = headerTopPadding
     }
 
     #if os(iOS)
@@ -54,9 +60,9 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         configuration.headerMode = options.supplementaryViews.contains(where: { $0.id == .header }) ? .supplementary : .none
         configuration.footerMode = options.supplementaryViews.contains(where: { $0.id == .footer }) ? .supplementary : .none
         configuration.showsSeparators = showsSeparators
-        configuration.backgroundColor = .clear
+        configuration.backgroundColor = backgroundColor?.toUIColor()
         if #available(iOS 15.0, *) {
-            configuration.headerTopPadding = 0
+            configuration.headerTopPadding = headerTopPadding
         }
         let layout = UICollectionViewCompositionalLayout.list(using: configuration)
         return layout
@@ -71,6 +77,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         uiCollectionView.clipsToBounds = false
         uiCollectionView.keyboardDismissMode = .interactive
+        uiCollectionView.backgroundColor = .clear
         return uiCollectionView
     }
 
@@ -78,7 +85,74 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         _ collectionView: UICollectionView,
         context: Context
     ) { }
+
+    public func updateUICollectionViewCell(
+        _ collectionView: UICollectionView,
+        cell: UICollectionViewListCell,
+        indexPath: IndexPath,
+        context: Context
+    ) {
+        if #available(iOS 18.0, *) {
+            cell.backgroundConfiguration = .listCell()
+        } else {
+            switch appearance {
+            case .plain:
+                cell.backgroundConfiguration = .listPlainCell()
+            case .grouped, .insetGrouped:
+                cell.backgroundConfiguration = .listGroupedCell()
+            }
+        }
+    }
+
+    public func updateUICollectionViewSupplementaryView(
+        _ collectionView: UICollectionView,
+        supplementaryView: UICollectionViewListCell,
+        kind: String,
+        indexPath: IndexPath,
+        context: Context
+    ) {
+        if #available(iOS 18.0, *) {
+            switch kind {
+            case UICollectionView.elementKindSectionHeader:
+                supplementaryView.backgroundConfiguration = .listHeader()
+            case UICollectionView.elementKindSectionFooter:
+                supplementaryView.backgroundConfiguration = .listFooter()
+            default:
+                supplementaryView.backgroundConfiguration = .clear()
+            }
+        } else {
+            switch appearance {
+            case .plain:
+                supplementaryView.backgroundConfiguration = .listPlainHeaderFooter()
+            case .grouped, .insetGrouped:
+                supplementaryView.backgroundConfiguration = .listGroupedHeaderFooter()
+            }
+        }
+    }
     #endif
+}
+
+@available(iOS 14.0, *)
+@available(macOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+extension CollectionViewListLayout {
+
+    public func showsSeparators(
+        _ showsSeparators: Bool
+    ) -> CollectionViewListLayout {
+        var copy = self
+        copy.showsSeparators = showsSeparators
+        return copy
+    }
+
+    public func backgroundColor(
+        _ color: Color?
+    ) -> CollectionViewListLayout {
+        var copy = self
+        copy.backgroundColor = color
+        return copy
+    }
 }
 
 @available(iOS 14.0, *)
@@ -87,67 +161,88 @@ public struct CollectionViewListLayout: CollectionViewLayout {
 @available(watchOS, unavailable)
 extension CollectionViewLayout where Self == CollectionViewListLayout {
 
-    public static var plain: CollectionViewListLayout { .init(appearance: .plain) }
+    public static var plain: CollectionViewListLayout {
+        CollectionViewListLayout(
+            appearance: .plain,
+            showsSeparators: false,
+            backgroundColor: .clear,
+            headerTopPadding: 0
+        )
+    }
 
-    public static var grouped: CollectionViewListLayout { .init(appearance: .grouped) }
+    public static var grouped: CollectionViewListLayout {
+        CollectionViewListLayout(
+            appearance: .grouped,
+            showsSeparators: true
+        )
+    }
 
-    public static var insetGrouped: CollectionViewListLayout { .init(appearance: .insetGrouped, showsSeparators: true) }
+    public static var insetGrouped: CollectionViewListLayout {
+        CollectionViewListLayout(
+            appearance: .insetGrouped,
+            showsSeparators: true
+        )
+    }
 }
-
-
 
 // MARK: - Previews
 
 #if os(iOS)
+
 @available(iOS 15.0, *)
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 struct CollectionViewListLayout_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 12) {
-            CollectionView(
-                .plain,
-                sections: [
-                    CollectionViewSection(items: [1, 2], id: \.self, section: 0),
-                    CollectionViewSection(items: [3], id: \.self, section: 0),
-                ]
-            ) { id in
-                CellView("Cell \(id)")
-            } header: { _ in
-                HeaderFooter()
-            } footer: { _ in
-                HeaderFooter()
-            }
 
-            CollectionView(
-                .grouped,
-                sections: [
-                    CollectionViewSection(items: [1, 2], id: \.self, section: 0),
-                    CollectionViewSection(items: [3], id: \.self, section: 0),
-                ]
-            ) { id in
-                CellView("Cell \(id)")
-            } header: { _ in
-                HeaderFooter()
-            } footer: { _ in
-                HeaderFooter()
-            }
-
-            CollectionView(
-                .insetGrouped,
-                sections: [
-                    CollectionViewSection(items: [1, 2], id: \.self, section: 0),
-                    CollectionViewSection(items: [3], id: \.self, section: 0),
-                ]
-            ) { id in
-                CellView("Cell \(id)")
-            } header: { _ in
-                HeaderFooter()
-            } footer: { _ in
-                HeaderFooter()
-            }
+        CollectionView(
+            .plain,
+            sections: [
+                CollectionViewSection(items: [1, 2], id: \.self, section: 0),
+                CollectionViewSection(items: [3], id: \.self, section: 1),
+            ]
+        ) { indexPath, id in
+            CellView("Cell \(id.value)")
+        } header: { _, _ in
+            HeaderFooter()
+        } footer: { _, _ in
+            HeaderFooter()
         }
+        .background(Color.blue.opacity(0.3))
+        .ignoresSafeArea()
+
+        CollectionView(
+            .grouped,
+            sections: [
+                CollectionViewSection(items: [1, 2], id: \.self, section: 0),
+                CollectionViewSection(items: [3], id: \.self, section: 1),
+            ]
+        ) { indexPath, id in
+            CellView("Cell \(id.value)")
+        } header: { _, _ in
+            HeaderFooter()
+        } footer: { _, _ in
+            HeaderFooter()
+        }
+        .background(Color.blue.opacity(0.3))
+        .ignoresSafeArea()
+
+        CollectionView(
+            .insetGrouped,
+            sections: [
+                CollectionViewSection(items: [1, 2], id: \.self, section: 0),
+                CollectionViewSection(items: [3], id: \.self, section: 1),
+            ]
+        ) { indexPath, id in
+            CellView("Cell \(id.value)")
+        } header: { _, _ in
+            HeaderFooter()
+        } footer: { _, _ in
+            HeaderFooter()
+        }
+        .background(Color.blue.opacity(0.3))
+        .ignoresSafeArea()
     }
 
     struct CellView: View {
@@ -160,16 +255,16 @@ struct CollectionViewListLayout_Previews: PreviewProvider {
             Text(text)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
-                .background(Color.red)
         }
     }
 
     struct HeaderFooter: View {
         var body: some View {
             Text("Header/Footer")
-                .frame(maxWidth: .infinity)
-                .background(Color.blue)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
         }
     }
 }
+
 #endif

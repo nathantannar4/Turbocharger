@@ -19,7 +19,7 @@ public struct CollectionViewIdealSizeLayout<
     public typealias UICollectionViewCellType = Layout.UICollectionViewCellType
     public typealias UICollectionViewSupplementaryViewType = Layout.UICollectionViewSupplementaryViewType
 
-    public var layout: Layout
+    public nonisolated(unsafe) var layout: Layout
     public var isScrollEnabled: Bool
 
     public init(
@@ -49,6 +49,7 @@ public struct CollectionViewIdealSizeLayout<
         )
         uiCollectionView.clipsToBounds = false
         uiCollectionView.keyboardDismissMode = .interactive
+        uiCollectionView.backgroundColor = nil
         return uiCollectionView
     }
 
