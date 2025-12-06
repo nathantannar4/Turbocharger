@@ -12,8 +12,8 @@ import Engine
 public protocol CollectionViewRepresentable: View {
 
     associatedtype Layout: CollectionViewLayout
-    associatedtype Section: Equatable & Identifiable where Section.ID: Sendable
-    associatedtype Items: RandomAccessCollection where Items.Index: Hashable & Sendable, Items.Element: Equatable & Identifiable, Items.Element.ID: Sendable
+    associatedtype Section: Equatable & Identifiable where Section.ID: Equatable & Sendable
+    associatedtype Items: RandomAccessCollection where Items.Index: Hashable & Sendable, Items.Element: Equatable & Identifiable, Items.Element.ID: Equatable & Sendable
     associatedtype Coordinator: CollectionViewCoordinator<Layout, Section, Items>
 
     var layout: Layout { get }

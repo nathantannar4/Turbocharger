@@ -130,14 +130,31 @@ public struct CollectionViewLayoutOptions {
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @MainActor
-public struct CollectionViewSupplementaryView: Hashable, Sendable {
+public struct CollectionViewSupplementaryView: Equatable, Sendable {
 
-    @MainActor
-    public enum ID: Hashable, Sendable {
+    public enum ID: Hashable, Sendable, ExpressibleByStringLiteral {
         case header
         case footer
         case custom(String)
 
+        public init(stringLiteral value: String) {
+            self = .custom(value)
+        }
+
+        #if os(iOS)
+        init(_ kind: String) {
+            switch kind {
+            case UICollectionView.elementKindSectionHeader:
+                self = .header
+            case UICollectionView.elementKindSectionFooter:
+                self = .footer
+            default:
+                self = .custom(kind)
+            }
+        }
+        #endif
+
+        @MainActor
         public var kind: String {
             #if os(iOS)
             switch self {
@@ -159,27 +176,29 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     public var offset: CGPoint
     public var contentInset: EdgeInsets
     public var zIndex: Int
+    public var extendsBoundary: Bool
+    public var layoutSize: CollectionViewCompositionalLayoutSize?
 
     private init(
         id: ID,
         alignment: Alignment,
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 0
+        zIndex: Int = 0,
+        extendsBoundary: Bool = true,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) {
         self.id = id
         self.alignment = alignment
         self.offset = offset
         self.contentInset = contentInset
         self.zIndex = zIndex
+        self.extendsBoundary = extendsBoundary
+        self.layoutSize = layoutSize
     }
 
     public var kind: String {
         id.kind
-    }
-
-    public nonisolated func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
     }
 
     /// The `UICollectionViewLayout` should include a header
@@ -189,14 +208,16 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     public static func header(
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 2
+        zIndex: Int = 2,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) -> CollectionViewSupplementaryView {
         CollectionViewSupplementaryView(
             id: .header,
             alignment: .topLeading,
             offset: offset,
             contentInset: contentInset,
-            zIndex: zIndex
+            zIndex: zIndex,
+            layoutSize: layoutSize
         )
     }
 
@@ -207,14 +228,16 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     public static func footer(
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 1
+        zIndex: Int = 1,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) -> CollectionViewSupplementaryView {
         CollectionViewSupplementaryView(
             id: .footer,
             alignment: .bottomTrailing,
             offset: offset,
             contentInset: contentInset,
-            zIndex: zIndex
+            zIndex: zIndex,
+            layoutSize: layoutSize
         )
     }
 
@@ -224,14 +247,18 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
         alignment: Alignment,
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 0
+        zIndex: Int = 0,
+        extendsBoundary: Bool = true,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) -> CollectionViewSupplementaryView {
         CollectionViewSupplementaryView(
             id: .custom(id),
             alignment: alignment,
             offset: offset,
             contentInset: contentInset,
-            zIndex: zIndex
+            zIndex: zIndex,
+            extendsBoundary: extendsBoundary,
+            layoutSize: layoutSize
         )
     }
 }

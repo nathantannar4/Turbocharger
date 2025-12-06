@@ -23,8 +23,8 @@ open class CollectionViewHostingConfigurationCoordinator<
 >: CollectionViewCoordinator<Layout, Section, Items> where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -47,8 +47,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         supplementaryView: @escaping SupplementaryViewProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         layoutOptions: CollectionViewLayoutOptions
     ) {
         self.header = header
@@ -57,8 +55,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         self.supplementaryView = supplementaryView
         super.init(
             sections: sections,
-            refresh: refresh,
-            reorder: reorder,
             layout: layout,
             layoutOptions: layoutOptions
         )
@@ -87,7 +83,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         footer: @escaping FooterProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        refresh: (() async -> Void)? = nil,
         layoutOptions: CollectionViewLayoutOptions
     ) where SupplementaryView == EmptyView {
         self.init(
@@ -97,7 +92,6 @@ open class CollectionViewHostingConfigurationCoordinator<
             supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
-            refresh: refresh,
             layoutOptions: layoutOptions
         )
     }
@@ -105,8 +99,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     public convenience init(
         content: @escaping ContentProvider,
         layout: Layout,
-        sections: [CollectionViewSection<Section, Items>],
-        refresh: (() async -> Void)? = nil
+        sections: [CollectionViewSection<Section, Items>]
     ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
         self.init(
             header: { _, _ in EmptyView() },
@@ -115,7 +108,6 @@ open class CollectionViewHostingConfigurationCoordinator<
             supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
-            refresh: refresh,
             layoutOptions: .init()
         )
     }

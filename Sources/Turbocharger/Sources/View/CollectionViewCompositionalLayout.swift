@@ -5,6 +5,42 @@
 import SwiftUI
 import Engine
 
+public struct CollectionViewCompositionalLayoutSize: Equatable, Sendable {
+    public enum Dimension: Equatable, Sendable {
+        case fractionalWidth(CGFloat)
+        case fractionalHeight(CGFloat)
+        case absolute(CGFloat)
+        case estimated(CGFloat)
+
+        #if os(iOS)
+        @MainActor
+        func toUIKit() -> NSCollectionLayoutDimension {
+            switch self {
+            case .fractionalWidth(let value):
+                return .fractionalWidth(value)
+            case .fractionalHeight(let value):
+                return .fractionalHeight(value)
+            case .absolute(let value):
+                return .absolute(value)
+            case .estimated(let value):
+                return .estimated(value)
+            }
+        }
+        #endif
+    }
+
+    public var width: Dimension?
+    public var height: Dimension?
+
+    public init(
+        width: Dimension? = nil,
+        height: Dimension? = nil
+    ) {
+        self.width = width
+        self.height = height
+    }
+}
+
 /// A ``CollectionViewLayout``
 @available(iOS 14.0, *)
 @available(macOS, unavailable)
@@ -46,18 +82,19 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
 
     public var axis: Axis
     public var showsIndicators: Bool
-    public var estimatedDimension: CGFloat
+    public var layoutSize: CollectionViewCompositionalLayoutSize?
     public var itemSpacing: CGFloat
     public var sectionSpacing: CGFloat
     public var contentInsets: EdgeInsets
     public var pinnedViews: Set<CollectionViewSupplementaryView.ID>
     public var supplementaryViewVisibility: [CollectionViewSupplementaryView.ID: CollectionViewSupplementaryViewVisibility]
+    public var layoutAttributes: AnyCollectionViewLayoutAttributes?
 
     @inlinable
     public init(
         axis: Axis = .vertical,
         showsIndicators: Bool = true,
-        estimatedDimension: CGFloat? = nil,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil,
         itemSpacing: CGFloat = 0,
         sectionSpacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
@@ -66,12 +103,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
     ) {
         self.axis = axis
         self.showsIndicators = showsIndicators
-        switch axis {
-        case .vertical:
-            self.estimatedDimension = estimatedDimension ?? 60
-        case .horizontal:
-            self.estimatedDimension = estimatedDimension ?? 400
-        }
+        self.layoutSize = layoutSize
         self.itemSpacing = itemSpacing
         self.sectionSpacing = sectionSpacing
         self.contentInsets = contentInsets
@@ -79,15 +111,52 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         self.supplementaryViewVisibility = supplementaryViewVisibility
     }
 
+    @inlinable
+    public init<Attributes: CollectionViewLayoutAttributes>(
+        axis: Axis = .vertical,
+        showsIndicators: Bool = true,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil,
+        itemSpacing: CGFloat = 0,
+        sectionSpacing: CGFloat = 0,
+        contentInsets: EdgeInsets = .zero,
+        pinnedViews: Set<CollectionViewSupplementaryView.ID> = [],
+        supplementaryViewVisibility: [CollectionViewSupplementaryView.ID: CollectionViewSupplementaryViewVisibility] = [:],
+        layoutAttributes: Attributes
+    ) {
+        self.axis = axis
+        self.showsIndicators = showsIndicators
+        self.layoutSize = layoutSize
+        self.itemSpacing = itemSpacing
+        self.sectionSpacing = sectionSpacing
+        self.contentInsets = contentInsets
+        self.pinnedViews = pinnedViews
+        self.supplementaryViewVisibility = supplementaryViewVisibility
+        self.layoutAttributes = AnyCollectionViewLayoutAttributes(layoutAttributes)
+    }
+
     #if os(iOS)
     public func makeUICollectionViewLayout(
         context: Context,
         options: CollectionViewLayoutOptions
     ) -> UICollectionViewCompositionalLayout {
-        let itemSize = NSCollectionLayoutSize(
-            widthDimension: axis == .vertical ? .fractionalWidth(1.0) : .estimated(estimatedDimension),
-            heightDimension: axis == .vertical ? .estimated(estimatedDimension) : .fractionalHeight(1.0)
-        )
+        let itemSize: NSCollectionLayoutSize
+        let widthDimension: NSCollectionLayoutDimension = axis == .vertical
+            ? .fractionalWidth(1.0)
+            : .estimated(300)
+        let heightDimension: NSCollectionLayoutDimension = axis == .vertical
+            ? .estimated(60)
+            : .fractionalHeight(1.0)
+        if let layoutSize {
+            itemSize = NSCollectionLayoutSize(
+                widthDimension: layoutSize.width?.toUIKit() ?? widthDimension,
+                heightDimension: layoutSize.height?.toUIKit() ?? heightDimension
+            )
+        } else {
+            itemSize = NSCollectionLayoutSize(
+                widthDimension: widthDimension,
+                heightDimension: heightDimension
+            )
+        }
 
         let layoutItem = NSCollectionLayoutItem(
             layoutSize: itemSize
@@ -108,6 +177,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         }()
 
         let configuration = UICollectionViewCompositionalLayoutConfiguration()
+        configuration.contentInsetsReference = .none
         configuration.interSectionSpacing = sectionSpacing
         switch axis {
         case .vertical:
@@ -115,66 +185,87 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         case .horizontal:
             configuration.scrollDirection = .horizontal
         }
-        let layout = UICollectionViewCompositionalLayout(
-            sectionProvider: { section, environment in
-                let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
-                layoutSection.interGroupSpacing = itemSpacing
-                layoutSection.contentInsets = NSDirectionalEdgeInsets(contentInsets)
-                if #available(iOS 16.0, *) {
-                    layoutSection.supplementaryContentInsetsReference = .none
-                } else {
-                    layoutSection.supplementariesFollowContentInsets = false
-                }
-                for supplementaryView in options.supplementaryViews {
-                    let isVisible = {
-                        guard
-                            let visibility = supplementaryViewVisibility[supplementaryView.id]
-                        else {
-                            return true
-                        }
-                        if visibility.sections.contains(section) {
-                            return visibility.visibility == .visible
-                        }
-                        return visibility.visibility != .visible
-                    }()
-                    guard isVisible else { continue }
-                    let item = NSCollectionLayoutBoundarySupplementaryItem(
-                        layoutSize: itemSize,
-                        elementKind: supplementaryView.kind,
-                        alignment: {
-                            switch supplementaryView.alignment {
-                            case .top:
-                                return .top
-                            case .topLeading:
-                                return .topLeading
-                            case .topTrailing:
-                                return .topLeading
-                            case .bottom:
-                                return .bottom
-                            case .bottomLeading:
-                                return .bottomLeading
-                            case .bottomTrailing:
-                                return .bottomTrailing
-                            case .leading:
-                                return .leading
-                            case .trailing:
-                                return .trailing
-                            default:
-                                return .none
-                            }
-                        }(),
-                        absoluteOffset: supplementaryView.offset
+        let sectionProvider: UICollectionViewCompositionalLayoutSectionProvider = { section, environment in
+            let layoutSection = NSCollectionLayoutSection(group: layoutGroup)
+            layoutSection.interGroupSpacing = itemSpacing
+            layoutSection.contentInsets = NSDirectionalEdgeInsets(contentInsets)
+            if #available(iOS 16.0, *) {
+                layoutSection.supplementaryContentInsetsReference = .none
+            } else {
+                layoutSection.supplementariesFollowContentInsets = false
+            }
+            for supplementaryView in options.supplementaryViews {
+                let isVisible = {
+                    guard
+                        let visibility = supplementaryViewVisibility[supplementaryView.id]
+                    else {
+                        return true
+                    }
+                    if visibility.sections.contains(section) {
+                        return visibility.visibility == .visible
+                    }
+                    return visibility.visibility != .visible
+                }()
+                guard isVisible else { continue }
+                let supplementaryItemSize: NSCollectionLayoutSize
+                if let layoutSize = supplementaryView.layoutSize {
+                    supplementaryItemSize = NSCollectionLayoutSize(
+                        widthDimension: layoutSize.width?.toUIKit() ?? itemSize.widthDimension,
+                        heightDimension: layoutSize.height?.toUIKit() ?? itemSize.heightDimension
                     )
-                    item.contentInsets = NSDirectionalEdgeInsets(supplementaryView.contentInset)
-                    item.zIndex = supplementaryView.zIndex
-                    item.pinToVisibleBounds = pinnedViews.contains(supplementaryView.id)
-                    layoutSection.boundarySupplementaryItems.append(item)
+                } else {
+                    supplementaryItemSize = itemSize
                 }
-                return layoutSection
-            },
-            configuration: configuration
-        )
-        return layout
+                let item = NSCollectionLayoutBoundarySupplementaryItem(
+                    layoutSize: supplementaryItemSize,
+                    elementKind: supplementaryView.kind,
+                    alignment: {
+                        switch supplementaryView.alignment {
+                        case .top:
+                            return .top
+                        case .topLeading:
+                            return .topLeading
+                        case .topTrailing:
+                            return .topLeading
+                        case .bottom:
+                            return .bottom
+                        case .bottomLeading:
+                            return .bottomLeading
+                        case .bottomTrailing:
+                            return .bottomTrailing
+                        case .leading:
+                            return .leading
+                        case .trailing:
+                            return .trailing
+                        default:
+                            return .none
+                        }
+                    }(),
+                    absoluteOffset: supplementaryView.offset
+                )
+                item.extendsBoundary = supplementaryView.extendsBoundary
+                item.contentInsets = NSDirectionalEdgeInsets(supplementaryView.contentInset)
+                item.zIndex = supplementaryView.zIndex
+                item.pinToVisibleBounds = pinnedViews.contains(supplementaryView.id)
+                layoutSection.boundarySupplementaryItems.append(item)
+            }
+            return layoutSection
+        }
+
+        if let layoutAttributes {
+            let layout = CollectionViewCompositionalLayoutImpl(
+                layoutAttributes: layoutAttributes,
+                sectionProvider: sectionProvider,
+                configuration: configuration
+            )
+            return layout
+        } else {
+            let layout = UICollectionViewCompositionalLayout(
+                sectionProvider: sectionProvider,
+                configuration: configuration
+            )
+            return layout
+        }
     }
 
     public func makeUICollectionView(
@@ -194,11 +285,198 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         _ collectionView: UICollectionView,
         context: Context
     ) {
+        if let layout = collectionView.collectionViewLayout as? CollectionViewCompositionalLayoutImpl {
+            layout.layoutAttributes = layoutAttributes
+        }
         collectionView.showsVerticalScrollIndicator = showsIndicators
         collectionView.showsHorizontalScrollIndicator = showsIndicators
     }
     #endif
 }
+
+#if os(iOS)
+@available(iOS 14.0, *)
+@available(macOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalLayout {
+
+    public var layoutAttributes: AnyCollectionViewLayoutAttributes? {
+        didSet {
+            guard oldValue != layoutAttributes else { return }
+            invalidateLayout()
+        }
+    }
+
+    public init(
+        layoutAttributes: AnyCollectionViewLayoutAttributes,
+        sectionProvider: @escaping UICollectionViewCompositionalLayoutSectionProvider,
+        configuration: UICollectionViewCompositionalLayoutConfiguration
+    ) {
+        self.layoutAttributes = layoutAttributes
+        super.init(sectionProvider: sectionProvider, configuration: configuration)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    open override func layoutAttributesForElements(
+        in rect: CGRect
+    ) -> [UICollectionViewLayoutAttributes]? {
+        guard
+            var attributes = super.layoutAttributesForElements(in: rect)
+        else {
+            return nil
+        }
+        guard let layoutAttributes else { return attributes }
+        for index in attributes.indices {
+            switch attributes[index].representedElementCategory {
+            case .cell:
+                layoutAttributes.layoutAttributes(
+                    for: .item,
+                    at: attributes[index].indexPath,
+                    layout: self,
+                    attributes: &attributes[index]
+                )
+            case .supplementaryView:
+                guard let kind = attributes[index].representedElementKind else { continue }
+                layoutAttributes.layoutAttributes(
+                    for: .supplementaryView(.init(kind)),
+                    at: attributes[index].indexPath,
+                    layout: self,
+                    attributes: &attributes[index]
+                )
+            case .decorationView:
+                break
+            @unknown default:
+                break
+            }
+        }
+        return attributes
+    }
+
+    open override func initialLayoutAttributesForAppearingItem(
+        at itemIndexPath: IndexPath
+    ) -> UICollectionViewLayoutAttributes? {
+        guard
+            var attributes = super.initialLayoutAttributesForAppearingItem(at: itemIndexPath)
+        else {
+            return nil
+        }
+        guard let layoutAttributes else { return attributes }
+        layoutAttributes.initialAppearingLayoutAttributes(
+            for: .item,
+            at: itemIndexPath,
+            layout: self,
+            attributes: &attributes
+        )
+        return attributes
+    }
+
+    open override func finalLayoutAttributesForDisappearingItem(
+        at itemIndexPath: IndexPath
+    ) -> UICollectionViewLayoutAttributes? {
+        guard
+            var attributes = super.finalLayoutAttributesForDisappearingItem(at: itemIndexPath)
+        else {
+            return nil
+        }
+        guard let layoutAttributes else { return attributes }
+        layoutAttributes.finalDisappearingLayoutAttributes(
+            for: .item,
+            at: itemIndexPath,
+            layout: self,
+            attributes: &attributes
+        )
+        return attributes
+    }
+
+    open override func layoutAttributesForItem(
+        at indexPath: IndexPath
+    ) -> UICollectionViewLayoutAttributes? {
+        guard
+            var attributes = super.layoutAttributesForItem(at: indexPath)
+        else {
+            return nil
+        }
+        guard let layoutAttributes else { return attributes }
+        layoutAttributes.layoutAttributes(
+            for: .item,
+            at: indexPath,
+            layout: self,
+            attributes: &attributes
+        )
+        return attributes
+    }
+
+    open override func initialLayoutAttributesForAppearingSupplementaryElement(
+        ofKind elementKind: String,
+        at elementIndexPath: IndexPath
+    ) -> UICollectionViewLayoutAttributes? {
+        guard
+            var attributes = super.initialLayoutAttributesForAppearingSupplementaryElement(
+                ofKind: elementKind,
+                at: elementIndexPath
+            )
+        else {
+            return nil
+        }
+        guard let layoutAttributes else { return attributes }
+        layoutAttributes.initialAppearingLayoutAttributes(
+            for: .supplementaryView(.init(elementKind)),
+            at: elementIndexPath,
+            layout: self,
+            attributes: &attributes
+        )
+        return attributes
+    }
+
+    open override func finalLayoutAttributesForDisappearingSupplementaryElement(
+        ofKind elementKind: String,
+        at elementIndexPath: IndexPath
+    ) -> UICollectionViewLayoutAttributes? {
+        guard
+            var attributes = super.finalLayoutAttributesForDisappearingSupplementaryElement(
+                ofKind: elementKind,
+                at: elementIndexPath
+            )
+        else {
+            return nil
+        }
+        guard let layoutAttributes else { return attributes }
+        layoutAttributes.finalDisappearingLayoutAttributes(
+            for: .supplementaryView(.init(elementKind)),
+            at: elementIndexPath,
+            layout: self,
+            attributes: &attributes
+        )
+        return attributes
+    }
+
+    open override func layoutAttributesForSupplementaryView(
+        ofKind elementKind: String,
+        at indexPath: IndexPath
+    ) -> UICollectionViewLayoutAttributes? {
+        guard
+            var attributes = super.layoutAttributesForSupplementaryView(
+                ofKind: elementKind,
+                at: indexPath
+            )
+        else {
+            return nil
+        }
+        guard let layoutAttributes else { return attributes }
+        layoutAttributes.layoutAttributes(
+            for: .supplementaryView(.init(elementKind)),
+            at: indexPath,
+            layout: self,
+            attributes: &attributes
+        )
+        return attributes
+    }
+}
+#endif
 
 @available(iOS 14.0, *)
 @available(macOS, unavailable)
@@ -222,20 +500,20 @@ extension CollectionViewCompositionalLayout {
 @available(watchOS, unavailable)
 extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
 
-    public static var compositional: CollectionViewCompositionalLayout { .compositional() }
+    public static var compositional: Self { .compositional() }
 
     public static func compositional(
         axis: Axis = .vertical,
         showsIndicators: Bool = true,
-        estimatedDimension: CGFloat? = nil,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil,
         spacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = []
-    ) -> CollectionViewCompositionalLayout {
+    ) -> Self {
         .compositional(
             axis: axis,
             showsIndicators: showsIndicators,
-            estimatedDimension: estimatedDimension,
+            layoutSize: layoutSize,
             itemSpacing: spacing,
             contentInsets: contentInsets,
             pinnedViews: pinnedViews
@@ -245,16 +523,16 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
     public static func compositional(
         axis: Axis = .vertical,
         showsIndicators: Bool = true,
-        estimatedDimension: CGFloat? = nil,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil,
         itemSpacing: CGFloat = 0,
         sectionSpacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = []
-    ) -> CollectionViewCompositionalLayout {
+    ) -> Self {
         CollectionViewCompositionalLayout(
             axis: axis,
             showsIndicators: showsIndicators,
-            estimatedDimension: estimatedDimension,
+            layoutSize: layoutSize,
             itemSpacing: itemSpacing,
             sectionSpacing: sectionSpacing,
             contentInsets: contentInsets,

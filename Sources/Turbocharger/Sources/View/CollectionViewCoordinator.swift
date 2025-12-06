@@ -17,11 +17,12 @@ open class CollectionViewCoordinator<
 >: NSObject, UICollectionViewDelegate, UICollectionViewDragDelegate, UICollectionViewDropDelegate where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable
 {
     public typealias ID = Items.Element.ID
 
+    public var axis: Axis.Set { collectionView.axis }
     public let layoutOptions: CollectionViewLayoutOptions
     public var context: CollectionViewLayoutContext = .init(environment: .init(), transaction: .init())
     public private(set) var layout: Layout
@@ -40,15 +41,29 @@ open class CollectionViewCoordinator<
 
     public var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? {
         didSet {
-            collectionView.dragInteractionEnabled = reorder != nil
+            let isEnabled = reorder != nil
+            guard isEnabled != collectionView.dragInteractionEnabled else { return }
+            collectionView.dragInteractionEnabled = isEnabled
             updateSeed = updateSeed &+ 1
         }
     }
 
     public var onScroll: ((CGPoint) -> Void)?
+    public var sectionScrollPosition: Binding<Section.ID?>?
+    public var itemScrollPosition: Binding<Items.Element.ID?>?
 
+    private struct ScrollPosition: Equatable {
+        var section: Section.ID?
+        var item: Items.Element.ID?
+    }
+    private var lastScrollPosition: ScrollPosition?
+    private var isAdjustingScrollPosition = false
+
+    public private(set) var isUpdating: Bool = false
     private var updateSeed: UInt = 0
     private var lastUpdateSeed: UInt = 0
+
+    private var deferredInvalidationContext: UICollectionViewLayoutInvalidationContext?
 
     // Defaults
     private var cellRegistration: UICollectionView.CellRegistration<Layout.UICollectionViewCellType, ID>!
@@ -56,17 +71,11 @@ open class CollectionViewCoordinator<
 
     public init(
         sections: [CollectionViewSection<Section, Items>],
-        onSelect: ((IndexPath, Items.Element) -> Void)? = nil,
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         layout: Layout,
         layoutOptions: CollectionViewLayoutOptions
     ) {
         self.layout = layout
         self.sections = sections
-        self.onSelect = onSelect
-        self.refresh = refresh
-        self.reorder = reorder
         self.layoutOptions = layoutOptions
         super.init()
     }
@@ -243,13 +252,22 @@ open class CollectionViewCoordinator<
         animation: Animation?,
         completion: (() -> Void)? = nil
     ) {
-        let (wasEmpty, updated) = updateDataSource(
+        isUpdating = true
+        let (wasEmpty, updated, didUpdateSnapshot) = updateDataSource(
             sections: sections,
             animated: animation != nil,
-            completion: completion
+            completion: { [weak self] in
+                self?.didFinishUpdate()
+                completion?()
+            }
         )
+        let completion = didUpdateSnapshot ? nil : { [weak self] in
+            self?.didFinishUpdate()
+            completion?()
+        }
         let hasSupplementaryViews = !layoutOptions.supplementaryViews.isEmpty
         guard (!updated.isEmpty && !wasEmpty) || hasSupplementaryViews else {
+            completion?()
             return
         }
 
@@ -257,6 +275,8 @@ open class CollectionViewCoordinator<
             if #available(iOS 18.0, *) {
                 UIView.animate(animation) {
                     self.updateVisibleViews(updated: updated)
+                } completion: {
+                    completion?()
                 }
             } else {
                 UIView.animate(
@@ -265,6 +285,8 @@ open class CollectionViewCoordinator<
                     options: [.curveEaseInOut]
                 ) {
                     self.updateVisibleViews(updated: updated)
+                } completion: { _ in
+                    completion?()
                 }
             }
         } else {
@@ -275,7 +297,11 @@ open class CollectionViewCoordinator<
             }
             UIView.performWithoutAnimation {
                 let context = updateVisibleViews(updated: updated)
-                collectionView.collectionViewLayout.invalidateLayout(with: context)
+                if collectionView.isTracking || collectionView.isDecelerating {
+                    deferredInvalidationContext = context
+                } else {
+                    collectionView.collectionViewLayout.invalidateLayout(with: context)
+                }
             }
             if #available(iOS 16.0, *),
                 let selfSizingInvalidation,
@@ -283,20 +309,31 @@ open class CollectionViewCoordinator<
             {
                 withCATransaction { [weak self] in
                     self?.collectionView.selfSizingInvalidation = oldValue
+                    completion?()
                 }
             }
         }
+    }
+
+    private func didFinishUpdate() {
+        if collectionView.frame == .zero {
+            withCATransaction {
+                self.setScrollPosition()
+            }
+        } else {
+            setScrollPosition()
+        }
+        context.transaction = Transaction()
+        isUpdating = false
     }
 
     private func updateDataSource(
         sections: [CollectionViewSection<Section, Items>],
         animated: Bool,
         completion: (() -> Void)? = nil
-    ) -> (Bool, Set<ID>) {
+    ) -> (Bool, Set<ID>, Bool) {
         defer { lastUpdateSeed = updateSeed }
-        let oldValue = dataSource.snapshot().itemIdentifiers
-        var newValue = [ID]()
-        newValue.reserveCapacity(sections.reduce(into: 0) { $0 += $1.count })
+        let oldValue = dataSource.snapshot()
 
         var snapshot = NSDiffableDataSourceSnapshot<Section.ID, ID>()
         if !sections.isEmpty {
@@ -304,15 +341,14 @@ open class CollectionViewCoordinator<
             for section in sections {
                 let ids = section.items.map({ $0.id })
                 snapshot.appendItems(ids, toSection: section.section.id)
-                newValue.append(contentsOf: ids)
             }
         }
-        lazy var didChangeOrder = oldValue != newValue
-        lazy var added = Set(newValue).subtracting(oldValue)
-        lazy var removed = Set(oldValue).subtracting(newValue)
+        let didChangeOrder = oldValue.itemIdentifiers != snapshot.itemIdentifiers || oldValue.sectionIdentifiers != snapshot.sectionIdentifiers
+        let added = Set(snapshot.itemIdentifiers).subtracting(oldValue.itemIdentifiers)
+        let removed = Set(oldValue.itemIdentifiers).subtracting(snapshot.itemIdentifiers)
         var updated = Set<ID>()
 
-        if !oldValue.isEmpty {
+        if !oldValue.itemIdentifiers.isEmpty {
             let indexPathsForVisibleItems = collectionView.indexPathsForVisibleItems
             for indexPath in indexPathsForVisibleItems {
                 guard
@@ -343,7 +379,7 @@ open class CollectionViewCoordinator<
         }
 
         guard didChangeOrder || !added.isEmpty || !updated.isEmpty || !removed.isEmpty else {
-            return (oldValue.isEmpty, updated)
+            return (oldValue.itemIdentifiers.isEmpty, updated, false)
         }
 
         if #available(iOS 15.0, *), !updated.isEmpty {
@@ -359,7 +395,7 @@ open class CollectionViewCoordinator<
         if isRefreshing, collectionView.isDragging {
             collectionView.setContentOffset(contentOffset, animated: false)
         }
-        return (oldValue.isEmpty, updated)
+        return (oldValue.itemIdentifiers.isEmpty, updated, true)
     }
 
     @discardableResult
@@ -389,6 +425,103 @@ open class CollectionViewCoordinator<
             }
         }
         return context
+    }
+
+    private func setScrollPosition() {
+        guard sectionScrollPosition != nil || itemScrollPosition != nil else {
+            return
+        }
+        var position = ScrollPosition(
+            section: sectionScrollPosition?.wrappedValue,
+            item: itemScrollPosition?.wrappedValue
+        )
+        if sectionScrollPosition == nil {
+            position.section = lastScrollPosition?.section
+        }
+        if itemScrollPosition == nil {
+            position.item = lastScrollPosition?.item
+        }
+        guard lastScrollPosition != position else {
+            return
+        }
+        var indexPath: IndexPath?
+        if itemScrollPosition != nil, position.item != lastScrollPosition?.item, let itemId = position.item {
+            indexPath = dataSource.indexPath(for: itemId)
+        }
+        if sectionScrollPosition != nil, indexPath == nil, let sectionId = position.section {
+            if #available(iOS 15.0, *) {
+                indexPath = dataSource.index(for: sectionId).map { IndexPath(item: 0, section: $0) }
+            } else {
+                indexPath = sections.firstIndex(where: { $0.id == sectionId }).map { IndexPath(item: 0, section: $0) }
+            }
+            if let indexPath {
+                position.item = sections[indexPath.section].items.first?.id
+            }
+        }
+        if let indexPath {
+            let transaction = context.transaction
+            isAdjustingScrollPosition = true
+            collectionView.scrollToItem(
+                at: indexPath,
+                at: collectionView.axis.contains(.vertical) ? .top : .left,
+                animated: transaction.isAnimated
+            )
+            isAdjustingScrollPosition = transaction.isAnimated
+            if position != lastScrollPosition {
+                withTransaction(context.transaction) {
+                    sectionScrollPosition?.wrappedValue = position.section
+                    itemScrollPosition?.wrappedValue = position.item
+                }
+            }
+            lastScrollPosition = position
+        } else if lastScrollPosition == nil {
+            isAdjustingScrollPosition = false
+            let currentPosition = currentScrollPosition()
+            withTransaction(context.transaction) {
+                sectionScrollPosition?.wrappedValue = currentPosition?.section
+                itemScrollPosition?.wrappedValue = currentPosition?.item
+            }
+            lastScrollPosition = currentPosition
+        }
+    }
+
+    private func currentIndexPath() -> IndexPath? {
+        let point = CGPoint(
+            x: max(0, collectionView.contentOffset.x + collectionView.adjustedContentInset.left),
+            y: max(0, collectionView.contentOffset.y + collectionView.adjustedContentInset.top)
+        )
+        let indexPath = collectionView.indexPath(at: point)
+        return indexPath
+    }
+
+    private func currentScrollPosition() -> ScrollPosition? {
+        guard let indexPath = currentIndexPath() else {
+            return nil
+        }
+        return ScrollPosition(
+            section: sections[indexPath.section].id,
+            item: sections[indexPath.section].isEmpty ? nil : item(for: indexPath).id
+        )
+    }
+
+    private func updateScrollPosition() {
+        guard sectionScrollPosition != nil || itemScrollPosition != nil else {
+            return
+        }
+        guard let position = currentScrollPosition(), lastScrollPosition != position else {
+            return
+        }
+        if sectionScrollPosition == nil, lastScrollPosition?.item == position.item {
+            return
+        }
+        if itemScrollPosition == nil, lastScrollPosition?.section == position.section {
+            return
+        }
+        lastScrollPosition = position
+        withTransaction(context.transaction) {
+            sectionScrollPosition?.wrappedValue = position.section
+            itemScrollPosition?.wrappedValue = position.item
+        }
     }
 
     // MARK: - Drag and Drop Reordering
@@ -683,6 +816,9 @@ open class CollectionViewCoordinator<
     open func scrollViewDidScroll(
         _ scrollView: UIScrollView
     ) {
+        if !isUpdating, !isAdjustingScrollPosition {
+            updateScrollPosition()
+        }
         onScroll?(scrollView.contentOffset)
     }
 
@@ -703,9 +839,18 @@ open class CollectionViewCoordinator<
 
     open func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {}
 
-    open func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {}
+    open func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        if let context = deferredInvalidationContext {
+            deferredInvalidationContext = nil
+            collectionView.collectionViewLayout.invalidateLayout(with: context)
+        }
+    }
 
-    open func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {}
+    open func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        if isAdjustingScrollPosition {
+            isAdjustingScrollPosition = false
+        }
+    }
 
     open func viewForZooming(in scrollView: UIScrollView) -> UIView? {
         return nil
@@ -758,6 +903,98 @@ extension UICollectionViewDiffableDataSource {
                 }
             }
         }
+    }
+}
+
+extension UICollectionView {
+
+    var axis: Axis.Set {
+        if let layout = collectionViewLayout as? UICollectionViewCompositionalLayout {
+            switch layout.configuration.scrollDirection {
+            case .vertical:
+                return .vertical
+            case .horizontal:
+                return .horizontal
+            @unknown default:
+                return []
+            }
+        }
+
+        if let layout = collectionViewLayout as? UICollectionViewFlowLayout {
+            switch layout.scrollDirection {
+            case .vertical:
+                return .vertical
+            case .horizontal:
+                return .horizontal
+            @unknown default:
+                return []
+            }
+        }
+
+        var axis: Axis.Set = []
+        if contentSize.height > bounds.height {
+            axis.insert(.vertical)
+        }
+        if contentSize.width > bounds.width {
+            axis.insert(.horizontal)
+        }
+        return axis
+    }
+
+    func indexPath(
+        at point: CGPoint,
+        size: CGSize = CGSize(width: 1, height: 1),
+        includesSupplementaryViews: Bool = true
+    ) -> IndexPath? {
+        guard
+            let layoutAttributes = collectionViewLayout.layoutAttributesForElements(
+                in: CGRect(origin: point, size: size)
+            )
+        else {
+            return nil
+        }
+        var supplementaryViewIndexPath: IndexPath?
+        if includesSupplementaryViews {
+            for attributes in layoutAttributes {
+                if attributes.representedElementCategory == .supplementaryView,
+                    attributes.frame.contains(point),
+                    attributes.alpha > 0,
+                    !attributes.isHidden
+                {
+                    let axis = axis
+                    var point = point
+                    if axis.contains(.horizontal), (attributes.frame.minX - point.x) > -1e-5 {
+                        point.x += attributes.frame.width
+                    }
+                    if axis.contains(.vertical), (attributes.frame.minY - point.y) > -1e-5 {
+                        point.y += attributes.frame.height
+                    }
+                    if let indexPath = indexPath(at: point, includesSupplementaryViews: false),
+                        indexPath.section == attributes.indexPath.section
+                    {
+                        return indexPath
+                    }
+                    supplementaryViewIndexPath = attributes.indexPath
+                    break
+                }
+            }
+        }
+        for attributes in layoutAttributes {
+            if attributes.representedElementCategory == .cell,
+                attributes.frame.contains(point),
+                attributes.alpha > 0,
+                !attributes.isHidden
+            {
+                return attributes.indexPath
+            }
+        }
+        if let supplementaryViewIndexPath {
+            return supplementaryViewIndexPath
+        }
+        if includesSupplementaryViews {
+            return layoutAttributes.first?.indexPath
+        }
+        return nil
     }
 }
 

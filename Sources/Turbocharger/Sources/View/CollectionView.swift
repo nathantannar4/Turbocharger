@@ -30,8 +30,8 @@ public struct CollectionView<
 >: View where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -46,6 +46,8 @@ public struct CollectionView<
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
     var onScroll: ((CGPoint) -> Void)?
+    var sectionScrollPosition: Binding<Section.ID?>?
+    var itemScrollPosition: Binding<Items.Element.ID?>?
 
     public init(
         _ layout: Layout,
@@ -94,7 +96,9 @@ public struct CollectionView<
             supplementaryView: supplementaryView,
             refresh: refresh,
             reorder: reorder,
-            onScroll: onScroll
+            onScroll: onScroll,
+            sectionScrollPosition: sectionScrollPosition,
+            itemScrollPosition: itemScrollPosition
         )
     }
 }
@@ -134,6 +138,22 @@ extension CollectionView {
     ) -> Self {
         var copy = self
         copy.onScroll = action
+        return copy
+    }
+
+    public func sectionScrollPosition(
+        _ sectionScrollPosition: Binding<Section.ID?>
+    ) -> Self {
+        var copy = self
+        copy.sectionScrollPosition = sectionScrollPosition
+        return copy
+    }
+
+    public func itemScrollPosition(
+        _ itemScrollPosition: Binding<Items.Element.ID?>
+    ) -> Self {
+        var copy = self
+        copy.itemScrollPosition = itemScrollPosition
         return copy
     }
 }
@@ -282,8 +302,8 @@ private struct CollectionViewBody<
 >: CollectionViewRepresentable where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -298,6 +318,8 @@ private struct CollectionViewBody<
     var refresh: (() async -> Void)?
     var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
     var onScroll: ((CGPoint) -> Void)?
+    var sectionScrollPosition: Binding<Section.ID?>?
+    var itemScrollPosition: Binding<Items.Element.ID?>?
 
     typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items>
 
@@ -309,6 +331,8 @@ private struct CollectionViewBody<
         coordinator.refresh = refresh
         coordinator.reorder = reorder
         coordinator.onScroll = onScroll
+        coordinator.sectionScrollPosition = sectionScrollPosition
+        coordinator.itemScrollPosition = itemScrollPosition
     }
 
     func makeCoordinator() -> Coordinator {
@@ -326,7 +350,6 @@ private struct CollectionViewBody<
             supplementaryView: supplementaryView,
             layout: layout,
             sections: sections,
-            refresh: refresh,
             layoutOptions: layoutOptions
         )
     }
