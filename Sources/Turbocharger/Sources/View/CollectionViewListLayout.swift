@@ -103,43 +103,57 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         #endif
     }
 
-    public var appearance: Appearance
-    public var showsSeparators: Bool
-    public var separatorConfiguration: SeparatorConfiguration?
-    public var backgroundColor: Color?
-    public var headerTopPadding: CGFloat?
+    public struct Configuration: Equatable {
+        public var appearance: Appearance
+        public var showsSeparators: Bool
+        public var separatorConfiguration: SeparatorConfiguration?
+        public var headerTopPadding: CGFloat?
+    }
 
-    @inlinable
+    public var configuration: Configuration
+    public var backgroundColor: Color?
+    public var safeAreaInsets: EdgeInsets?
+
     public init(
         appearance: Appearance,
         showsSeparators: Bool,
         separatorConfiguration: SeparatorConfiguration? = nil,
         backgroundColor: Color? = nil,
-        headerTopPadding: CGFloat? = nil
+        headerTopPadding: CGFloat? = nil,
+        safeAreaInsets: EdgeInsets? = nil
     ) {
-        self.appearance = appearance
-        self.showsSeparators = showsSeparators
-        self.separatorConfiguration = separatorConfiguration
+        self.configuration = Configuration(
+            appearance: appearance,
+            showsSeparators: showsSeparators,
+            separatorConfiguration: separatorConfiguration,
+            headerTopPadding: headerTopPadding
+        )
         self.backgroundColor = backgroundColor
-        self.headerTopPadding = headerTopPadding
+        self.safeAreaInsets = safeAreaInsets
     }
 
     #if os(iOS)
+    public func makeConfiguration(
+        options: CollectionViewLayoutOptions
+    ) -> UICollectionLayoutListConfiguration {
+        var layoutConfiguration = UICollectionLayoutListConfiguration(appearance: configuration.appearance.toUIKit())
+        layoutConfiguration.headerMode = options.supplementaryViews.contains(where: { $0.id == .header }) ? .supplementary : .none
+        layoutConfiguration.footerMode = options.supplementaryViews.contains(where: { $0.id == .footer }) ? .supplementary : .none
+        layoutConfiguration.showsSeparators = configuration.showsSeparators
+        if #available(iOS 14.5, *), let separatorConfiguration = configuration.separatorConfiguration {
+            layoutConfiguration.separatorConfiguration = separatorConfiguration.toUIKit(appearance: layoutConfiguration.appearance)
+        }
+        if #available(iOS 15.0, *) {
+            layoutConfiguration.headerTopPadding = configuration.headerTopPadding
+        }
+        return layoutConfiguration
+    }
+
     public func makeUICollectionViewLayout(
         context: Context,
         options: CollectionViewLayoutOptions
     ) -> UICollectionViewCompositionalLayout {
-        var configuration = UICollectionLayoutListConfiguration(appearance: appearance.toUIKit())
-        configuration.headerMode = options.supplementaryViews.contains(where: { $0.id == .header }) ? .supplementary : .none
-        configuration.footerMode = options.supplementaryViews.contains(where: { $0.id == .footer }) ? .supplementary : .none
-        configuration.showsSeparators = showsSeparators
-        if #available(iOS 14.5, *), let separatorConfiguration {
-            configuration.separatorConfiguration = separatorConfiguration.toUIKit(appearance: configuration.appearance)
-        }
-        configuration.backgroundColor = backgroundColor?.toUIColor()
-        if #available(iOS 15.0, *) {
-            configuration.headerTopPadding = headerTopPadding
-        }
+        let configuration = makeConfiguration(options: options)
         let layout = UICollectionViewCompositionalLayout.list(using: configuration)
         return layout
     }
@@ -153,14 +167,30 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         uiCollectionView.clipsToBounds = false
         uiCollectionView.keyboardDismissMode = .interactive
-        uiCollectionView.backgroundColor = .clear
+        uiCollectionView.backgroundColor = backgroundColor?.toUIColor() ?? .clear
         return uiCollectionView
     }
 
     public func updateUICollectionView(
         _ collectionView: UICollectionView,
         context: Context
-    ) { }
+    ) {
+        let safeAreaInsets = safeAreaInsets.map {
+            UIEdgeInsets(
+                edgeInsets: $0,
+                layoutDirection: context.environment.layoutDirection
+            )
+        } ?? .zero
+        var contentInset = safeAreaInsets
+        contentInset.top = max(0, safeAreaInsets.top - collectionView.safeAreaInsets.top)
+        contentInset.bottom = max(0, safeAreaInsets.bottom - collectionView.safeAreaInsets.bottom)
+        contentInset.left = max(0, safeAreaInsets.left - collectionView.safeAreaInsets.left)
+        contentInset.right = max(0, safeAreaInsets.right - collectionView.safeAreaInsets.right)
+        if collectionView.contentInset != contentInset {
+            collectionView.contentInset = contentInset
+            collectionView.scrollIndicatorInsets = contentInset
+        }
+    }
 
     public func updateUICollectionViewCell(
         _ collectionView: UICollectionView,
@@ -171,7 +201,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         if #available(iOS 18.0, *) {
             cell.backgroundConfiguration = .listCell()
         } else {
-            switch appearance {
+            switch configuration.appearance {
             case .plain:
                 cell.backgroundConfiguration = .listPlainCell()
             case .grouped, .insetGrouped:
@@ -197,7 +227,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
                 supplementaryView.backgroundConfiguration = .clear()
             }
         } else {
-            switch appearance {
+            switch configuration.appearance {
             case .plain:
                 supplementaryView.backgroundConfiguration = .listPlainHeaderFooter()
             case .grouped, .insetGrouped:
@@ -218,7 +248,7 @@ extension CollectionViewListLayout {
         _ showsSeparators: Bool
     ) -> CollectionViewListLayout {
         var copy = self
-        copy.showsSeparators = showsSeparators
+        copy.configuration.showsSeparators = showsSeparators
         return copy
     }
 
@@ -271,7 +301,6 @@ extension CollectionViewLayout where Self == CollectionViewListLayout {
 @available(watchOS, unavailable)
 struct CollectionViewListLayout_Previews: PreviewProvider {
     static var previews: some View {
-
         CollectionView(
             .plain.showsSeparators(true),
             sections: [
@@ -342,7 +371,6 @@ struct CollectionViewListLayout_Previews: PreviewProvider {
             Text("Header/Footer")
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
-                .background(Material.ultraThin)
         }
     }
 }

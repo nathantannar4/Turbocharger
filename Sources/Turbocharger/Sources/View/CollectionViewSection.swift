@@ -9,13 +9,14 @@ import SwiftUI
 
 /// A collection wrapper for grouping items in a section
 @frozen
+@dynamicMemberLookup
 public struct CollectionViewSection<
     Section: Equatable & Identifiable,
     Items: RandomAccessCollection
 >: RandomAccessCollection where
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable
 {
 
     public var items: Items
@@ -49,6 +50,12 @@ public struct CollectionViewSection<
 
     public var id: Section.ID {
         section.id
+    }
+
+    // MARK: - @dynamicMemberLookup
+
+    public subscript<T>(dynamicMember keyPath: KeyPath<Section, T>) -> T {
+        section[keyPath: keyPath]
     }
 
     // MARK: - RandomAccessCollection
@@ -93,5 +100,18 @@ public struct CollectionViewSectionIndex: Hashable, Identifiable, Sendable {
     }
 }
 
+extension CollectionViewSectionIndex: ExpressibleByIntegerLiteral {
+
+    public init(integerLiteral value: Int) {
+        self.init(index: value)
+    }
+}
+
+extension CollectionViewSection where Section == CollectionViewSectionIndex {
+
+    public var index: Int {
+        section.index
+    }
+}
 
 #endif

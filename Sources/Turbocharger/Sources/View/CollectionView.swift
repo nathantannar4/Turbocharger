@@ -30,8 +30,8 @@ public struct CollectionView<
 >: View where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -42,10 +42,7 @@ public struct CollectionView<
     var footer: (IndexPath, CollectionViewSection<Section, Items>) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
-    var onSelect: ((IndexPath, Items.Element) -> Void)?
-    var refresh: (() async -> Void)?
-    var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
-    var onScroll: ((CGPoint) -> Void)?
+    private var modifiers = CollectionViewModifierFields<Section, Items>()
 
     public init(
         _ layout: Layout,
@@ -92,9 +89,7 @@ public struct CollectionView<
             footer: footer,
             supplementaryViews: supplementaryViews,
             supplementaryView: supplementaryView,
-            refresh: refresh,
-            reorder: reorder,
-            onScroll: onScroll
+            modifiers: modifiers
         )
     }
 }
@@ -107,25 +102,42 @@ extension CollectionView {
         action: @escaping (IndexPath, Items.Element) -> Void
     ) -> Self {
         var copy = self
-        copy.onSelect = isEnabled ? action : nil
+        copy.modifiers.onSelect = isEnabled ? action : nil
         return copy
     }
 
-    public func refreshable(
+    public func onRefresh(
         isEnabled: Bool = true,
-        action: @escaping () async -> Void
+        action: @MainActor @escaping @Sendable () async -> Void
     ) -> Self {
         var copy = self
-        copy.refresh = isEnabled ? action : nil
+        copy.modifiers.onRefresh = isEnabled ? action : nil
         return copy
     }
 
-    public func reorderable(
+    public func onItemWillAppear(
+        isEnabled: Bool = true,
+        action: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Void
+    ) -> Self {
+        var copy = self
+        copy.modifiers.onItemWillAppear = isEnabled ? action : nil
+        return copy
+    }
+
+    public func dataPrefetcher(
+        _ dataPrefetcher: CollectionViewDataPrefetcher<Items.Element>?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.dataPrefetcher = dataPrefetcher
+        return copy
+    }
+
+    public func onReorder(
         isEnabled: Bool = true,
         action: @escaping (_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void
     ) -> Self {
         var copy = self
-        copy.reorder = isEnabled ? action : nil
+        copy.modifiers.onReorder = isEnabled ? action : nil
         return copy
     }
 
@@ -133,7 +145,23 @@ extension CollectionView {
         action: @escaping (CGPoint) -> Void
     ) -> Self {
         var copy = self
-        copy.onScroll = action
+        copy.modifiers.onScroll = action
+        return copy
+    }
+
+    public func sectionScrollPosition(
+        _ sectionScrollPosition: Binding<Section.ID?>?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.sectionScrollPosition = sectionScrollPosition
+        return copy
+    }
+
+    public func itemScrollPosition(
+        _ itemScrollPosition: Binding<Items.Element.ID?>?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.itemScrollPosition = itemScrollPosition
         return copy
     }
 }
@@ -271,6 +299,26 @@ extension CollectionView {
 }
 
 @available(iOS 14.0, *)
+private struct CollectionViewModifierFields<
+    Section: Equatable & Identifiable,
+    Items: RandomAccessCollection
+> where
+    Items.Index: Hashable & Sendable,
+    Items.Element: Equatable & Identifiable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable
+{
+    var onSelect: ((IndexPath, Items.Element) -> Void)?
+    var onRefresh: (@MainActor @Sendable () async -> Void)?
+    var onItemWillAppear: ((IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Void)?
+    var dataPrefetcher: CollectionViewDataPrefetcher<Items.Element>?
+    var onReorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
+    var onScroll: ((CGPoint) -> Void)?
+    var sectionScrollPosition: Binding<Section.ID?>?
+    var itemScrollPosition: Binding<Items.Element.ID?>?
+}
+
+@available(iOS 14.0, *)
 private struct CollectionViewBody<
     Header: View,
     Content: View,
@@ -282,8 +330,8 @@ private struct CollectionViewBody<
 >: CollectionViewRepresentable where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -295,9 +343,7 @@ private struct CollectionViewBody<
     var footer: Coordinator.FooterProvider
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: Coordinator.SupplementaryViewProvider
-    var refresh: (() async -> Void)?
-    var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
-    var onScroll: ((CGPoint) -> Void)?
+    var modifiers: CollectionViewModifierFields<Section, Items>
 
     typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items>
 
@@ -306,9 +352,14 @@ private struct CollectionViewBody<
         coordinator.content = content
         coordinator.footer = footer
         coordinator.supplementaryView = supplementaryView
-        coordinator.refresh = refresh
-        coordinator.reorder = reorder
-        coordinator.onScroll = onScroll
+        coordinator.onSelect = modifiers.onSelect
+        coordinator.onRefresh = modifiers.onRefresh
+        coordinator.onItemWillAppear = modifiers.onItemWillAppear
+        coordinator.dataPrefetcher = modifiers.dataPrefetcher
+        coordinator.onReorder = modifiers.onReorder
+        coordinator.onScroll = modifiers.onScroll
+        coordinator.sectionScrollPosition = modifiers.sectionScrollPosition
+        coordinator.itemScrollPosition = modifiers.itemScrollPosition
     }
 
     func makeCoordinator() -> Coordinator {
@@ -326,7 +377,6 @@ private struct CollectionViewBody<
             supplementaryView: supplementaryView,
             layout: layout,
             sections: sections,
-            refresh: refresh,
             layoutOptions: layoutOptions
         )
     }

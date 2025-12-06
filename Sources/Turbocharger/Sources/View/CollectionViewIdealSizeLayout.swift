@@ -14,7 +14,7 @@ import Engine
 @frozen
 public struct CollectionViewIdealSizeLayout<
     Layout: CollectionViewLayout
->: CollectionViewLayout {
+>: CollectionViewLayout where Layout.UICollectionViewType == UICollectionView {
 
     public typealias UICollectionViewCellType = Layout.UICollectionViewCellType
     public typealias UICollectionViewSupplementaryViewType = Layout.UICollectionViewSupplementaryViewType
@@ -22,6 +22,10 @@ public struct CollectionViewIdealSizeLayout<
     public var layout: Layout
     public var preferredSize: CGSize?
     public var isScrollEnabled: Bool
+
+    public var configuration: Layout.Configuration {
+        layout.configuration
+    }
 
     public init(
         layout: Layout,
@@ -37,15 +41,32 @@ public struct CollectionViewIdealSizeLayout<
         context: Context,
         options: CollectionViewLayoutOptions
     ) -> Layout.UICollectionViewLayoutType {
-        layout.makeUICollectionViewLayout(context: context, options: options)
+        layout.makeUICollectionViewLayout(
+            context: context,
+            options: options
+        )
+    }
+
+    public func updateUICollectionViewLayout(
+        _ collectionViewLayout: Layout.UICollectionViewLayoutType,
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) {
+        layout.updateUICollectionViewLayout(
+            collectionViewLayout,
+            context: context,
+            options: options
+        )
     }
 
     public func makeUICollectionView(
         context: Context,
         options: CollectionViewLayoutOptions
     ) -> UICollectionViewType {
-
-        let layout = makeUICollectionViewLayout(context: context, options: options)
+        let layout = makeUICollectionViewLayout(
+            context: context,
+            options: options
+        )
         let uiCollectionView = UICollectionViewType(
             frame: .zero,
             collectionViewLayout: layout
@@ -60,7 +81,41 @@ public struct CollectionViewIdealSizeLayout<
         _ collectionView: UICollectionViewType,
         context: Context
     ) {
+        layout.updateUICollectionView(
+            collectionView,
+            context: context
+        )
         collectionView.isScrollEnabled = isScrollEnabled
+    }
+
+    public func updateUICollectionViewCell(
+        _ collectionView: UICollectionViewType,
+        cell: Layout.UICollectionViewCellType,
+        indexPath: IndexPath,
+        context: Context
+    ) {
+        layout.updateUICollectionViewCell(
+            collectionView,
+            cell: cell,
+            indexPath: indexPath,
+            context: context
+        )
+    }
+
+    public func updateUICollectionViewSupplementaryView(
+        _ collectionView: UICollectionViewType,
+        supplementaryView: Layout.UICollectionViewSupplementaryViewType,
+        kind: String,
+        indexPath: IndexPath,
+        context: Context
+    ) {
+        layout.updateUICollectionViewSupplementaryView(
+            collectionView,
+            supplementaryView: supplementaryView,
+            kind: kind,
+            indexPath: indexPath,
+            context: context
+        )
     }
 
     public func overrideSizeThatFits(
@@ -72,7 +127,6 @@ public struct CollectionViewIdealSizeLayout<
         let preferredSize = proposedSize.replacingUnspecifiedDimensions(
             by: preferredSize ?? CGSize(width: 10, height: 10)
         )
-        print(#function, size, contentSize, proposedSize)
         if contentSize.height > 0 {
             if contentSize.height != preferredSize.height {
                 let needsInset = contentSize.height < proposedSize.height ?? .infinity
@@ -206,6 +260,28 @@ struct CollectionViewIdealSizeLayout_Previews: PreviewProvider {
                         }
                     }
                 }
+            }
+        }
+
+        ScrollView {
+            VStack {
+                Color.red
+                    .frame(height: 200)
+
+                CollectionViewVariadicView(
+                    layout: .ideal(
+                        layout: .compositional
+                    )
+                ) {
+                    ForEach(0..<50, id: \.self) { value in
+                        Text(value, format: .number)
+                            .frame(maxWidth: .infinity, minHeight: 30)
+                    }
+                }
+                .border(Color.red)
+
+                Color.red
+                    .frame(height: 200)
             }
         }
     }

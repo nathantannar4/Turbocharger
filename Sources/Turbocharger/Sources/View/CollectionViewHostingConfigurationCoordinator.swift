@@ -23,8 +23,8 @@ open class CollectionViewHostingConfigurationCoordinator<
 >: CollectionViewCoordinator<Layout, Section, Items> where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -47,8 +47,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         supplementaryView: @escaping SupplementaryViewProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        refresh: (() async -> Void)? = nil,
-        reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? = nil,
         layoutOptions: CollectionViewLayoutOptions
     ) {
         self.header = header
@@ -57,8 +55,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         self.supplementaryView = supplementaryView
         super.init(
             sections: sections,
-            refresh: refresh,
-            reorder: reorder,
             layout: layout,
             layoutOptions: layoutOptions
         )
@@ -87,7 +83,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         footer: @escaping FooterProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        refresh: (() async -> Void)? = nil,
         layoutOptions: CollectionViewLayoutOptions
     ) where SupplementaryView == EmptyView {
         self.init(
@@ -97,7 +92,6 @@ open class CollectionViewHostingConfigurationCoordinator<
             supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
-            refresh: refresh,
             layoutOptions: layoutOptions
         )
     }
@@ -105,8 +99,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     public convenience init(
         content: @escaping ContentProvider,
         layout: Layout,
-        sections: [CollectionViewSection<Section, Items>],
-        refresh: (() async -> Void)? = nil
+        sections: [CollectionViewSection<Section, Items>]
     ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
         self.init(
             header: { _, _ in EmptyView() },
@@ -115,7 +108,6 @@ open class CollectionViewHostingConfigurationCoordinator<
             supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
-            refresh: refresh,
             layoutOptions: .init()
         )
     }
@@ -125,10 +117,16 @@ open class CollectionViewHostingConfigurationCoordinator<
         indexPath: IndexPath,
         id: ID
     ) -> Layout.UICollectionViewCellType? {
-        let cell = super.dequeueReusableCell(collectionView: collectionView, indexPath: indexPath, id: id)
-        cell?.automaticallyUpdatesContentConfiguration = false
-        cell?.automaticallyUpdatesBackgroundConfiguration = false
-        cell?.layoutIfNeeded()
+        guard
+            let cell = super.dequeueReusableCell(collectionView: collectionView, indexPath: indexPath, id: id)
+        else {
+            return nil
+        }
+        cell.automaticallyUpdatesContentConfiguration = false
+        cell.automaticallyUpdatesBackgroundConfiguration = onSelect != nil
+        cell.contentView.clipsToBounds = false
+        cell.clipsToBounds = false
+        cell.layoutIfNeeded()
         return cell
     }
 
@@ -150,10 +148,16 @@ open class CollectionViewHostingConfigurationCoordinator<
         kind: String,
         indexPath: IndexPath
     ) -> Layout.UICollectionViewSupplementaryViewType? {
-        let supplementaryView = super.dequeueReusableSupplementaryView(collectionView: collectionView, kind: kind, indexPath: indexPath)
-        supplementaryView?.automaticallyUpdatesContentConfiguration = false
-        supplementaryView?.automaticallyUpdatesBackgroundConfiguration = false
-        supplementaryView?.layoutIfNeeded()
+        guard
+            let supplementaryView = super.dequeueReusableSupplementaryView(collectionView: collectionView, kind: kind, indexPath: indexPath)
+        else {
+            return nil
+        }
+        supplementaryView.automaticallyUpdatesContentConfiguration = false
+        supplementaryView.automaticallyUpdatesBackgroundConfiguration = false
+        supplementaryView.contentView.clipsToBounds = false
+        supplementaryView.clipsToBounds = false
+        supplementaryView.layoutIfNeeded()
         return supplementaryView
     }
 
@@ -183,20 +187,14 @@ open class CollectionViewHostingConfigurationCoordinator<
         }
     }
 
-    open override func performUpdate(
-        sections: [CollectionViewSection<Section, Items>],
-        animation: Animation?,
-        completion: (() -> Void)? = nil
-    ) {
-        update.advance(animation: animation)
-        super.performUpdate(
-            sections: sections,
-            animation: animation,
-            completion: { [weak self] in
-                self?.update.animation = nil
-                completion?()
-            }
-        )
+    open override func didStartUpdate() {
+        super.didStartUpdate()
+        update.advance(animation: context.transaction.animation)
+    }
+
+    open override func didFinishUpdate() {
+        super.didFinishUpdate()
+        update.animation = nil
     }
 
     private func makeContent(
@@ -206,7 +204,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: value.id,
-            kind: .cell,
+            kind: .item,
             update: update
         ) {
             content(indexPath, section, value)
@@ -219,7 +217,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: section.section.id,
-            kind: .supplementary(UICollectionView.elementKindSectionHeader),
+            kind: .supplementaryView(.header),
             update: update
         ) {
             header(indexPath, section)
@@ -232,7 +230,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: section.section.id,
-            kind: .supplementary(UICollectionView.elementKindSectionFooter),
+            kind: .supplementaryView(.header),
             update: update
         ) {
             footer(indexPath, section)
@@ -246,7 +244,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: section.section.id,
-            kind: .supplementary(kind),
+            kind: .supplementaryView(.custom(kind)),
             update: update
         ) {
             supplementaryView(indexPath, section, .custom(kind))
@@ -261,25 +259,19 @@ private func makeHostingConfiguration<
     Content: View
 >(
     id: ID,
-    kind: HostingConfigurationKind,
+    kind: CollectionViewLayoutElementKind,
     update: HostingConfigurationUpdate,
     @ViewBuilder content: () -> Content
 ) -> UIContentConfiguration {
 
     let content = content()
-    let isEmpty: Bool = {
-        var visitor = MultiViewIsEmptyVisitor()
-        content.visit(visitor: &visitor)
-        return visitor.isEmpty
-    }()
-
     if #available(iOS 16.0, *) {
         return UIHostingConfiguration {
             content
                 .modifier(
                     HostingConfigurationModifier(
                         id: id,
-                        isEmpty: isEmpty,
+                        isEmpty: content.isEmptyView,
                         update: update
                     )
                 )
@@ -292,7 +284,7 @@ private func makeHostingConfiguration<
                 .modifier(
                     HostingConfigurationModifier(
                         id: id,
-                        isEmpty: isEmpty,
+                        isEmpty: content.isEmptyView,
                         update: update
                     )
                 )
@@ -321,13 +313,9 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
             .opacity(isEmpty ? 0 : 1)
             .transition(.identity)
             .id(id)
+            .animation(nil, value: id)
             .animation(update.animation, value: update.value)
     }
-}
-
-private enum HostingConfigurationKind {
-    case supplementary(String)
-    case cell
 }
 
 @available(iOS 14.0, *)
@@ -338,11 +326,11 @@ private struct HostingConfigurationBackport<
     Content: View
 >: UIContentConfiguration {
 
-    var kind: HostingConfigurationKind
+    var kind: CollectionViewLayoutElementKind
     var content: Content
 
     init(
-        kind: HostingConfigurationKind,
+        kind: CollectionViewLayoutElementKind,
         @ViewBuilder content: () -> Content
     ) {
         self.kind = kind
@@ -390,7 +378,7 @@ private class HostingConfigurationBackportContentView<
         let kind = (configuration as! HostingConfigurationBackport<Content>).kind
         let ctx = UICollectionViewLayoutInvalidationContext()
         switch kind {
-        case .supplementary(let kind):
+        case .supplementaryView(let supplementaryViewId):
             guard
                 let supplementaryView = superview as? UICollectionReusableView,
                 let collectionView = supplementaryView.superview as? UICollectionView,
@@ -398,11 +386,11 @@ private class HostingConfigurationBackportContentView<
             else {
                 return
             }
-            ctx.invalidateSupplementaryElements(ofKind: kind, at: [indexPath])
+            ctx.invalidateSupplementaryElements(ofKind: supplementaryViewId.kind, at: [indexPath])
             collectionView.collectionViewLayout.invalidateLayout(with: ctx)
             supplementaryView.layoutIfNeeded()
 
-        case .cell:
+        case .item:
             guard
                 let collectionViewCell = superview as? UICollectionViewCell,
                 let collectionView = collectionViewCell.superview as? UICollectionView,

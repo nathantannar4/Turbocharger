@@ -5,12 +5,14 @@
 import SwiftUI
 import Engine
 
+public struct EmptyCollectionViewConfiguration: Equatable { }
+
 @available(iOS 14.0, *)
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @MainActor @preconcurrency
-public protocol CollectionViewLayout: Equatable, Sendable {
+public protocol CollectionViewLayout: Sendable {
 
     #if os(iOS)
     associatedtype UICollectionViewLayoutType: UICollectionViewLayout
@@ -18,11 +20,21 @@ public protocol CollectionViewLayout: Equatable, Sendable {
     associatedtype UICollectionViewCellType: UICollectionViewCell = UICollectionViewCell
     associatedtype UICollectionViewSupplementaryViewType: UICollectionReusableView = UICollectionViewCell
 
+    /// When the configuration changes, the layout will be invalidated and updated
+    associatedtype Configuration: Equatable = EmptyCollectionViewConfiguration
+    var configuration: Configuration { get }
+
     @MainActor @preconcurrency func makeUICollectionViewLayout(
         context: Context,
         options: CollectionViewLayoutOptions
     ) -> UICollectionViewLayoutType
 
+    @MainActor @preconcurrency func updateUICollectionViewLayout(
+        _ collectionViewLayout: UICollectionViewLayoutType,
+        context: Context,
+        options: CollectionViewLayoutOptions
+    )
+    
     @MainActor @preconcurrency func makeUICollectionView(
         context: Context,
         options: CollectionViewLayoutOptions
@@ -53,12 +65,6 @@ public protocol CollectionViewLayout: Equatable, Sendable {
         in proposedSize: ProposedSize,
         collectionView: UICollectionViewType
     )
-
-    @MainActor @preconcurrency func shouldInvalidateLayout(
-        from oldValue: Self,
-        context: Context,
-        options: CollectionViewLayoutOptions
-    ) -> Bool
     #endif
 
     typealias Context = CollectionViewLayoutContext
@@ -67,7 +73,29 @@ public protocol CollectionViewLayout: Equatable, Sendable {
 
 #if os(iOS)
 @available(iOS 14.0, *)
+extension CollectionViewLayout where Configuration == EmptyCollectionViewConfiguration {
+
+    public var configuration: EmptyCollectionViewConfiguration { .init() }
+}
+
+@available(iOS 14.0, *)
 extension CollectionViewLayout {
+
+    public func updateUICollectionViewLayout(
+        _ collectionViewLayout: UICollectionViewLayoutType,
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) {
+        let layout = makeUICollectionViewLayout(
+            context: context,
+            options: options
+        )
+        let collectionView = collectionViewLayout.collectionView
+        collectionView?.setCollectionViewLayout(
+            layout,
+            animated: context.transaction.isAnimated
+        )
+    }
 
     public func updateUICollectionViewCell(
         _ collectionView: UICollectionViewType,
@@ -89,14 +117,6 @@ extension CollectionViewLayout {
         in proposedSize: ProposedSize,
         collectionView: UICollectionViewType
     ) { }
-
-    public func shouldInvalidateLayout(
-        from oldValue: Self,
-        context: Context,
-        options: CollectionViewLayoutOptions
-    ) -> Bool {
-        return oldValue != self
-    }
 }
 #endif
 
@@ -130,14 +150,31 @@ public struct CollectionViewLayoutOptions {
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @MainActor
-public struct CollectionViewSupplementaryView: Hashable, Sendable {
+public struct CollectionViewSupplementaryView: Equatable, Sendable {
 
-    @MainActor
-    public enum ID: Hashable, Sendable {
+    public enum ID: Hashable, Sendable, ExpressibleByStringLiteral {
         case header
         case footer
         case custom(String)
 
+        public init(stringLiteral value: String) {
+            self = .custom(value)
+        }
+
+        #if os(iOS)
+        init(_ kind: String) {
+            switch kind {
+            case UICollectionView.elementKindSectionHeader:
+                self = .header
+            case UICollectionView.elementKindSectionFooter:
+                self = .footer
+            default:
+                self = .custom(kind)
+            }
+        }
+        #endif
+
+        @MainActor
         public var kind: String {
             #if os(iOS)
             switch self {
@@ -159,27 +196,29 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     public var offset: CGPoint
     public var contentInset: EdgeInsets
     public var zIndex: Int
+    public var extendsBoundary: Bool
+    public var layoutSize: CollectionViewCompositionalLayoutSize?
 
     private init(
         id: ID,
         alignment: Alignment,
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 0
+        zIndex: Int = 0,
+        extendsBoundary: Bool = true,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) {
         self.id = id
         self.alignment = alignment
         self.offset = offset
         self.contentInset = contentInset
         self.zIndex = zIndex
+        self.extendsBoundary = extendsBoundary
+        self.layoutSize = layoutSize
     }
 
     public var kind: String {
         id.kind
-    }
-
-    public nonisolated func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
     }
 
     /// The `UICollectionViewLayout` should include a header
@@ -189,14 +228,16 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     public static func header(
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 2
+        zIndex: Int = 2,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) -> CollectionViewSupplementaryView {
         CollectionViewSupplementaryView(
             id: .header,
             alignment: .topLeading,
             offset: offset,
             contentInset: contentInset,
-            zIndex: zIndex
+            zIndex: zIndex,
+            layoutSize: layoutSize
         )
     }
 
@@ -207,14 +248,16 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
     public static func footer(
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 1
+        zIndex: Int = 1,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) -> CollectionViewSupplementaryView {
         CollectionViewSupplementaryView(
             id: .footer,
             alignment: .bottomTrailing,
             offset: offset,
             contentInset: contentInset,
-            zIndex: zIndex
+            zIndex: zIndex,
+            layoutSize: layoutSize
         )
     }
 
@@ -224,14 +267,18 @@ public struct CollectionViewSupplementaryView: Hashable, Sendable {
         alignment: Alignment,
         offset: CGPoint = .zero,
         contentInset: EdgeInsets = .zero,
-        zIndex: Int = 0
+        zIndex: Int = 0,
+        extendsBoundary: Bool = true,
+        layoutSize: CollectionViewCompositionalLayoutSize? = nil
     ) -> CollectionViewSupplementaryView {
         CollectionViewSupplementaryView(
             id: .custom(id),
             alignment: alignment,
             offset: offset,
             contentInset: contentInset,
-            zIndex: zIndex
+            zIndex: zIndex,
+            extendsBoundary: extendsBoundary,
+            layoutSize: layoutSize
         )
     }
 }
