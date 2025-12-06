@@ -14,10 +14,7 @@ import Engine
 @frozen
 public struct CollectionViewIdealSizeLayout<
     Layout: CollectionViewLayout
->: CollectionViewLayout {
-
-    public typealias UICollectionViewCellType = Layout.UICollectionViewCellType
-    public typealias UICollectionViewSupplementaryViewType = Layout.UICollectionViewSupplementaryViewType
+>: ComposableCollectionViewLayout where Layout.UICollectionViewType == UICollectionView {
 
     public var layout: Layout
     public var preferredSize: CGSize?
@@ -25,7 +22,7 @@ public struct CollectionViewIdealSizeLayout<
 
     public init(
         layout: Layout,
-        preferredSize: CGSize?,
+        preferredSize: CGSize? = nil,
         isScrollEnabled: Bool = true
     ) {
         self.layout = layout
@@ -33,19 +30,14 @@ public struct CollectionViewIdealSizeLayout<
         self.isScrollEnabled = isScrollEnabled
     }
 
-    public func makeUICollectionViewLayout(
-        context: Context,
-        options: CollectionViewLayoutOptions
-    ) -> Layout.UICollectionViewLayoutType {
-        layout.makeUICollectionViewLayout(context: context, options: options)
-    }
-
     public func makeUICollectionView(
         context: Context,
         options: CollectionViewLayoutOptions
     ) -> UICollectionViewType {
-
-        let layout = makeUICollectionViewLayout(context: context, options: options)
+        let layout = makeUICollectionViewLayout(
+            context: context,
+            options: options
+        )
         let uiCollectionView = UICollectionViewType(
             frame: .zero,
             collectionViewLayout: layout
@@ -60,6 +52,10 @@ public struct CollectionViewIdealSizeLayout<
         _ collectionView: UICollectionViewType,
         context: Context
     ) {
+        layout.updateUICollectionView(
+            collectionView,
+            context: context
+        )
         collectionView.isScrollEnabled = isScrollEnabled
     }
 
@@ -72,7 +68,6 @@ public struct CollectionViewIdealSizeLayout<
         let preferredSize = proposedSize.replacingUnspecifiedDimensions(
             by: preferredSize ?? CGSize(width: 10, height: 10)
         )
-        print(#function, size, contentSize, proposedSize)
         if contentSize.height > 0 {
             if contentSize.height != preferredSize.height {
                 let needsInset = contentSize.height < proposedSize.height ?? .infinity
@@ -206,6 +201,28 @@ struct CollectionViewIdealSizeLayout_Previews: PreviewProvider {
                         }
                     }
                 }
+            }
+        }
+
+        ScrollView {
+            VStack {
+                Color.red
+                    .frame(height: 200)
+
+                CollectionViewVariadicView(
+                    layout: .ideal(
+                        layout: .compositional
+                    )
+                ) {
+                    ForEach(0..<50, id: \.self) { value in
+                        Text(value, format: .number)
+                            .frame(maxWidth: .infinity, minHeight: 30)
+                    }
+                }
+                .border(Color.red)
+
+                Color.red
+                    .frame(height: 200)
             }
         }
     }

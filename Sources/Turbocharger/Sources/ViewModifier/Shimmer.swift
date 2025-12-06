@@ -193,15 +193,9 @@ public struct ShimmerModifier: ViewModifier {
             )
             .animation(.linear(duration: animation.duration).delay(animation.delay).repeatForever(autoreverses: false), value: isAnimating)
             .onAppear {
-                #if os(watchOS)
-                DispatchQueue.main.async {
-                    isAnimating = true
-                }
-                #else
                 withCATransaction {
                     isAnimating = true
                 }
-                #endif
             }
         }
     }

@@ -12,11 +12,12 @@ import Engine
 public protocol CollectionViewRepresentable: View {
 
     associatedtype Layout: CollectionViewLayout
-    associatedtype Section: Equatable & Identifiable where Section.ID: Sendable
-    associatedtype Items: RandomAccessCollection where Items.Index: Hashable & Sendable, Items.Element: Equatable & Identifiable, Items.Element.ID: Sendable
+    associatedtype Section: Equatable & Identifiable where Section.ID: Equatable & Sendable
+    associatedtype Items: RandomAccessCollection where Items.Index: Hashable & Sendable, Items.Element: Equatable & Identifiable, Items.Element.ID: Equatable & Sendable
     associatedtype Coordinator: CollectionViewCoordinator<Layout, Section, Items>
 
     var layout: Layout { get }
+    var layoutOptions: CollectionViewLayoutOptions { get }
     var sections: [CollectionViewSection<Section, Items>] { get }
 
     func updateCoordinator(_ coordinator: Coordinator)
@@ -48,7 +49,7 @@ public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepr
         )
         let uiView = representable.layout.makeUICollectionView(
             context: context.coordinator.context,
-            options: context.coordinator.layoutOptions
+            options: representable.layoutOptions
         )
         context.coordinator.configure(to: uiView)
 
@@ -61,23 +62,11 @@ public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepr
             transaction: context.transaction
         )
         representable.updateCoordinator(context.coordinator)
-        let shouldInvalidateLayout = representable.layout.shouldInvalidateLayout(
-            from: context.coordinator.layout,
-            context: context.coordinator.context,
-            options: context.coordinator.layoutOptions
+        context.coordinator.update(
+            layout: representable.layout,
+            layoutOptions: representable.layoutOptions,
+            sections: representable.sections
         )
-        context.coordinator.update(layout: representable.layout)
-        if shouldInvalidateLayout {
-            let layout = representable.layout.makeUICollectionViewLayout(
-                context: context.coordinator.context,
-                options: context.coordinator.layoutOptions
-            )
-            uiView.setCollectionViewLayout(
-                layout,
-                animated: context.coordinator.context.transaction.isAnimated
-            )
-        }
-        context.coordinator.update(sections: representable.sections)
     }
 
     public func makeCoordinator() -> Coordinator {

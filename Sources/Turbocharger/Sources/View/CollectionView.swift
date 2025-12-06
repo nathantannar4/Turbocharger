@@ -30,8 +30,8 @@ public struct CollectionView<
 >: View where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -42,10 +42,7 @@ public struct CollectionView<
     var footer: (IndexPath, CollectionViewSection<Section, Items>) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
-    var onSelect: ((IndexPath, Items.Element) -> Void)?
-    var refresh: (() async -> Void)?
-    var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
-    var onScroll: ((CGPoint) -> Void)?
+    private var modifiers = CollectionViewModifierFields<Section, Items>()
 
     public init(
         _ layout: Layout,
@@ -92,9 +89,7 @@ public struct CollectionView<
             footer: footer,
             supplementaryViews: supplementaryViews,
             supplementaryView: supplementaryView,
-            refresh: refresh,
-            reorder: reorder,
-            onScroll: onScroll
+            modifiers: modifiers
         )
     }
 }
@@ -104,36 +99,95 @@ extension CollectionView {
 
     public func onSelect(
         isEnabled: Bool = true,
-        action: @escaping (IndexPath, Items.Element) -> Void
+        action: ((IndexPath, Items.Element) -> Void)?
     ) -> Self {
         var copy = self
-        copy.onSelect = isEnabled ? action : nil
+        copy.modifiers.onSelect = isEnabled ? action : nil
         return copy
     }
 
-    public func refreshable(
-        isEnabled: Bool = true,
-        action: @escaping () async -> Void
+    public func onSelect(
+        isEnabled: @escaping (IndexPath, Items.Element) -> CollectionViewSelectionAvailability,
+        action: ((IndexPath, Items.Element) -> Void)?
     ) -> Self {
         var copy = self
-        copy.refresh = isEnabled ? action : nil
+        copy.modifiers.canSelect = isEnabled
+        copy.modifiers.onSelect = action
         return copy
     }
 
-    public func reorderable(
+    public func onRefresh(
         isEnabled: Bool = true,
-        action: @escaping (_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void
+        action: (@MainActor @Sendable () async -> Void)?
     ) -> Self {
         var copy = self
-        copy.reorder = isEnabled ? action : nil
+        copy.modifiers.onRefresh = isEnabled ? action : nil
+        return copy
+    }
+
+    public func onItemWillAppear(
+        isEnabled: Bool = true,
+        action: ((IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Void)?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.onItemWillAppear = isEnabled ? action : nil
+        return copy
+    }
+
+    public func dataPrefetcher(
+        _ dataPrefetcher: (any CollectionViewDataPrefetcher<Items.Element>)?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.dataPrefetcher = dataPrefetcher
+        return copy
+    }
+
+    public func onReorder(
+        isEnabled: Bool = true,
+        action: ((_ from: (section: Int, indices: IndexSet), _ to: (section: Int, destination: Int)) -> Void)?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.onReorder = isEnabled ? action : nil
         return copy
     }
 
     public func onScrollContentOffsetChange(
-        action: @escaping (CGPoint) -> Void
+        action: ((CGPoint) -> Void)?
     ) -> Self {
         var copy = self
-        copy.onScroll = action
+        copy.modifiers.onScroll = action
+        return copy
+    }
+
+    public func sectionScrollPosition(
+        _ sectionScrollPosition: Binding<Section.ID?>?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.sectionScrollPosition = sectionScrollPosition.map { .init($0) }
+        return copy
+    }
+
+    public func sectionScrollPosition(
+        _ sectionScrollPosition: PublishedState<Section.ID?>.Binding?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.sectionScrollPosition = sectionScrollPosition.map { .init($0) }
+        return copy
+    }
+
+    public func itemScrollPosition(
+        _ itemScrollPosition: Binding<Items.Element.ID?>?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.itemScrollPosition = itemScrollPosition.map { .init($0) }
+        return copy
+    }
+
+    public func itemScrollPosition(
+        _ itemScrollPosition: PublishedState<Items.Element.ID?>.Binding?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.itemScrollPosition = itemScrollPosition.map { .init($0) }
         return copy
     }
 }
@@ -271,6 +325,34 @@ extension CollectionView {
 }
 
 @available(iOS 14.0, *)
+public enum CollectionViewSelectionAvailability {
+    case unavailable
+    case disabled
+    case available
+}
+
+@available(iOS 14.0, *)
+private struct CollectionViewModifierFields<
+    Section: Equatable & Identifiable,
+    Items: RandomAccessCollection
+> where
+    Items.Index: Hashable & Sendable,
+    Items.Element: Equatable & Identifiable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable
+{
+    var onSelect: ((IndexPath, Items.Element) -> Void)?
+    var canSelect: ((IndexPath, Items.Element) -> CollectionViewSelectionAvailability)?
+    var onRefresh: (@MainActor @Sendable () async -> Void)?
+    var onItemWillAppear: ((IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Void)?
+    var dataPrefetcher: (any CollectionViewDataPrefetcher<Items.Element>)?
+    var onReorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
+    var onScroll: ((CGPoint) -> Void)?
+    var sectionScrollPosition: PublishedStateOrBinding<Section.ID?>?
+    var itemScrollPosition: PublishedStateOrBinding<Items.Element.ID?>?
+}
+
+@available(iOS 14.0, *)
 private struct CollectionViewBody<
     Header: View,
     Content: View,
@@ -282,8 +364,8 @@ private struct CollectionViewBody<
 >: CollectionViewRepresentable where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
-    Items.Element.ID: Sendable,
-    Section.ID: Sendable,
+    Items.Element.ID: Equatable & Sendable,
+    Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
     Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
 {
@@ -295,23 +377,11 @@ private struct CollectionViewBody<
     var footer: Coordinator.FooterProvider
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: Coordinator.SupplementaryViewProvider
-    var refresh: (() async -> Void)?
-    var reorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
-    var onScroll: ((CGPoint) -> Void)?
+    var modifiers: CollectionViewModifierFields<Section, Items>
 
     typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items>
 
-    func updateCoordinator(_ coordinator: Coordinator) {
-        coordinator.header = header
-        coordinator.content = content
-        coordinator.footer = footer
-        coordinator.supplementaryView = supplementaryView
-        coordinator.refresh = refresh
-        coordinator.reorder = reorder
-        coordinator.onScroll = onScroll
-    }
-
-    func makeCoordinator() -> Coordinator {
+    var layoutOptions: CollectionViewLayoutOptions {
         var layoutOptions = CollectionViewLayoutOptions(supplementaryViews: supplementaryViews)
         if Header.self != EmptyView.self, !layoutOptions.supplementaryViews.contains(where: { $0.id == .header }) {
             layoutOptions.supplementaryViews.append(.header)
@@ -319,14 +389,33 @@ private struct CollectionViewBody<
         if Footer.self != EmptyView.self, !layoutOptions.supplementaryViews.contains(where: { $0.id == .footer }) {
             layoutOptions.supplementaryViews.append(.footer)
         }
-        return CollectionViewHostingConfigurationCoordinator(
+        return layoutOptions
+    }
+
+    func updateCoordinator(_ coordinator: Coordinator) {
+        coordinator.header = header
+        coordinator.content = content
+        coordinator.footer = footer
+        coordinator.supplementaryView = supplementaryView
+        coordinator.onSelect = modifiers.onSelect
+        coordinator.canSelect = modifiers.canSelect
+        coordinator.onRefresh = modifiers.onRefresh
+        coordinator.onItemWillAppear = modifiers.onItemWillAppear
+        coordinator.dataPrefetcher = modifiers.dataPrefetcher
+        coordinator.onReorder = modifiers.onReorder
+        coordinator.onScroll = modifiers.onScroll
+        coordinator.sectionScrollPosition = modifiers.sectionScrollPosition
+        coordinator.itemScrollPosition = modifiers.itemScrollPosition
+    }
+
+    func makeCoordinator() -> Coordinator {
+        CollectionViewHostingConfigurationCoordinator(
             header: header,
             content: content,
             footer: footer,
             supplementaryView: supplementaryView,
             layout: layout,
             sections: sections,
-            refresh: refresh,
             layoutOptions: layoutOptions
         )
     }
@@ -589,33 +678,70 @@ struct CollectionView_Previews: PreviewProvider {
     }
 
     struct PreviewC: View {
-        @State var flag = false
+        struct Item: Identifiable, Equatable {
+            var id = UUID().uuidString
+            var value = 0
+        }
+
+        @State var items: [Item] = (0..<5).map { Item(value: $0) }
+        @State var isReordering = false
 
         var body: some View {
             VStack {
-                Button {
-                    flag.toggle()
-                } label: {
-                    Text("Toggle")
+                CollectionView(
+                    .compositional.backgroundConfiguration(.selectable),
+                    items: items
+                ) { indexPath, section, item in
+                    CellView(isReordering: isReordering)
+                } header: { _, _ in
+                    Text("Header")
+                } footer: { _, _ in
+                    Text("Footer")
                 }
-
-                CollectionView(.compositional) {
-                    CellView(flag: flag)
-                    CellView(flag: flag)
+                .onSelect { indexPath, item in
+                    if indexPath.item == 0 {
+                        return .disabled
+                    }
+                    if indexPath.item == 1 {
+                        return .unavailable
+                    }
+                    return .available
+                } action: { _, item in
+                    print(item)
+                }
+                .onReorder(isEnabled: isReordering) { from, to in
+                    items.move(
+                        fromOffsets: from.indices,
+                        toOffset: to.destination
+                    )
                 }
             }
-            .animation(.default, value: flag)
+            .ignoresSafeArea()
+            .overlay(alignment: .bottom) {
+                HStack {
+                    Button {
+                        withAnimation {
+                            isReordering.toggle()
+                        }
+                    } label: {
+                        Text("isReordering")
+                    }
+                }
+            }
         }
 
         struct CellView: View {
-            var flag: Bool
+            var isReordering: Bool
+
+            @Environment(\.isEnabled) var isEnabled
 
             var body: some View {
                 HStack {
                     Text("Hello, World")
+                        .opacity(isEnabled ? 1 : 0.6)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    if flag {
+                    if isReordering {
                         Circle()
                             .frame(width: 20, height: 20)
                             .transition(.move(edge: .trailing).combined(with: .opacity))
