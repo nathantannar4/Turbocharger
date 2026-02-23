@@ -5,6 +5,16 @@
 import SwiftUI
 import Engine
 
+extension VerticalAlignment {
+    private struct LabelAlignment: AlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat {
+            context[VerticalAlignment.firstTextBaseline]
+        }
+    }
+
+    public static let label = VerticalAlignment(LabelAlignment.self)
+}
+
 /// The style for ``LabeledView``
 @available(iOS, introduced: 13.0, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")
 @available(macOS, introduced: 10.15, deprecated: 100000.0, message: "Please use the built in LabeledContentStyle with LabeledContent")

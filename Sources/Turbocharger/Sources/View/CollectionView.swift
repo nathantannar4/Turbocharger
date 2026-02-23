@@ -152,7 +152,7 @@ extension CollectionView {
     }
 
     public func onScrollContentOffsetChange(
-        action: ((CGPoint) -> Void)?
+        action: ((EdgeInsets, CGPoint) -> Void)?
     ) -> Self {
         var copy = self
         copy.modifiers.onScroll = action
@@ -347,7 +347,7 @@ private struct CollectionViewModifierFields<
     var onItemWillAppear: ((IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Void)?
     var dataPrefetcher: (any CollectionViewDataPrefetcher<Items.Element>)?
     var onReorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
-    var onScroll: ((CGPoint) -> Void)?
+    var onScroll: ((EdgeInsets, CGPoint) -> Void)?
     var sectionScrollPosition: PublishedStateOrBinding<Section.ID?>?
     var itemScrollPosition: PublishedStateOrBinding<Items.Element.ID?>?
 }

@@ -71,10 +71,10 @@ public struct BadgeModifier<
     public func body(content: Content) -> some View {
         content
             .invertedMask(alignment: alignment) {
-                mask.alignmentGuideAdjustment(anchor: anchor)
+                mask.alignmentGuideOffset(alignment: alignment, anchor: anchor)
             }
             .overlay(
-                label.alignmentGuideAdjustment(anchor: anchor),
+                label.alignmentGuideOffset(alignment: alignment, anchor: anchor),
                 alignment: alignment
             )
     }
@@ -88,7 +88,7 @@ public struct BadgeMask<Label: View>: View {
     public var label: Label
 
     @inlinable
-    init(
+    public init(
         scale: CGPoint = CGPoint(x: 1, y: 1),
         inset: EdgeInsets = .zero,
         @ViewBuilder label: () -> Label
@@ -100,7 +100,7 @@ public struct BadgeMask<Label: View>: View {
 
     @_disfavoredOverload
     @inlinable
-    init(
+    public init(
         scale: CGFloat = 1,
         inset: CGFloat = 0,
         @ViewBuilder label: () -> Label
@@ -199,6 +199,58 @@ extension View {
             )
         )
     }
+
+    /// A modifier that adds a view as a badge
+    @inlinable
+    public func badge<
+        Label: View,
+        Mask: View
+    >(
+        alignment: Alignment = .topTrailing,
+        anchor: UnitPoint = UnitPoint(x: 0.25, y: 0.25),
+        scale: CGPoint,
+        inset: EdgeInsets,
+        @ViewBuilder label: () -> Label,
+        @ViewBuilder mask: () -> Mask
+    ) -> some View {
+        modifier(
+            BadgeModifier(
+                alignment: alignment,
+                anchor: anchor,
+                label: label
+            )  {
+                BadgeMask(scale: scale, inset: inset) {
+                    mask()
+                }
+            }
+        )
+    }
+
+    /// A modifier that adds a view as a badge
+    @inlinable
+    public func badge<
+        Label: View,
+        Mask: View
+    >(
+        alignment: Alignment = .topTrailing,
+        anchor: UnitPoint = UnitPoint(x: 0.25, y: 0.25),
+        scale: CGFloat = 1,
+        inset: CGFloat,
+        @ViewBuilder label: () -> Label,
+        @ViewBuilder mask: () -> Mask
+    ) -> some View {
+        modifier(
+            BadgeModifier(
+                alignment: alignment,
+                anchor: anchor,
+                label: label
+            ) {
+                BadgeMask(scale: scale, inset: inset) {
+                    mask()
+                }
+            }
+        )
+    }
 }
 
 // MARK: - Previews
@@ -226,6 +278,21 @@ struct BadgeModifier_Previews: PreviewProvider {
                     Badge()
                 }
                 .badge(alignment: .bottomTrailing) {
+                    Badge()
+                }
+                .badge(alignment: .top) {
+                    Badge()
+                }
+                .badge(alignment: .center) {
+                    Badge()
+                }
+                .badge(alignment: .bottom) {
+                    Badge()
+                }
+                .badge(alignment: .leading) {
+                    Badge()
+                }
+                .badge(alignment: .trailing) {
                     Badge()
                 }
                 .shadow(color: .black, radius: 50, x: 0, y: 0)
@@ -268,6 +335,58 @@ struct BadgeModifier_Previews: PreviewProvider {
                             .fill(Color.blue)
                             .frame(width: 20, height: 20)
                     }
+
+                Circle()
+                    .frame(width: 80, height: 80)
+                    .badge(
+                        alignment: .bottomTrailing,
+                        anchor: .init(x: -0.15, y: -0.15),
+                        inset: 1
+                    ) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    }
+            }
+            .padding(.horizontal)
+
+            HStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottomTrailing, anchor: .leading) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    } mask: {
+                        BadgeMask(scale: 1.5) {
+                            Circle()
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottomTrailing, anchor: .leading) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    } mask: {
+                        BadgeMask(inset: 4) {
+                            Circle()
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottomTrailing, anchor: .leading, inset: 4) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    } mask: {
+                        Circle()
+                            .frame(width: 20, height: 20)
+                    }
             }
             .padding(.horizontal)
 
@@ -299,7 +418,7 @@ struct BadgeModifier_Previews: PreviewProvider {
                             Text("Lorum")
                                 .foregroundStyle(.white)
                                 .padding(4)
-                                .glassEffect(.regular.tint(.blue), in: Capsule())
+                                .glassEffect(.regular.interactive().tint(.blue), in: Capsule())
                         }
 
                     // Specify a custom mask
@@ -312,7 +431,7 @@ struct BadgeModifier_Previews: PreviewProvider {
                             Text("Lorum")
                                 .foregroundStyle(.white)
                                 .padding(4)
-                                .glassEffect(.regular.tint(.blue), in: Capsule())
+                                .glassEffect(.regular.interactive().tint(.blue), in: Capsule())
                         } mask: {
                             BadgeMask(
                                 inset: .horizontal(8) + .vertical(4) + .uniform(4)
@@ -323,6 +442,51 @@ struct BadgeModifier_Previews: PreviewProvider {
                 }
                 #endif
             }
+
+            #if canImport(FoundationModels) // Xcode 26
+            if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, visionOS 26.0, *) {
+                HStack {
+                    // Masking a glassEffect causes weird rendering
+                    Circle()
+                        .fill(Color.black)
+                        .frame(width: 80, height: 80)
+                        .glassEffect(.regular.interactive(), in: Circle())
+                        .badge(alignment: .bottomTrailing, anchor: .topLeading) {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 20, height: 20)
+                                .glassEffect(.regular.interactive(), in: Circle())
+                        } mask: {
+                            BadgeMask(inset: 4) {
+                                Circle()
+                                    .frame(width: 20, height: 20)
+                            }
+                        }
+
+                    // But not clear glass
+                    Circle()
+                        .fill(Color.black)
+                        .frame(width: 80, height: 80)
+                        .glassEffect(.clear.interactive(), in: Circle())
+                        .badge(alignment: .bottomTrailing, anchor: .topLeading) {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 20, height: 20)
+                                .glassEffect(.regular.interactive(), in: Circle())
+                        } mask: {
+                            BadgeMask(inset: 4) {
+                                Circle()
+                                    .frame(width: 20, height: 20)
+                            }
+                        }
+                }
+                .padding()
+                .background {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.gradient)
+                }
+            }
+            #endif
         }
     }
 }

@@ -97,7 +97,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     public typealias SupplementaryViewProvider = (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
     public var supplementaryView: SupplementaryViewProvider
 
-    private var update = HostingConfigurationUpdate(animation: nil, value: 0)
+    public private(set) var updatePhase = UpdatePhase.Value()
 
     public init(
         header: @escaping HeaderProvider,
@@ -254,12 +254,7 @@ open class CollectionViewHostingConfigurationCoordinator<
 
     open override func didStartUpdate() {
         super.didStartUpdate()
-        update.advance(animation: context.transaction.animation)
-    }
-
-    open override func didFinishUpdate() {
-        super.didFinishUpdate()
-        update.animation = nil
+        updatePhase.update()
     }
 
     private func makeContent(
@@ -272,7 +267,8 @@ open class CollectionViewHostingConfigurationCoordinator<
             id: value.id,
             kind: .item,
             state: state,
-            update: update
+            transaction: context.transaction,
+            updatePhase: updatePhase
         ) {
             content(indexPath, section, value)
         }
@@ -287,7 +283,8 @@ open class CollectionViewHostingConfigurationCoordinator<
             id: section.section.id,
             kind: .supplementaryView(.header),
             state: state,
-            update: update
+            transaction: context.transaction,
+            updatePhase: updatePhase
         ) {
             header(indexPath, section)
         }
@@ -302,7 +299,8 @@ open class CollectionViewHostingConfigurationCoordinator<
             id: section.section.id,
             kind: .supplementaryView(.header),
             state: state,
-            update: update
+            transaction: context.transaction,
+            updatePhase: updatePhase
         ) {
             footer(indexPath, section)
         }
@@ -318,7 +316,8 @@ open class CollectionViewHostingConfigurationCoordinator<
             id: section.section.id,
             kind: .supplementaryView(.custom(kind)),
             state: state,
-            update: update
+            transaction: context.transaction,
+            updatePhase: updatePhase
         ) {
             supplementaryView(indexPath, section, .custom(kind))
         }
@@ -334,7 +333,8 @@ private func makeHostingConfiguration<
     id: ID,
     kind: CollectionViewLayoutElementKind,
     state: UICellConfigurationState,
-    update: HostingConfigurationUpdate,
+    transaction: Transaction,
+    updatePhase: UpdatePhase.Value,
     @ViewBuilder content: () -> Content
 ) -> UIContentConfiguration {
 
@@ -347,34 +347,26 @@ private func makeHostingConfiguration<
                         id: id,
                         isEmpty: content.isEmptyView,
                         state: HostingConfigurationState(storage: state),
-                        update: update
+                        transaction: transaction,
+                        updatePhase: updatePhase
                     )
                 )
         }
         .background(.clear)
         .margins(.all, 0)
     } else {
-        return HostingConfigurationBackport(kind: kind) {
+        return HostingConfigurationBackPort(kind: kind) {
             content
                 .modifier(
                     HostingConfigurationModifier(
                         id: id,
                         isEmpty: content.isEmptyView,
                         state: HostingConfigurationState(storage: state),
-                        update: update
+                        transaction: transaction,
+                        updatePhase: updatePhase
                     )
                 )
         }
-    }
-}
-
-private struct HostingConfigurationUpdate {
-    var animation: Animation?
-    var value: UInt
-
-    mutating func advance(animation: Animation?) {
-        self.animation = animation
-        self.value = value &+ 1
     }
 }
 
@@ -383,7 +375,8 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
     var id: ID
     var isEmpty: Bool
     var state: HostingConfigurationState
-    var update: HostingConfigurationUpdate
+    var transaction: Transaction
+    var updatePhase: UpdatePhase.Value
 
     func body(content: Content) -> some View {
         content
@@ -393,7 +386,7 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
             .transition(.identity)
             .id(id)
             .animation(nil, value: id)
-            .animation(update.animation, value: update.value)
+            .transaction(transaction, value: updatePhase)
     }
 }
 
@@ -401,7 +394,7 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-private struct HostingConfigurationBackport<
+private struct HostingConfigurationBackPort<
     Content: View
 >: UIContentConfiguration {
 
@@ -417,7 +410,7 @@ private struct HostingConfigurationBackport<
     }
 
     func makeContentView() -> UIView & UIContentView {
-        return HostingConfigurationBackportContentView(configuration: self)
+        return HostingConfigurationBackPortContentView(configuration: self)
     }
 
     func updated(for state: UIConfigurationState) -> Self {
@@ -426,61 +419,27 @@ private struct HostingConfigurationBackport<
 }
 
 @available(iOS 14.0, *)
-private class HostingConfigurationBackportContentView<
+private class HostingConfigurationBackPortContentView<
     Content: View
 >: HostingView<ModifiedContent<Content, SizeObserver>>, UIContentView {
 
     var configuration: UIContentConfiguration {
         didSet {
-            let configuration = configuration as! HostingConfigurationBackport<Content>
+            let configuration = configuration as! HostingConfigurationBackPort<Content>
             content.content = configuration.content
         }
     }
 
-    init(configuration: HostingConfigurationBackport<Content>) {
+    init(configuration: HostingConfigurationBackPort<Content>) {
         self.configuration = configuration
         super.init(content: configuration.content.modifier(SizeObserver(onChange: { _ in })))
-        content.modifier.onChange = { [unowned self] newValue in
-            invalidateLayout(size: newValue)
+        content.modifier.onChange = { [weak self] newValue in
+            self?.invalidateIntrinsicContentSize()
         }
     }
-
+    
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    private func invalidateLayout(size: CGSize) {
-        guard !(abs(size.height - frame.size.height) <= 1e-5) else {
-            return
-        }
-
-        let kind = (configuration as! HostingConfigurationBackport<Content>).kind
-        let ctx = UICollectionViewLayoutInvalidationContext()
-        switch kind {
-        case .supplementaryView(let supplementaryViewId):
-            guard
-                let supplementaryView = superview as? UICollectionReusableView,
-                let collectionView = supplementaryView.superview as? UICollectionView,
-                let indexPath = collectionView.indexPath(forSupplementaryView: supplementaryView)
-            else {
-                return
-            }
-            ctx.invalidateSupplementaryElements(ofKind: supplementaryViewId.kind, at: [indexPath])
-            collectionView.collectionViewLayout.invalidateLayout(with: ctx)
-            supplementaryView.layoutIfNeeded()
-
-        case .item:
-            guard
-                let collectionViewCell = superview as? UICollectionViewCell,
-                let collectionView = collectionViewCell.superview as? UICollectionView,
-                let indexPath = collectionView.indexPath(for: collectionViewCell)
-            else {
-                return
-            }
-            ctx.invalidateItems(at: [indexPath])
-            collectionView.collectionViewLayout.invalidateLayout(with: ctx)
-            collectionViewCell.layoutIfNeeded()
-        }
     }
 }
 

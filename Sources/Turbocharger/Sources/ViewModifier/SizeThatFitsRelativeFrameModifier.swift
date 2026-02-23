@@ -3,6 +3,7 @@
 //
 
 import SwiftUI
+import Engine
 
 /// A view modifier that transforms a views frame based on its size that fits
 @frozen
@@ -20,7 +21,9 @@ public struct SizeThatFitsRelativeFrameModifier: ViewModifier {
 
     public func body(content: Content) -> some View {
         SizeThatFitsRelativeFrameLayout(transform: transform) {
-            content
+            UnaryViewAdaptor {
+                content
+            }
         }
     }
 }
@@ -79,53 +82,9 @@ public struct SizeThatFitsRelativeFrameLayout: Layout {
             subview.place(
                 at: CGPoint(x: bounds.midX, y: bounds.midY),
                 anchor: .center,
-                proposal: proposal
+                proposal: ProposedViewSize(bounds.size)
             )
         }
-    }
-}
-
-/// A view modifier that transforms a views frame to the size of a shape
-@frozen
-@available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
-public struct ShapeRelativeFrameModifier: ViewModifier {
-
-    @frozen
-    public enum Shape {
-        case circle
-        case capsule
-    }
-    public var shape: Shape
-
-    @inlinable
-    public init(shape: Shape) {
-        self.shape = shape
-    }
-
-    public func body(content: Content) -> some View {
-        content
-            .sizeThatFitsRelativeFrame { size in
-                switch shape {
-                case .circle:
-                    let size = max(size.width, size.height)
-                    return CGSize(width: size, height: size)
-                case .capsule:
-                    return CGSize(
-                        width: size.width + size.height,
-                        height: size.height
-                    )
-                }
-            }
-    }
-}
-
-@available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
-extension View {
-
-    /// A view modifier that transforms a views frame to the size of a shape
-    @inlinable
-    public func shapeRelativeFrame(_ shape: ShapeRelativeFrameModifier.Shape) -> some View {
-        modifier(ShapeRelativeFrameModifier(shape: shape))
     }
 }
 
@@ -139,39 +98,53 @@ struct SizeThatFitsRelativeFrameModifier_Previews: PreviewProvider {
                 Text("Hello, World")
                     .sizeThatFitsRelativeFrame { size in
                         CGSize(
-                            width: size.width + size.height,
+                            width: size.width,
                             height: size.height
                         )
                     }
-                    .background(Capsule().fill(Color.blue))
+                    .background(Color.blue)
+
+                Group {
+                    Text("Hello, World")
+
+                    Text("Hello, World")
+                }
+                .sizeThatFitsRelativeFrame { size in
+                    CGSize(
+                        width: size.width,
+                        height: size.height
+                    )
+                }
+                .background(Color.blue)
 
                 Text("Hello, World")
-                    .padding(.vertical, 8)
-                    .shapeRelativeFrame(.capsule)
-                    .background(Capsule().fill(Color.blue))
+                    .sizeThatFitsRelativeFrame { size in
+                        CGSize(
+                            width: 2 * size.width,
+                            height: 2 * size.height
+                        )
+                    }
+                    .background(Color.blue)
 
-                Text("Hello, World")
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity)
-                    .shapeRelativeFrame(.capsule)
-                    .background(Capsule().fill(Color.blue))
-
-                Text("Hello, World")
-                    .padding(.horizontal, 8)
-                    .shapeRelativeFrame(.circle)
-                    .background(Circle().fill(Color.blue))
+                Text("Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat.")
+                    .sizeThatFitsRelativeFrame { size in
+                        CGSize(
+                            width: 2 * size.width,
+                            height: size.height
+                        )
+                    }
+                    .background(Color.blue)
             }
-            views
 
             ScrollView {
                 VStack {
                     views
-                }
-            }
 
-            ScrollView(.horizontal) {
-                HStack {
-                    views
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            views
+                        }
+                    }
                 }
             }
         }

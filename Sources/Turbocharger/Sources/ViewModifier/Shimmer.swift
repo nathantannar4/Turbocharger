@@ -345,6 +345,22 @@ struct ShimmerModifier_Previews: PreviewProvider {
                         Color.blue
                             .frame(width: 100, height: 100)
                             .shimmer(
+                                isActive: isActive
+                            )
+                            .blendMode(.difference)
+
+                        Color.blue
+                            .frame(width: 100, height: 100)
+                            .blendMode(.difference)
+                            .shimmer(
+                                isActive: isActive
+                            )
+                    }
+
+                    HStack {
+                        Color.blue
+                            .frame(width: 100, height: 100)
+                            .shimmer(
                                 isActive: isActive,
                                 duration: 0.3
                             )
