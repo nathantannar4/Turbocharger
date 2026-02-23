@@ -19,6 +19,21 @@ extension NSEdgeInsets {
     }
 }
 #else
+extension EdgeInsets {
+
+    public init(
+        edgeInsets: UIEdgeInsets,
+        layoutDirection: UITraitEnvironmentLayoutDirection
+    ) {
+        self.init(
+            top: edgeInsets.top,
+            leading: layoutDirection == .leftToRight ? edgeInsets.left : edgeInsets.right,
+            bottom: edgeInsets.right,
+            trailing: layoutDirection == .leftToRight ? edgeInsets.right : edgeInsets.left
+        )
+    }
+}
+
 extension UIEdgeInsets {
     public init(
         edgeInsets: EdgeInsets,

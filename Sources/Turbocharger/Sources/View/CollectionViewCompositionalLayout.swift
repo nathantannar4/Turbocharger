@@ -1019,7 +1019,8 @@ struct CollectionViewLayout_Previews: PreviewProvider {
                                 trailing: 60
                             )
                         ),
-                        itemSpacing: -60
+                        itemSpacing: -60,
+                        sectionSpacing: 12
                     ),
                     sections: [
                         CollectionViewSection(items: 0...13, id: \.self, section: 0),

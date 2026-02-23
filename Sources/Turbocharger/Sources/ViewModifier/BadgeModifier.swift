@@ -199,6 +199,58 @@ extension View {
             )
         )
     }
+
+    /// A modifier that adds a view as a badge
+    @inlinable
+    public func badge<
+        Label: View,
+        Mask: View
+    >(
+        alignment: Alignment = .topTrailing,
+        anchor: UnitPoint = UnitPoint(x: 0.25, y: 0.25),
+        scale: CGPoint,
+        inset: EdgeInsets,
+        @ViewBuilder label: () -> Label,
+        @ViewBuilder mask: () -> Mask
+    ) -> some View {
+        modifier(
+            BadgeModifier(
+                alignment: alignment,
+                anchor: anchor,
+                label: label
+            )  {
+                BadgeMask(scale: scale, inset: inset) {
+                    mask()
+                }
+            }
+        )
+    }
+
+    /// A modifier that adds a view as a badge
+    @inlinable
+    public func badge<
+        Label: View,
+        Mask: View
+    >(
+        alignment: Alignment = .topTrailing,
+        anchor: UnitPoint = UnitPoint(x: 0.25, y: 0.25),
+        scale: CGFloat = 1,
+        inset: CGFloat,
+        @ViewBuilder label: () -> Label,
+        @ViewBuilder mask: () -> Mask
+    ) -> some View {
+        modifier(
+            BadgeModifier(
+                alignment: alignment,
+                anchor: anchor,
+                label: label
+            ) {
+                BadgeMask(scale: scale, inset: inset) {
+                    mask()
+                }
+            }
+        )
+    }
 }
 
 // MARK: - Previews
@@ -266,6 +318,54 @@ struct BadgeModifier_Previews: PreviewProvider {
                     .badge(alignment: .bottom, anchor: .center, scale: 1.25) {
                         Circle()
                             .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    }
+
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottomTrailing, anchor: .center, scale: 1.25) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    }
+            }
+            .padding(.horizontal)
+
+            HStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottomTrailing, anchor: .leading) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    } mask: {
+                        // Use `BadgeMask` is you need inset/scale of the mask
+                        Circle()
+                            .frame(width: 20, height: 20)
+                            .padding(-4)
+                    }
+
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottomTrailing, anchor: .leading) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    } mask: {
+                        BadgeMask(inset: 4) {
+                            Circle()
+                                .frame(width: 20, height: 20)
+                        }
+                    }
+
+                RoundedRectangle(cornerRadius: 8)
+                    .frame(width: 80, height: 80)
+                    .badge(alignment: .bottomTrailing, anchor: .leading, inset: 4) {
+                        Circle()
+                            .fill(Color.blue)
+                            .frame(width: 20, height: 20)
+                    } mask: {
+                        Circle()
                             .frame(width: 20, height: 20)
                     }
             }
