@@ -7,6 +7,7 @@
 import UIKit
 import SwiftUI
 import Combine
+import Engine
 
 /// A `UICollectionViewDiffableDataSource` wrapper
 @MainActor
@@ -58,7 +59,7 @@ where
         }
     }
 
-    public var onScroll: ((CGPoint) -> Void)?
+    public var onScroll: ((EdgeInsets, CGPoint) -> Void)?
     public var sectionScrollPosition: PublishedStateOrBinding<Section.ID?>?
     public var itemScrollPosition: PublishedStateOrBinding<Items.Element.ID?>?
 
@@ -69,8 +70,10 @@ where
     private var lastScrollPosition: ScrollPosition?
     private var isUpdatingScrollPosition = false
     private var scrollPositionObserver: AnyCancellable?
+    private var isReadyForDisplay = false
 
     public private(set) var isUpdating: Bool = false
+    private var updates: UInt = 0
 
     private var deferredInvalidationContext: UICollectionViewLayoutInvalidationContext?
 
@@ -255,18 +258,21 @@ where
             .compactMap { $0 }
         if let sectionPublisher, let itemPublisher {
             scrollPositionObserver = Publishers.CombineLatest(sectionPublisher, itemPublisher)
-                .sink { [unowned self] _, _ in
-                    self.scrollPositionDidChange()
+                .debounce(for: 0, scheduler: DispatchQueue.main)
+                .sink { [unowned self] section, item in
+                    self.scrollPositionDidChange(section: section, item: item)
                 }
         } else if let sectionPublisher {
             scrollPositionObserver = sectionPublisher
-                .sink { [unowned self] _ in
-                    self.scrollPositionDidChange()
+                .debounce(for: 0, scheduler: DispatchQueue.main)
+                .sink { [unowned self] section in
+                    self.scrollPositionDidChange(section: section)
                 }
         } else if let itemPublisher {
             scrollPositionObserver = itemPublisher
-                .sink { [unowned self] _ in
-                    self.scrollPositionDidChange()
+                .debounce(for: 0, scheduler: DispatchQueue.main)
+                .sink { [unowned self] item in
+                    self.scrollPositionDidChange(item: item)
                 }
         } else {
             scrollPositionObserver = nil
@@ -305,14 +311,14 @@ where
                 syncScrollPosition(scrollViewDidScroll: false)
             } else {
                 let layoutInvalidationContext = self.updateVisibleViews(updated: updated)
+                let didScroll = syncScrollPosition(scrollViewDidScroll: false)
                 if layoutInvalidationContext.invalidatedItemIndexPaths?.isEmpty == false || layoutInvalidationContext.invalidatedSupplementaryIndexPaths?.isEmpty == false {
-                    if collectionView.isTracking || collectionView.isDecelerating {
+                    if didScroll || isUpdatingScrollPosition || collectionView.isTracking || collectionView.isDecelerating {
                         deferredInvalidationContext = layoutInvalidationContext
                     } else {
                         collectionView.collectionViewLayout.invalidateLayout(with: layoutInvalidationContext)
                     }
                 }
-                syncScrollPosition(scrollViewDidScroll: false)
             }
         }
 
@@ -339,13 +345,17 @@ where
 
     open func didStartUpdate() {
         isUpdating = true
+        deferredInvalidationContext = nil
     }
 
     open func didFinishUpdate() {
         context.transaction = Transaction()
+        isReadyForDisplay = collectionView.frame != .zero
+        if !isUpdatingScrollPosition {
+            syncScrollPosition(scrollViewDidScroll: false)
+        }
         isUpdating = false
-        syncScrollPosition(scrollViewDidScroll: false)
-        onScroll?(collectionView.contentOffset)
+        updates = updates &+ 1
     }
 
     private func updateDataSource(
@@ -431,27 +441,62 @@ where
         return context
     }
 
-    private func scrollPositionDidChange() {
+    private func scrollPositionDidChange(
+        section: Section.ID? = nil,
+        item: Items.Element.ID? = nil
+    ) {
         guard !isUpdating, !(isUpdatingScrollPosition && collectionView.isDragging) else { return }
-        context.transaction = Transaction(animation: .default)
-        didStartUpdate()
-        syncScrollPosition(scrollViewDidScroll: false)
-        didFinishUpdate()
+        syncScrollPosition(
+            scrollViewDidScroll: false,
+            scrollPositionDidChange: true,
+            section: section,
+            item: item
+        )
     }
 
-    private func syncScrollPosition(scrollViewDidScroll: Bool) {
-        guard sectionScrollPosition != nil || itemScrollPosition != nil, collectionView.frame != .zero else {
-            return
+    private func syncScrollViewDidScroll() {
+        if !isUpdating, !isUpdatingScrollPosition, !collectionView.isBouncing {
+            isUpdatingScrollPosition = true
+            let didSync = syncScrollPosition(scrollViewDidScroll: true)
+            if didSync {
+                isReadyForDisplay = true
+            }
+            isUpdatingScrollPosition = false
+        }
+        if isReadyForDisplay, !isUpdating || isUpdatingScrollPosition, let onScroll {
+            let contentOffset = collectionView.contentOffset
+            let edgeInsets = EdgeInsets(
+                edgeInsets: collectionView.adjustedContentInset,
+                layoutDirection: collectionView.traitCollection.layoutDirection
+            )
+            if updates > 1 {
+                onScroll(edgeInsets, contentOffset)
+            } else {
+                withCATransaction {
+                    onScroll(edgeInsets, contentOffset)
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func syncScrollPosition(
+        scrollViewDidScroll: Bool = false,
+        scrollPositionDidChange: Bool = false,
+        section: Section.ID? = nil,
+        item: Items.Element.ID? = nil
+    ) -> Bool {
+        guard sectionScrollPosition != nil || itemScrollPosition != nil, (isReadyForDisplay || isUpdatingScrollPosition) else {
+            return false
         }
         var position: ScrollPosition?
         let shouldSyncToCurrentScrollPosition = scrollViewDidScroll && lastScrollPosition != nil
         if shouldSyncToCurrentScrollPosition {
             position = currentScrollPosition()
         } else {
-            position = ScrollPosition(
-                section: sectionScrollPosition?.wrappedValue,
-                item: itemScrollPosition?.wrappedValue
-            )
+            let section = section ?? sectionScrollPosition?.wrappedValue
+            let item = item ?? itemScrollPosition?.wrappedValue
+            position = ScrollPosition(section: section, item: item)
         }
         if sectionScrollPosition == nil {
             position?.section = lastScrollPosition?.section
@@ -460,12 +505,12 @@ where
             position?.item = lastScrollPosition?.item
         }
         if sectionScrollPosition == nil, lastScrollPosition?.item == position?.item {
-            return
+            return false
         }
         if itemScrollPosition == nil, lastScrollPosition?.section == position?.section {
-            return
+            return false
         }
-        guard var position, position != lastScrollPosition else { return }
+        guard var position, position != lastScrollPosition else { return false }
         var indexPath: IndexPath?
         if !shouldSyncToCurrentScrollPosition {
             if itemScrollPosition != nil, position.item != lastScrollPosition?.item, let itemId = position.item {
@@ -488,39 +533,46 @@ where
             }
         }
 
+        var didScroll = false
         let transaction = context.transaction
-        if isUpdating || lastScrollPosition == nil, !shouldSyncToCurrentScrollPosition, let indexPath {
-            if isUpdatingScrollPosition {
+        if isUpdating || scrollPositionDidChange || lastScrollPosition == nil, !shouldSyncToCurrentScrollPosition, let indexPath {
+            let wasUpdatingScrollPosition = isUpdatingScrollPosition
+            isUpdatingScrollPosition = true
+            if wasUpdatingScrollPosition {
                 if #available(iOS 17.4, *), collectionView.isScrollAnimating {
                     collectionView.stopScrollingAndZooming()
                 } else {
                     collectionView.setContentOffset(collectionView.contentOffset, animated: false)
                 }
             }
-            isUpdatingScrollPosition = true
-            collectionView.layoutIfNeeded()
+            if !isReadyForDisplay {
+                collectionView.layoutIfNeeded()
+            }
+            let isAnimated = transaction.isAnimated || scrollPositionDidChange
             collectionView.scrollToItem(
                 at: indexPath,
                 at: collectionView.axis.contains(.vertical) ? .top : .left,
-                animated: transaction.isAnimated
+                animated: transaction.isAnimated || scrollPositionDidChange
             )
-            if !transaction.isAnimated {
+            if !isAnimated {
                 isUpdatingScrollPosition = false
             }
+            didScroll = true
         }
-        if !isUpdating || lastScrollPosition != position {
+        if !(isUpdating || scrollPositionDidChange) || indexPath == nil || lastScrollPosition != position {
             if lastScrollPosition != nil {
                 withTransaction(context.transaction) {
-                    if sectionScrollPosition?.wrappedValue != position.section {
+                    if section != position.section {
                         sectionScrollPosition?.wrappedValue = position.section
                     }
-                    if itemScrollPosition?.wrappedValue != position.item {
+                    if item != position.item {
                         itemScrollPosition?.wrappedValue = position.item
                     }
                 }
             }
             lastScrollPosition = position
         }
+        return didScroll
     }
 
     private func currentIndexPath() -> IndexPath? {
@@ -861,12 +913,7 @@ where
     open func scrollViewDidScroll(
         _ scrollView: UIScrollView
     ) {
-        if !isUpdating, !isUpdatingScrollPosition, !collectionView.isBouncing {
-            isUpdatingScrollPosition = true
-            syncScrollPosition(scrollViewDidScroll: true)
-            isUpdatingScrollPosition = false
-        }
-        onScroll?(scrollView.contentOffset)
+        syncScrollViewDidScroll()
     }
 
     open func scrollViewDidZoom(_ scrollView: UIScrollView) {}
@@ -896,14 +943,16 @@ where
         }
         if let context = deferredInvalidationContext {
             deferredInvalidationContext = nil
-            collectionView.performBatchUpdates {
-                collectionView.collectionViewLayout.invalidateLayout(with: context)
-            }
+            collectionView.collectionViewLayout.invalidateLayout(with: context)
         }
     }
 
     open func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
         isUpdatingScrollPosition = false
+        if let context = deferredInvalidationContext {
+            deferredInvalidationContext = nil
+            collectionView.collectionViewLayout.invalidateLayout(with: context)
+        }
     }
 
     open func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -926,6 +975,10 @@ where
     }
 
     open func scrollViewDidScrollToTop(_ scrollView: UIScrollView) { }
+
+    open func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+
+    }
 }
 
 extension UICollectionViewDiffableDataSource {

@@ -16,7 +16,7 @@ import UIKit
 public protocol CollectionViewBackgroundConfiguration: Equatable, Sendable {
 
     #if os(iOS)
-    func makeConfiguration(
+    @MainActor @preconcurrency func makeConfiguration(
         for kind: CollectionViewLayoutElementKind,
         state: UICellConfigurationState
     ) -> UIBackgroundConfiguration
@@ -38,7 +38,7 @@ extension CollectionViewBackgroundConfiguration where Self == CollectionViewSele
 public struct CollectionViewSelectableBackgroundConfiguration: CollectionViewBackgroundConfiguration {
 
     #if os(iOS)
-    public func makeConfiguration(
+    @MainActor @preconcurrency public func makeConfiguration(
         for kind: CollectionViewLayoutElementKind,
         state: UICellConfigurationState
     ) -> UIBackgroundConfiguration {

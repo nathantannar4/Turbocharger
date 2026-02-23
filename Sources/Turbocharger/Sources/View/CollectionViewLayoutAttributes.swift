@@ -22,21 +22,21 @@ public enum CollectionViewLayoutElementKind: Equatable, Sendable {
 public protocol CollectionViewLayoutAttributes: Equatable, Sendable {
 
     #if os(iOS)
-    func initialAppearingLayoutAttributes(
+    @MainActor @preconcurrency func initialAppearingLayoutAttributes(
         for element: CollectionViewLayoutElementKind,
         at indexPath: IndexPath,
         layout: UICollectionViewLayout,
         attributes: inout UICollectionViewLayoutAttributes
     )
 
-    func layoutAttributes(
+    @MainActor @preconcurrency func layoutAttributes(
         for element: CollectionViewLayoutElementKind,
         at indexPath: IndexPath,
         layout: UICollectionViewLayout,
         attributes: inout UICollectionViewLayoutAttributes
     )
 
-    func finalDisappearingLayoutAttributes(
+    @MainActor @preconcurrency func finalDisappearingLayoutAttributes(
         for element: CollectionViewLayoutElementKind,
         at indexPath: IndexPath,
         layout: UICollectionViewLayout,
@@ -52,14 +52,14 @@ public protocol CollectionViewLayoutAttributes: Equatable, Sendable {
 extension CollectionViewLayoutAttributes {
 
     #if os(iOS)
-    public func initialAppearingLayoutAttributes(
+    @MainActor @preconcurrency public func initialAppearingLayoutAttributes(
         for element: CollectionViewLayoutElementKind,
         at indexPath: IndexPath,
         layout: UICollectionViewLayout,
         attributes: inout UICollectionViewLayoutAttributes
     ) {}
 
-    public func finalDisappearingLayoutAttributes(
+    @MainActor @preconcurrency public func finalDisappearingLayoutAttributes(
         for element: CollectionViewLayoutElementKind,
         at indexPath: IndexPath,
         layout: UICollectionViewLayout,

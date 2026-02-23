@@ -1019,7 +1019,8 @@ struct CollectionViewLayout_Previews: PreviewProvider {
                                 trailing: 60
                             )
                         ),
-                        itemSpacing: -60
+                        itemSpacing: -60,
+                        sectionSpacing: 12
                     ),
                     sections: [
                         CollectionViewSection(items: 0...13, id: \.self, section: 0),
@@ -1034,6 +1035,31 @@ struct CollectionViewLayout_Previews: PreviewProvider {
                 .frame(height: 300)
             }
         }
+
+        CollectionView(
+            .compositional(
+                axis: .horizontal,
+                layoutGroup: .item(
+                    CollectionViewCompositionalLayoutSize(
+                        width: .fractionalHeight(1.0),
+                        height: .fractionalHeight(1.0)
+                    )
+                ),
+                itemSpacing: 12,
+                sectionSpacing: 12
+            ),
+            sections: [
+                CollectionViewSection(items: 0...5, id: \.self, section: 0),
+                CollectionViewSection(items: 6...12, id: \.self, section: 1),
+            ]
+        ) { indexPath, section, id in
+            Color.blue
+                .overlay {
+                    Text("Cell \(id.value)")
+                        .foregroundColor(.white)
+                }
+        }
+        .frame(height: 100)
 
         CollectionView(
             .compositional(
