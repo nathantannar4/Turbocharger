@@ -330,7 +330,7 @@ extension CABasicAnimation {
         to toValue: Any?,
         duration: TimeInterval
     ) -> CABasicAnimation {
-        let animation = CABasicAnimation(keyPath: "colors")
+        let animation = CABasicAnimation(keyPath: keyPath)
         animation.fromValue = fromValue
         animation.toValue = toValue
         animation.duration = duration

@@ -97,7 +97,11 @@ private struct MarqueeTextBody: View {
                 ),
                 size: sizeThatFits
             )
-            if sizeThatFits.width <= frame.size.width {
+            let displayScale = ctx.environment.displayScale
+            let fittedWidth = (sizeThatFits.width * displayScale).rounded() / displayScale
+            let availableWidth = (frame.size.width * displayScale).rounded() / displayScale
+            let epsilon = 1 / displayScale
+            if fittedWidth <= availableWidth + epsilon {
                 ctx.draw(resolvedText, in: rect)
             } else {
                 let timestamp = keyframe * 40 * speed
@@ -106,7 +110,7 @@ private struct MarqueeTextBody: View {
                     .truncatingRemainder(
                         dividingBy: max(frame.size.width, sizeThatFits.width + spacing) + min(delayOffset, sizeThatFits.width)
                     ) - delayOffset
-                dx = (dx * ctx.environment.displayScale).rounded() / ctx.environment.displayScale
+                dx = (dx * displayScale).rounded() / displayScale
 
                 rect.origin.x -= dx
                 rect.origin.x = min(frame.origin.x, rect.origin.x)
