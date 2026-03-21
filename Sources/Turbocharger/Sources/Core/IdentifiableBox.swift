@@ -20,3 +20,11 @@ public struct IdentifiableBox<Value, ID: Hashable>: Identifiable {
 
 extension IdentifiableBox: Equatable where Value: Equatable { }
 extension IdentifiableBox: Hashable where Value: Hashable { }
+
+extension Hashable {
+
+    public var identifiable: IdentifiableBox<Self, Self> {
+        get { IdentifiableBox(self, id: \.self) }
+        set { self = newValue.value }
+    }
+}

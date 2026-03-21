@@ -41,6 +41,14 @@ extension View {
     ) -> some View {
         modifier(ShapeRelativeFrameModifier(shape: shape))
     }
+
+    /// A view modifier that transforms a views frame to the size of a shape
+    @inlinable
+    public func shapeRelativeFrame<S: LayoutShape>(
+        @ShapeBuilder _ shape: () -> S
+    ) -> some View {
+        modifier(ShapeRelativeFrameModifier(shape: shape()))
+    }
 }
 
 extension Circle: LayoutShape {
@@ -73,6 +81,13 @@ extension RoundedRectangle: LayoutShape {
         var size = size
         size.width += 2 * cornerSize.width
         return size
+    }
+}
+
+extension ShapeAdapter: LayoutShape where S: LayoutShape {
+
+    public nonisolated func layoutSizeThatFits(_ size: CGSize) -> CGSize {
+        shape.layoutSizeThatFits(size)
     }
 }
 

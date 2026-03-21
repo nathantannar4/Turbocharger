@@ -326,17 +326,18 @@ where
         updateDataSource(
             sections: sections,
             animated: animation != nil,
-            completion: { updated in
+            completion: { [weak self] updated in
+                guard let self else { return }
                 if animation != nil {
-                    self.collectionView.performBatchUpdates {
+                    collectionView.performBatchUpdates {
                         changes(updated)
-                    } completion: { _ in
-                        self.didFinishUpdate()
+                    } completion: { [weak self] _ in
+                        self?.didFinishUpdate()
                     }
                 } else {
                     UIView.performWithoutAnimation {
                         changes(updated)
-                        self.didFinishUpdate()
+                        didFinishUpdate()
                     }
                 }
             }

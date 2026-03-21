@@ -13,12 +13,14 @@ import SwiftUI
 extension AnyTransition {
 
     /// A transition that blurs the view.
+    @_disfavoredOverload
     public static let blur = AnyTransition.modifier(
         active: BlurModifier(radius: 6),
         identity: BlurModifier(radius: 0)
     )
 
     /// A transition that blurs the view.
+    @_disfavoredOverload
     public static func blur(radius: CGFloat, opaque: Bool = false) -> AnyTransition {
         .modifier(
             active: BlurModifier(radius: radius, opaque: opaque),
@@ -196,7 +198,7 @@ struct BlurModifier_Previews: PreviewProvider {
                                 Circle()
                                     .fill(Color.blue)
                                     .frame(width: 50, height: 50)
-                                    .transition(.blur(radius: 20))
+                                    .transition(.blur(radius: 20).combined(with: .scale))
                             }
 
                             if !isHidden {
