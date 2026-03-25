@@ -99,7 +99,7 @@ public struct RadialStackLayout: Layout {
 
 // MARK: - Previews
 
-struct CircleLayout_Previews: PreviewProvider {
+struct RadialStack_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
             RadialStack(radius: 40) {

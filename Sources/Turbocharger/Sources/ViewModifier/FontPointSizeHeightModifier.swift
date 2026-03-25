@@ -6,22 +6,28 @@ import SwiftUI
 import Engine
 
 @frozen
-public struct FontPointSizeHeightModifier: ViewModifier {
-
-    @Environment(\.font) var font
+public struct FontPointSizeHeightModifier: EnvironmentalModifier {
 
     @inlinable
     public init() { }
 
-    public func body(content: Content) -> some View {
-        let font = font ?? .body
-        #if os(iOS) || os(tvOS) || os(watchOS)
-        let fontSize = font.toUIFont()?.pointSize
+    public nonisolated func resolve(in environment: EnvironmentValues) -> some ViewModifier {
+        let font = environment.font ?? .body
+        #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+        let pointSize = font.toUIFont(in: environment)?.pointSize
         #else
-        let fontSize = font.toNSFont()?.pointSize
+        let pointSize = font.toNSFont(in: environment)?.pointSize
         #endif
-        content
-            .frame(height: fontSize)
+        return Modifier(pointSize: pointSize)
+    }
+
+    private struct Modifier: ViewModifier {
+        var pointSize: CGFloat?
+
+        public func body(content: Content) -> some View {
+            content
+                .frame(height: pointSize)
+        }
     }
 }
 

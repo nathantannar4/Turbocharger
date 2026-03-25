@@ -352,6 +352,7 @@ struct FlowStack_Previews: PreviewProvider {
         Preview2()
         Preview3()
         Preview4()
+        Preview5()
     }
 
     struct TagView: View {
@@ -558,6 +559,24 @@ struct FlowStack_Previews: PreviewProvider {
 
                     Divider()
 
+                    Text("Divider")
+                        .font(.title)
+
+                    FlowStack(alignment: .leading) {
+                        TagView(label: "Lorem ipsum dolor", color: .green)
+
+                        Divider()
+
+                        TagView(label: "Lorem ipsum", color: .red)
+
+                        Divider()
+
+                        TagView(label: "Lorem ipsum dolor sit amet consectetur", color: .blue)
+                    }
+                    .padding(.horizontal)
+
+                    Divider()
+
                     Text("Scrollable")
                         .font(.title)
 
@@ -678,6 +697,31 @@ struct FlowStack_Previews: PreviewProvider {
                 withAnimation {
                     isLoading.toggle()
                 }
+            }
+        }
+    }
+
+    struct Preview5: View {
+        var body: some View {
+            VStack {
+                FlowStack(alignment: .leading) {
+                    Circle()
+                        .frame(width: 12, height: 12)
+
+                    Text("Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis.")
+                }
+
+                FlowStack(alignment: .leading) {
+                    Label {
+                        Text("Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis.")
+                    } icon: {
+                        Circle()
+                            .frame(width: 12, height: 12)
+                    }
+                }
+
+                Text("Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis.")
+                    .tracking(10)
             }
         }
     }

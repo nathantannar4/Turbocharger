@@ -79,7 +79,8 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         #if os(iOS)
         @available(iOS 14.5, *)
         func toUIKit(
-            appearance: UICollectionLayoutListConfiguration.Appearance
+            appearance: UICollectionLayoutListConfiguration.Appearance,
+            in environment: EnvironmentValues
         ) -> UIListSeparatorConfiguration {
             var configuration = UIListSeparatorConfiguration(listAppearance: appearance)
             configuration.topSeparatorVisibility = topSeparatorVisibility.toUIKit()
@@ -90,7 +91,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
             if let bottomSeparatorInsets {
                 configuration.bottomSeparatorInsets = NSDirectionalEdgeInsets(bottomSeparatorInsets)
             }
-            if let color = color?.toUIColor() {
+            if let color = color?.toUIColor(in: environment) {
                 configuration.color = color
             }
             return configuration
@@ -129,6 +130,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
 
     #if os(iOS)
     public func makeConfiguration(
+        context: Context,
         options: CollectionViewLayoutOptions
     ) -> UICollectionLayoutListConfiguration {
         var layoutConfiguration = UICollectionLayoutListConfiguration(appearance: configuration.appearance.toUIKit())
@@ -136,7 +138,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         layoutConfiguration.footerMode = options.supplementaryViews.contains(where: { $0.id == .footer }) ? .supplementary : .none
         layoutConfiguration.showsSeparators = configuration.showsSeparators
         if #available(iOS 14.5, *), let separatorConfiguration = configuration.separatorConfiguration {
-            layoutConfiguration.separatorConfiguration = separatorConfiguration.toUIKit(appearance: layoutConfiguration.appearance)
+            layoutConfiguration.separatorConfiguration = separatorConfiguration.toUIKit(appearance: layoutConfiguration.appearance, in: context.environment)
         }
         if #available(iOS 15.0, *) {
             layoutConfiguration.headerTopPadding = configuration.headerTopPadding
@@ -148,7 +150,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         context: Context,
         options: CollectionViewLayoutOptions
     ) -> UICollectionViewCompositionalLayout {
-        let configuration = makeConfiguration(options: options)
+        let configuration = makeConfiguration(context: context, options: options)
         let layout = UICollectionViewCompositionalLayout.list(using: configuration)
         return layout
     }
@@ -162,7 +164,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         uiCollectionView.clipsToBounds = false
         uiCollectionView.keyboardDismissMode = .interactive
-        uiCollectionView.backgroundColor = backgroundColor?.toUIColor() ?? .clear
+        uiCollectionView.backgroundColor = backgroundColor?.toUIColor(in: context.environment) ?? .clear
         return uiCollectionView
     }
 
