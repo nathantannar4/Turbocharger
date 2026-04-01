@@ -14,7 +14,7 @@ public struct EmptyCollectionViewConfiguration: Equatable { }
 @MainActor @preconcurrency
 public protocol CollectionViewLayout: Sendable {
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     associatedtype UICollectionViewLayoutType: UICollectionViewLayout
     associatedtype UICollectionViewType: UICollectionView
     associatedtype UICollectionViewCellType: UICollectionViewCell = UICollectionViewCell
@@ -70,7 +70,7 @@ public protocol CollectionViewLayout: Sendable {
     typealias Context = CollectionViewLayoutContext
 }
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 @available(iOS 14.0, *)
 extension CollectionViewLayout where Configuration == EmptyCollectionViewConfiguration {
 
@@ -136,7 +136,7 @@ public protocol ComposableCollectionViewLayout: CollectionViewLayout {
 @available(watchOS, unavailable)
 extension ComposableCollectionViewLayout {
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     public var configuration: Layout.Configuration {
         layout.configuration
     }
@@ -268,7 +268,7 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
             self = .custom(value)
         }
 
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         init(_ kind: String) {
             switch kind {
             case UICollectionView.elementKindSectionHeader:
@@ -283,7 +283,7 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
 
         @MainActor
         public var kind: String {
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
             switch self {
             case .header:
                 return UICollectionView.elementKindSectionHeader

@@ -21,7 +21,7 @@ public enum CollectionViewLayoutElementKind: Equatable, Sendable {
 @available(watchOS, unavailable)
 public protocol CollectionViewLayoutAttributes: Equatable, Sendable {
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     @MainActor @preconcurrency func initialAppearingLayoutAttributes(
         for element: CollectionViewLayoutElementKind,
         at indexPath: IndexPath,
@@ -51,7 +51,7 @@ public protocol CollectionViewLayoutAttributes: Equatable, Sendable {
 @available(watchOS, unavailable)
 extension CollectionViewLayoutAttributes {
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     @MainActor @preconcurrency public func initialAppearingLayoutAttributes(
         for element: CollectionViewLayoutElementKind,
         at indexPath: IndexPath,

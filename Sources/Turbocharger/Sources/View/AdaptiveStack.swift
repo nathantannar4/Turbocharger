@@ -18,7 +18,7 @@ public struct AdaptiveStack<Content: View>: View {
     @Environment(\.self) var environment
 
     var axis: Axis {
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         if environment.horizontalSizeClass != .regular {
             if #available(iOS 15.0, *) {
                 if environment.dynamicTypeSize.isAccessibilitySize {

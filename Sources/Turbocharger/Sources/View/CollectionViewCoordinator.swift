@@ -2,7 +2,7 @@
 // Copyright (c) Nathan Tannar
 //
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 import UIKit
 import SwiftUI
@@ -540,7 +540,7 @@ where
             let wasUpdatingScrollPosition = isUpdatingScrollPosition
             isUpdatingScrollPosition = true
             if wasUpdatingScrollPosition {
-                if #available(iOS 17.4, *), collectionView.isScrollAnimating {
+                if #available(iOS 17.4, visionOS 1.1, *), collectionView.isScrollAnimating {
                     collectionView.stopScrollingAndZooming()
                 } else {
                     collectionView.setContentOffset(collectionView.contentOffset, animated: false)
@@ -1131,7 +1131,7 @@ extension UICollectionView {
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 15.0, *)
 struct CollectionViewCoordinator_Previews: PreviewProvider {

@@ -5,7 +5,14 @@
 import SwiftUI
 import Engine
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
+
+@available(iOS 14.0, *)
+public enum CollectionViewSelectionAvailability {
+    case unavailable
+    case disabled
+    case available
+}
 
 /// A bridging view to `UICollectionView` that renders cells in a `UIHostingConfiguration`
 ///
@@ -42,12 +49,14 @@ public struct CollectionView<
     var footer: (IndexPath, CollectionViewSection<Section, Items>) -> Footer
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
+    var options: CollectionViewHostingConfigurationCoordinatorOptions
     private var modifiers = CollectionViewModifierFields<Section, Items>()
 
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         supplementaryViews: [CollectionViewSupplementaryView],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
@@ -60,11 +69,13 @@ public struct CollectionView<
         self.footer = footer
         self.supplementaryViews = supplementaryViews
         self.supplementaryView = supplementaryView
+        self.options = options
     }
 
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
@@ -73,6 +84,7 @@ public struct CollectionView<
             layout,
             sections: sections,
             supplementaryViews: [],
+            options: options,
             content: content,
             header: header,
             footer: footer,
@@ -89,6 +101,7 @@ public struct CollectionView<
             footer: footer,
             supplementaryViews: supplementaryViews,
             supplementaryView: supplementaryView,
+            options: options,
             modifiers: modifiers
         )
     }
@@ -201,6 +214,7 @@ extension CollectionView {
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
     ) where
         Header == EmptyView,
@@ -210,6 +224,7 @@ extension CollectionView {
         self.init(
             layout,
             sections: sections,
+            options: options,
             content: content,
             header: { _, _ in EmptyView() },
             footer: { _, _ in EmptyView() }
@@ -218,8 +233,9 @@ extension CollectionView {
 
     public init(
         _ layout: Layout,
-        supplementaryViews: [CollectionViewSupplementaryView],
         items: Items,
+        supplementaryViews: [CollectionViewSupplementaryView],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
@@ -233,6 +249,7 @@ extension CollectionView {
                 CollectionViewSection(items: items, section: 0)
             ],
             supplementaryViews: supplementaryViews,
+            options: options,
             content: content,
             header: header,
             footer: footer,
@@ -243,6 +260,7 @@ extension CollectionView {
     public init(
         _ layout: Layout,
         items: Items,
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
@@ -252,8 +270,9 @@ extension CollectionView {
     {
         self.init(
             layout,
-            supplementaryViews: [],
             items: items,
+            supplementaryViews: [],
+            options: options,
             content: content,
             header: header,
             footer: footer,
@@ -264,6 +283,7 @@ extension CollectionView {
     public init(
         _ layout: Layout,
         items: Items,
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
     ) where
         Section == CollectionViewSectionIndex,
@@ -274,6 +294,7 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
+            options: options,
             content: content,
             header: { _, _ in EmptyView() },
             footer: { _, _ in EmptyView() }
@@ -284,6 +305,7 @@ extension CollectionView {
         Views: View
     >(
         _ layout: Layout,
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         @ViewBuilder views: () -> Views
     ) where
         Section == CollectionViewSectionIndex,
@@ -300,6 +322,7 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
+            options: options,
             content: { $2.value }
         )
     }
@@ -307,6 +330,7 @@ extension CollectionView {
     public init(
         _ layout: Layout,
         views: VariadicView,
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
         content: @escaping (VariadicView.Subview) -> Content = { $0 }
     ) where
         Section == CollectionViewSectionIndex,
@@ -319,16 +343,10 @@ extension CollectionView {
         self.init(
             layout,
             items: items,
+            options: options,
             content: { content($2.value) }
         )
     }
-}
-
-@available(iOS 14.0, *)
-public enum CollectionViewSelectionAvailability {
-    case unavailable
-    case disabled
-    case available
 }
 
 @available(iOS 14.0, *)
@@ -377,6 +395,7 @@ private struct CollectionViewBody<
     var footer: Coordinator.FooterProvider
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: Coordinator.SupplementaryViewProvider
+    var options: CollectionViewHostingConfigurationCoordinatorOptions
     var modifiers: CollectionViewModifierFields<Section, Items>
 
     typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items>
@@ -397,6 +416,7 @@ private struct CollectionViewBody<
         coordinator.content = content
         coordinator.footer = footer
         coordinator.supplementaryView = supplementaryView
+        coordinator.options = options
         coordinator.onSelect = modifiers.onSelect
         coordinator.canSelect = modifiers.canSelect
         coordinator.onRefresh = modifiers.onRefresh
@@ -416,7 +436,8 @@ private struct CollectionViewBody<
             supplementaryView: supplementaryView,
             layout: layout,
             sections: sections,
-            layoutOptions: layoutOptions
+            layoutOptions: layoutOptions,
+            options: options
         )
     }
 }
@@ -425,7 +446,7 @@ private struct CollectionViewBody<
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 15.0, *)
 @available(macOS, unavailable)

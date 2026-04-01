@@ -90,12 +90,13 @@ struct AsyncButton_Previews: PreviewProvider {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     print("finished")
                 } label: {
-                    Text("Load")
-                        .overlay {
-                            if isLoading {
-                                ProgressView()
-                            }
+                    HStack {
+                        Text("Load")
+
+                        if isLoading {
+                            ProgressView()
                         }
+                    }
                 }
             }
         }

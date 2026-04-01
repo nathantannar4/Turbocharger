@@ -5,7 +5,7 @@
 import SwiftUI
 import Engine
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 14.0, *)
 @available(macOS, unavailable)
@@ -43,7 +43,9 @@ public struct CollectionViewIdealSizeLayout<
             collectionViewLayout: layout
         )
         uiCollectionView.clipsToBounds = false
+        #if os(iOS)
         uiCollectionView.keyboardDismissMode = .interactive
+        #endif
         uiCollectionView.backgroundColor = nil
         return uiCollectionView
     }
@@ -129,7 +131,7 @@ extension CollectionViewLayout {
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 15.0, *)
 @available(macOS, unavailable)

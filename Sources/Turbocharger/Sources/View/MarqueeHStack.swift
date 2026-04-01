@@ -127,7 +127,7 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
         } symbols: {
             views
         }
-        #if os(iOS) || os(watchOS) || os(macOS)
+        #if os(iOS) || os(visionOS) || os(watchOS) || os(macOS)
         .overlay {
             if let selection {
                 Rectangle()

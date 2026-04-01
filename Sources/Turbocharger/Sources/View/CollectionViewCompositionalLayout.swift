@@ -19,7 +19,7 @@ public struct CollectionViewCompositionalLayoutSize: Equatable, Sendable {
         case absolute(CGFloat)
         case estimated(CGFloat)
 
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         @MainActor
         public func toUIKit() -> NSCollectionLayoutDimension {
             switch self {
@@ -51,7 +51,7 @@ public struct CollectionViewCompositionalLayoutSize: Equatable, Sendable {
         CollectionViewCompositionalLayoutSize()
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     @MainActor
     public func toUIKit(
         replacingUnspecifiedDimensionBy unspecified: NSCollectionLayoutSize
@@ -79,7 +79,7 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         case groupPaging
         case groupPagingCentered
 
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         @MainActor
         public func toUIKit() -> UICollectionLayoutSectionOrthogonalScrollingBehavior {
             switch self {
@@ -103,7 +103,7 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         case fixed(CGFloat)
         case flexible(CGFloat)
 
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         @MainActor
         public func toUIKit() -> NSCollectionLayoutSpacing {
             switch self {
@@ -135,7 +135,7 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
             self.trailing = trailing
         }
 
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         @MainActor
         public func toUIKit() -> NSCollectionLayoutEdgeSpacing {
             NSCollectionLayoutEdgeSpacing(
@@ -228,7 +228,7 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         )
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     @MainActor
     public func toUIKit(
         axis: Axis,
@@ -349,7 +349,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         self.safeAreaInsets = safeAreaInsets
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     public func makeUICollectionViewLayout(
         context: Context,
         options: CollectionViewLayoutOptions
@@ -401,7 +401,9 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         let layout = makeUICollectionViewLayout(context: context, options: options)
         let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         uiCollectionView.clipsToBounds = false
+        #if os(iOS)
         uiCollectionView.keyboardDismissMode = .interactive
+        #endif
         uiCollectionView.backgroundColor = nil
         return uiCollectionView
     }
@@ -537,7 +539,7 @@ extension CollectionViewCompositionalLayout {
 }
 
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 @available(iOS 14.0, *)
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
@@ -894,7 +896,7 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 @available(iOS 15.0, *)
 @available(macOS, unavailable)
 @available(tvOS, unavailable)

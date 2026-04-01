@@ -10,6 +10,7 @@ import Combine
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
+@available(visionOS, unavailable)
 public struct VibrancyEffectModifier: ViewModifier {
 
     @usableFromInline
@@ -33,6 +34,7 @@ public struct VibrancyEffectModifier: ViewModifier {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
+@available(visionOS, unavailable)
 public struct VibrancyEffectView: View {
 
     @usableFromInline
@@ -51,6 +53,7 @@ public struct VibrancyEffectView: View {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
+@available(visionOS, unavailable)
 extension View {
 
     /// A modifier that overlays a Metal layer that intensifies the vibrancy
@@ -69,6 +72,7 @@ extension View {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
+@available(visionOS, unavailable)
 private struct VibrancyEffectViewBody: View {
 
     var intensity: Double?

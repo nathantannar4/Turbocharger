@@ -13,7 +13,7 @@ public protocol CollectionViewDataPrefetcher<Item> {
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 14.0, *)
 struct CollectionViewDataPrefetcher_Previews: PreviewProvider {

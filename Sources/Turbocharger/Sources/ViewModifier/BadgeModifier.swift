@@ -406,8 +406,8 @@ struct BadgeModifier_Previews: PreviewProvider {
                         }
                     }
 
-                #if canImport(FoundationModels) // Xcode 26
-                if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, visionOS 26.0, *) {
+                #if canImport(FoundationModels) && !os(visionOS) // Xcode 26
+                if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *) {
                     // Glass effect doesn't work with default masking
                     RoundedRectangle(cornerRadius: 8)
                         .frame(width: 80, height: 80)
@@ -443,7 +443,7 @@ struct BadgeModifier_Previews: PreviewProvider {
                 #endif
             }
 
-            #if canImport(FoundationModels) // Xcode 26
+            #if canImport(FoundationModels) && !os(visionOS) // Xcode 26
             if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, visionOS 26.0, *) {
                 HStack {
                     // Masking a glassEffect causes weird rendering

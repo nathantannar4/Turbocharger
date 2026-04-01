@@ -18,7 +18,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         case grouped
         case insetGrouped
 
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         public func toUIKit() -> UICollectionLayoutListConfiguration.Appearance {
             switch self {
             case .plain:
@@ -41,7 +41,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
             case visible
             case hidden
 
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
             @available(iOS 14.5, *)
             public func toUIKit() -> UIListSeparatorConfiguration.Visibility {
                 switch self {
@@ -76,7 +76,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
             self.color = color
         }
 
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         @available(iOS 14.5, *)
         func toUIKit(
             appearance: UICollectionLayoutListConfiguration.Appearance,
@@ -128,7 +128,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         self.safeAreaInsets = safeAreaInsets
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     public func makeConfiguration(
         context: Context,
         options: CollectionViewLayoutOptions
@@ -163,7 +163,9 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         let layout = makeUICollectionViewLayout(context: context, options: options)
         let uiCollectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
         uiCollectionView.clipsToBounds = false
+        #if os(iOS)
         uiCollectionView.keyboardDismissMode = .interactive
+        #endif
         uiCollectionView.backgroundColor = backgroundColor?.toUIColor(in: context.environment) ?? .clear
         return uiCollectionView
     }
@@ -195,7 +197,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         indexPath: IndexPath,
         context: Context
     ) {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 18.0, visionOS 2.0, *) {
             cell.backgroundConfiguration = .listCell()
         } else {
             switch configuration.appearance {
@@ -214,7 +216,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         indexPath: IndexPath,
         context: Context
     ) {
-        if #available(iOS 18.0, *) {
+        if #available(iOS 18.0, visionOS 2.0, *) {
             switch kind {
             case UICollectionView.elementKindSectionHeader:
                 supplementaryView.backgroundConfiguration = .listHeader()
@@ -290,7 +292,7 @@ extension CollectionViewLayout where Self == CollectionViewListLayout {
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 15.0, *)
 @available(macOS, unavailable)

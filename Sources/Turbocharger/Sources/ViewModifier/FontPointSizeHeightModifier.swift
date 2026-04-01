@@ -13,7 +13,7 @@ public struct FontPointSizeHeightModifier: EnvironmentalModifier {
 
     public nonisolated func resolve(in environment: EnvironmentValues) -> some ViewModifier {
         let font = environment.font ?? .body
-        #if os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
+        #if os(iOS) || os(visionOS) || os(tvOS) || os(watchOS)
         let pointSize = font.toUIFont(in: environment)?.pointSize
         #else
         let pointSize = font.toNSFont(in: environment)?.pointSize

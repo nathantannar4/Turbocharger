@@ -5,7 +5,7 @@
 import SwiftUI
 import Engine
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 import UIKit
 #endif
 
@@ -15,7 +15,7 @@ import UIKit
 @available(watchOS, unavailable)
 public protocol CollectionViewBackgroundConfiguration: Equatable, Sendable {
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     @MainActor @preconcurrency func makeConfiguration(
         for kind: CollectionViewLayoutElementKind,
         state: UICellConfigurationState
@@ -37,13 +37,13 @@ extension CollectionViewBackgroundConfiguration where Self == CollectionViewSele
 @available(watchOS, unavailable)
 public struct CollectionViewSelectableBackgroundConfiguration: CollectionViewBackgroundConfiguration {
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     @MainActor @preconcurrency public func makeConfiguration(
         for kind: CollectionViewLayoutElementKind,
         state: UICellConfigurationState
     ) -> UIBackgroundConfiguration {
         let configuration: UIBackgroundConfiguration
-        if #available(iOS 18.0, *) {
+        if #available(iOS 18.0, visionOS 2.0, *) {
             switch kind {
             case .item:
                 configuration = UIBackgroundConfiguration.listCell()
@@ -77,7 +77,7 @@ public struct CollectionViewSelectableBackgroundConfiguration: CollectionViewBac
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 @available(iOS 14.0, *)
 struct CollectionViewBackgroundConfiguration_Previews: PreviewProvider {
 

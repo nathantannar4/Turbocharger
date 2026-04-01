@@ -5,7 +5,7 @@
 import SwiftUI
 import Engine
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 14.0, *)
 @available(macOS, unavailable)
@@ -48,7 +48,7 @@ public struct CollectionViewVariadicView<
 
 // MARK: - Previews
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 @available(iOS 15.0, *)
 @available(macOS, unavailable)

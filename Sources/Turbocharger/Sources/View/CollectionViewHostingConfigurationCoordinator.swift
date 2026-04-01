@@ -2,7 +2,7 @@
 // Copyright (c) Nathan Tannar
 //
 
-#if os(iOS)
+#if os(iOS) || os(visionOS)
 
 import Engine
 
@@ -68,6 +68,17 @@ extension View {
     }
 }
 
+public struct CollectionViewHostingConfigurationCoordinatorOptions: OptionSet, Sendable {
+    public var rawValue: UInt8
+
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+
+    /// Uses a custom `UIContentConfiguration` that reuses SwiftUI content view, preserving things like `@State` and any `UIViewRepresentable`'s
+    public static let useReusableHostingConfiguration = CollectionViewHostingConfigurationCoordinatorOptions(rawValue: 1 << 0)
+}
+
 /// A ``CollectionViewCoordinator`` that manages the rendering of a View
 /// for a `UICollectionViewDiffableDataSource`
 @available(iOS 14.0, *)
@@ -97,6 +108,8 @@ open class CollectionViewHostingConfigurationCoordinator<
     public typealias SupplementaryViewProvider = (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
     public var supplementaryView: SupplementaryViewProvider
 
+    public var options: CollectionViewHostingConfigurationCoordinatorOptions
+
     public private(set) var updatePhase = UpdatePhase.Value()
 
     public init(
@@ -106,12 +119,14 @@ open class CollectionViewHostingConfigurationCoordinator<
         supplementaryView: @escaping SupplementaryViewProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        layoutOptions: CollectionViewLayoutOptions
+        layoutOptions: CollectionViewLayoutOptions,
+        options: CollectionViewHostingConfigurationCoordinatorOptions
     ) {
         self.header = header
         self.content = content
         self.footer = footer
         self.supplementaryView = supplementaryView
+        self.options = options
         super.init(
             sections: sections,
             layout: layout,
@@ -142,7 +157,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         footer: @escaping FooterProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        layoutOptions: CollectionViewLayoutOptions
+        layoutOptions: CollectionViewLayoutOptions,
+        options: CollectionViewHostingConfigurationCoordinatorOptions
     ) where SupplementaryView == EmptyView {
         self.init(
             header: header,
@@ -151,14 +167,16 @@ open class CollectionViewHostingConfigurationCoordinator<
             supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
-            layoutOptions: layoutOptions
+            layoutOptions: layoutOptions,
+            options: options
         )
     }
 
     public convenience init(
         content: @escaping ContentProvider,
         layout: Layout,
-        sections: [CollectionViewSection<Section, Items>]
+        sections: [CollectionViewSection<Section, Items>],
+        options: CollectionViewHostingConfigurationCoordinatorOptions
     ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
         self.init(
             header: { _, _ in EmptyView() },
@@ -167,7 +185,8 @@ open class CollectionViewHostingConfigurationCoordinator<
             supplementaryView: { _, _, _ in EmptyView() },
             layout: layout,
             sections: sections,
-            layoutOptions: .init()
+            layoutOptions: .init(),
+            options: options
         )
     }
 
@@ -265,10 +284,10 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: value.id,
-            kind: .item,
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase
+            updatePhase: updatePhase,
+            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
         ) {
             content(indexPath, section, value)
         }
@@ -281,10 +300,10 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: section.section.id,
-            kind: .supplementaryView(.header),
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase
+            updatePhase: updatePhase,
+            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
         ) {
             header(indexPath, section)
         }
@@ -297,10 +316,10 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: section.section.id,
-            kind: .supplementaryView(.header),
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase
+            updatePhase: updatePhase,
+            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
         ) {
             footer(indexPath, section)
         }
@@ -314,10 +333,10 @@ open class CollectionViewHostingConfigurationCoordinator<
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: section.section.id,
-            kind: .supplementaryView(.custom(kind)),
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase
+            updatePhase: updatePhase,
+            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
         ) {
             supplementaryView(indexPath, section, .custom(kind))
         }
@@ -331,16 +350,16 @@ private func makeHostingConfiguration<
     Content: View
 >(
     id: ID,
-    kind: CollectionViewLayoutElementKind,
     state: UICellConfigurationState,
     transaction: Transaction,
     updatePhase: UpdatePhase.Value,
+    useReusableHostingConfiguration: Bool,
     @ViewBuilder content: () -> Content
 ) -> UIContentConfiguration {
 
     let content = content()
-    if #available(iOS 16.0, *) {
-        return UIHostingConfiguration {
+    if #available(iOS 16.0, *), !useReusableHostingConfiguration {
+        let configuration = UIHostingConfiguration {
             content
                 .modifier(
                     HostingConfigurationModifier(
@@ -354,8 +373,9 @@ private func makeHostingConfiguration<
         }
         .background(.clear)
         .margins(.all, 0)
+        return configuration
     } else {
-        return HostingConfigurationBackPort(kind: kind) {
+        return HostingConfiguration {
             content
                 .modifier(
                     HostingConfigurationModifier(
@@ -383,9 +403,14 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
             .environment(\.hostingConfigurationState, state)
             .disabled(state.isDisabled)
             .opacity(isEmpty ? 0 : 1)
-            .transition(.identity)
-            .id(id)
             .animation(nil, value: id)
+//            .transaction {
+//                // Replace the default animation curve with a curve that more closely matches UICollectionView's cell
+//                // resize animation
+//                if $0.animation == .default {
+//                    $0.animation = .spring(response: 0.3, dampingFraction: 1, blendDuration: 0)
+//                }
+//            }
             .transaction(transaction, value: updatePhase)
     }
 }
@@ -394,70 +419,87 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
-private struct HostingConfigurationBackPort<
+public struct HostingConfiguration<
     Content: View
 >: UIContentConfiguration {
 
-    var kind: CollectionViewLayoutElementKind
-    var content: Content
+    public var content: Content
 
-    init(
-        kind: CollectionViewLayoutElementKind,
+    public init(
         @ViewBuilder content: () -> Content
     ) {
-        self.kind = kind
         self.content = content()
     }
 
-    func makeContentView() -> UIView & UIContentView {
-        return HostingConfigurationBackPortContentView(configuration: self)
+    public func makeContentView() -> UIView & UIContentView {
+        return HostingConfigurationContentView(configuration: self)
     }
 
-    func updated(for state: UIConfigurationState) -> Self {
+    public func updated(for state: UIConfigurationState) -> Self {
         return self
     }
 }
 
 @available(iOS 14.0, *)
-private class HostingConfigurationBackPortContentView<
+open class HostingConfigurationContentView<
     Content: View
->: HostingView<ModifiedContent<Content, SizeObserver>>, UIContentView {
+>: HostingView<HostingConfigurationView<Content>>, UIContentView {
 
-    var configuration: UIContentConfiguration {
+    public var configuration: UIContentConfiguration {
         didSet {
-            let configuration = configuration as! HostingConfigurationBackPort<Content>
+            let configuration = configuration as! HostingConfiguration<Content>
             content.content = configuration.content
         }
     }
 
-    init(configuration: HostingConfigurationBackPort<Content>) {
+    public init(configuration: HostingConfiguration<Content>) {
         self.configuration = configuration
-        super.init(content: configuration.content.modifier(SizeObserver(onChange: { _ in })))
-        content.modifier.onChange = { [weak self] newValue in
-            self?.invalidateIntrinsicContentSize()
-        }
+        super.init(content: HostingConfigurationView(content: configuration.content))
+        content.view = self
     }
     
-    required init?(coder aDecoder: NSCoder) {
+    public required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 }
 
 @available(iOS 14.0, *)
-private struct SizeObserver: ViewModifier {
-    var onChange: (CGSize) -> Void
+public struct HostingConfigurationView<Content: View>: View {
 
-    init(onChange: @escaping (CGSize) -> Void) {
-        self.onChange = onChange
+    public var content: Content
+
+    weak var view: UIView?
+
+    public var body: some View {
+        content
+            .modifier(SizeObserver(view: view))
+    }
+}
+
+@available(iOS 14.0, *)
+private struct SizeObserver: VersionedViewModifier {
+    weak var view: UIView?
+
+    @available(iOS 16.0, *)
+    func v4Body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: CGSize.self) { proxy in
+                proxy.size
+            } action: { _ in
+                view?.invalidateIntrinsicContentSize()
+            }
     }
 
-    func body(content: Content) -> some View {
+    @available(iOS 14.0, *)
+    func v2Body(content: Content) -> some View {
         content
             .background(
                 GeometryReader { proxy in
                     Color.clear
                         .hidden()
-                        .onChange(of: proxy.size, perform: onChange)
+                        .onChange(of: proxy.size) { _ in
+                            view?.invalidateIntrinsicContentSize()
+                        }
                 }
             )
     }

@@ -206,7 +206,7 @@ private class ShimmerClock: ObservableObject {
     @Published private var elapsed: TimeInterval = 0
 
     private var registered: UInt = 0
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     private var displayLink: CADisplayLink?
     #endif
 
@@ -219,7 +219,7 @@ private class ShimmerClock: ObservableObject {
     }
 
     deinit {
-        #if os(iOS)
+        #if os(iOS) || os(visionOS)
         displayLink?.invalidate()
         #endif
 
@@ -228,7 +228,7 @@ private class ShimmerClock: ObservableObject {
         #endif
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(visionOS)
     @objc
     private func onClockTick(displayLink: CADisplayLink) {
         let elapsed = displayLink.targetTimestamp - displayLink.timestamp
@@ -257,7 +257,7 @@ private class ShimmerClock: ObservableObject {
     func register() {
         if registered == 0 {
             registered += 1
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
             if let displayLink = displayLink {
                 displayLink.isPaused = false
             } else {
@@ -300,7 +300,7 @@ private class ShimmerClock: ObservableObject {
         if registered == 1 {
             registered -= 1
             elapsed = 0
-            #if os(iOS)
+            #if os(iOS) || os(visionOS)
             displayLink?.isPaused = true
             #endif
 
@@ -437,7 +437,7 @@ struct ShimmerModifier_Previews: PreviewProvider {
                     }
                 }
 
-                #if os(iOS)
+                #if os(iOS) || os(visionOS)
                 CollectionView(.compositional(axis: .horizontal, spacing: 8)) {
                     ForEach(0..<10, id: \.self) { _ in
                         Color.blue
