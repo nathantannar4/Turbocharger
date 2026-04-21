@@ -22,7 +22,7 @@ public struct ArrayBuilder<Element> {
     public static func buildExpression(
         _ component: Element?
     ) -> [Element] {
-        guard let component else { return []}
+        guard let component else { return [] }
         return [component]
     }
 

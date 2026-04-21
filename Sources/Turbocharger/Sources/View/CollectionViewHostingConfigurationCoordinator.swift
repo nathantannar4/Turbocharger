@@ -120,7 +120,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         layoutOptions: CollectionViewLayoutOptions,
-        options: CollectionViewHostingConfigurationCoordinatorOptions
+        options: CollectionViewHostingConfigurationCoordinatorOptions = []
     ) {
         self.header = header
         self.content = content
@@ -158,7 +158,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         layoutOptions: CollectionViewLayoutOptions,
-        options: CollectionViewHostingConfigurationCoordinatorOptions
+        options: CollectionViewHostingConfigurationCoordinatorOptions = []
     ) where SupplementaryView == EmptyView {
         self.init(
             header: header,
@@ -176,7 +176,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         content: @escaping ContentProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        options: CollectionViewHostingConfigurationCoordinatorOptions
+        options: CollectionViewHostingConfigurationCoordinatorOptions = []
     ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
         self.init(
             header: { _, _ in EmptyView() },

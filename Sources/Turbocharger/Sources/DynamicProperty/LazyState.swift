@@ -52,6 +52,7 @@ public struct LazyState<Value>: DynamicProperty {
 
 // MARK: - Previews
 
+/* Linking `Observable` pre iOS 16 crashes when `objc_getClassList` is called
 @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
 struct LazyState_Previews: PreviewProvider {
 
@@ -114,3 +115,4 @@ struct LazyState_Previews: PreviewProvider {
         }
     }
 }
+*/
