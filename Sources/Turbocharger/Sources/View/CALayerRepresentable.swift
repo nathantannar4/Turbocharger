@@ -10,9 +10,9 @@ import Engine
 /// A wrapper for a QuartzCore layer that you use to integrate that layer into your
 /// SwiftUI view hierarchy.
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 @MainActor @preconcurrency
 public protocol CALayerRepresentable: PrimitiveView {
+
     associatedtype CALayerType: CALayer
 
     /// Configures the layers initial state.
@@ -42,19 +42,16 @@ public protocol CALayerRepresentable: PrimitiveView {
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 extension CALayerRepresentable where Coordinator == Void {
     public func makeCoordinator() -> Coordinator { () }
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 extension CALayerRepresentable {
     public static func dismantleCALayer(_ layer: CALayerType, coordinator: Coordinator) { }
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 @frozen
 public struct CALayerRepresentableContext<
     Representable: CALayerRepresentable
@@ -64,7 +61,6 @@ public struct CALayerRepresentableContext<
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 extension CALayerRepresentable {
 
     private nonisolated var content: CALayerRepresentableBody<Self> {
@@ -93,7 +89,6 @@ extension CALayerRepresentable {
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 private struct CALayerRepresentableBody<
     Representable: CALayerRepresentable
 >: View {
@@ -107,7 +102,6 @@ private struct CALayerRepresentableBody<
 }
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 private struct CALayerRepresentableRenderer<
     Representable: CALayerRepresentable
 >: View {
@@ -149,8 +143,9 @@ private struct CALayerRepresentableRenderer<
     }
 
     final class Storage: ObservableObject {
-        var layer: Representable.CALayerType!
+        var layer: Representable.CALayerType?
         var coordinator: Representable.Coordinator
+        var transaction = Transaction()
 
         init(coordinator: Representable.Coordinator) {
             self.coordinator = coordinator
@@ -158,10 +153,13 @@ private struct CALayerRepresentableRenderer<
 
         @MainActor
         func dismantle() {
-            Representable.dismantleCALayer(
-                layer,
-                coordinator: coordinator
-            )
+            if let layer {
+                Representable.dismantleCALayer(
+                    layer,
+                    coordinator: coordinator
+                )
+            }
+            layer = nil
         }
     }
 }
@@ -169,26 +167,60 @@ private struct CALayerRepresentableRenderer<
 // MARK: - Previews
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
-struct GradientLayer: CALayerRepresentable {
-    func makeCALayer(_ layer: CAGradientLayer, context: Context) {
-        #if os(macOS)
-        layer.colors = [NSColor.green.cgColor, NSColor.blue.cgColor]
-        #else
-        layer.colors = [UIColor.green.cgColor, UIColor.blue.cgColor]
-        #endif
-    }
-
-    func updateCALayer(_ layer: CAGradientLayer, context: Context) {
-        
-    }
-}
-
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@available(watchOS, unavailable)
 struct GradientLayer_Previews: PreviewProvider {
+
+    struct GradientLayer: CALayerRepresentable {
+        var colors: [Color]
+
+        func makeCALayer(_ layer: CAGradientLayer, context: Context) { }
+
+        func updateCALayer(_ layer: CAGradientLayer, context: Context) {
+            let colors = colors.map { $0.toCGColor(in: context.environment) }
+
+            let animation = CABasicAnimation(keyPath: "colors")
+            animation.fromValue = layer.presentation()?.colors ?? layer.colors
+            animation.toValue = colors
+            animation.duration = 1
+            animation.timingFunction = CAMediaTimingFunction(name: .linear)
+            animation.fillMode = .forwards
+            animation.isRemovedOnCompletion = true
+
+            layer.colors = colors
+            layer.add(animation, forKey: "colors")
+        }
+    }
+
     static var previews: some View {
-        GradientLayer()
+        ZStack {
+            Preview()
+        }
+    }
+
+    struct Preview: View {
+        @State var colors = [Color.red, .orange, .yellow]
+
+        var body: some View {
+            VStack {
+                HStack(spacing: 0) {
+                    GradientLayer(colors: colors)
+
+                    LinearGradient(
+                        colors: colors,
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .animation(.linear(duration: 1), value: colors)
+                }
+
+                Button {
+                    var colors = colors
+                    colors.insert(colors.popLast()!, at: 0)
+                    self.colors = colors
+                } label: {
+                    Text("Animate")
+                }
+            }
+        }
     }
 }
 

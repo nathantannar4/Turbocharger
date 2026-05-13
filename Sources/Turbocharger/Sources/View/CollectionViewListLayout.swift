@@ -155,6 +155,16 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         return layout
     }
 
+    public func updateUICollectionViewLayout(
+        _ collectionViewLayout: UICollectionViewCompositionalLayout,
+        context: Context,
+        options: CollectionViewLayoutOptions
+    ) {
+        let configuration = makeConfiguration(context: context, options: options)
+        let layout = UICollectionViewCompositionalLayout.list(using: configuration)
+        collectionViewLayout.configuration = layout.configuration
+    }
+
     public func makeUICollectionView(
         context: Context,
         options: CollectionViewLayoutOptions

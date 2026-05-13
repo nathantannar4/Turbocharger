@@ -300,6 +300,17 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
     #endif
 }
 
+@available(iOS 14.0, *)
+@available(macOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+public protocol CollectionViewVisibleItemsScrollEffect: Equatable, Sendable {
+
+    #if os(iOS) || os(visionOS)
+    @MainActor @preconcurrency func onScroll(visibleItem: [NSCollectionLayoutVisibleItem], contentOffset: CGPoint, environment: NSCollectionLayoutEnvironment)
+    #endif
+}
+
 /// A ``CollectionViewLayout``
 @available(iOS 14.0, *)
 @available(macOS, unavailable)
@@ -324,6 +335,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
     public var safeAreaInsets: EdgeInsets?
     public var backgroundConfiguration: (any CollectionViewBackgroundConfiguration)?
     public var layoutAttributes: (any CollectionViewLayoutAttributes)?
+    public var scrollEffect: (any CollectionViewVisibleItemsScrollEffect)?
 
     public init(
         axis: Axis = .vertical,
@@ -357,7 +369,8 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         let sectionProvider = CollectionViewCompositionalLayoutImpl.SectionProvider(
             configuration: configuration,
             options: options,
-            layoutAttributes: layoutAttributes
+            layoutAttributes: layoutAttributes,
+            scrollEffect: scrollEffect
         )
         let layout = CollectionViewCompositionalLayoutImpl(
             sectionProvider: sectionProvider,
@@ -513,6 +526,16 @@ extension CollectionViewCompositionalLayout {
         return copy
     }
 
+    public func scrollEffect<
+        ScrollEffect: CollectionViewVisibleItemsScrollEffect
+    >(
+        _ scrollEffect: ScrollEffect
+    ) -> CollectionViewCompositionalLayout {
+        var copy = self
+        copy.scrollEffect = scrollEffect
+        return copy
+    }
+
     public init(
         axis: Axis = .vertical,
         showsIndicators: Bool = true,
@@ -550,15 +573,18 @@ public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositiona
         public var configuration: CollectionViewCompositionalLayout.Configuration
         public var options: CollectionViewLayoutOptions
         public var layoutAttributes: (any CollectionViewLayoutAttributes)?
+        public var scrollEffect: (any CollectionViewVisibleItemsScrollEffect)?
 
         public init(
             configuration: CollectionViewCompositionalLayout.Configuration,
             options: CollectionViewLayoutOptions,
-            layoutAttributes: (any CollectionViewLayoutAttributes)?
+            layoutAttributes: (any CollectionViewLayoutAttributes)?,
+            scrollEffect: (any CollectionViewVisibleItemsScrollEffect)?
         ) {
             self.configuration = configuration
             self.options = options
             self.layoutAttributes = layoutAttributes
+            self.scrollEffect = scrollEffect
         }
 
         @MainActor
@@ -637,6 +663,11 @@ public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositiona
                 item.zIndex = supplementaryView.zIndex
                 item.pinToVisibleBounds = configuration.pinnedViews.contains(supplementaryView.id)
                 layoutSection.boundarySupplementaryItems.append(item)
+            }
+            if let scrollEffect {
+                layoutSection.visibleItemsInvalidationHandler = { visibleItems, offset, environment in
+                    scrollEffect.onScroll(visibleItem: visibleItems, contentOffset: offset, environment: environment)
+                }
             }
             return layoutSection
         }

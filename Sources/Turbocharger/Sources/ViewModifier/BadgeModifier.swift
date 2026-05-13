@@ -6,7 +6,6 @@ import SwiftUI
 import Engine
 
 /// A modifier that adds a view as a badge
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 @frozen
 public struct BadgeModifier<
     Label: View,
@@ -136,7 +135,6 @@ public struct BadgeMask<Label: View>: View {
     }
 }
 
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 extension View {
 
     /// A modifier that adds a view as a badge
@@ -255,7 +253,6 @@ extension View {
 
 // MARK: - Previews
 
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
 struct BadgeModifier_Previews: PreviewProvider {
     struct Badge: View {
         var body: some View {

@@ -299,7 +299,7 @@ where
 
         let changes: (Set<ID>) -> Void = { [unowned self] updated in
             layout.updateUICollectionView(collectionView, context: context)
-            if let collectionViewLayout = collectionView.collectionViewLayout as? Layout.UICollectionViewLayoutType {
+            if layoutDidChange, let collectionViewLayout = collectionView.collectionViewLayout as? Layout.UICollectionViewLayoutType {
                 layout.updateUICollectionViewLayout(
                     collectionViewLayout,
                     context: context,
@@ -356,7 +356,7 @@ where
             syncScrollPosition(scrollViewDidScroll: false)
         }
         isUpdating = false
-        updates = updates &+ 1
+        updates &+= 1
     }
 
     private func updateDataSource(
@@ -1277,6 +1277,14 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
             let configuration = UICollectionLayoutListConfiguration(appearance: .plain)
             let layout = UICollectionViewCompositionalLayout.list(using: configuration)
             return layout
+        }
+
+        func updateUICollectionViewLayout(
+            _ collectionViewLayout: UICollectionViewCompositionalLayout,
+            context: Context,
+            options: CollectionViewLayoutOptions
+        ) {
+            
         }
 
         func makeUICollectionView(

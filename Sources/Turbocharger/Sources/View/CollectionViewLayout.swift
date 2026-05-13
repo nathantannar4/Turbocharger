@@ -80,22 +80,6 @@ extension CollectionViewLayout where Configuration == EmptyCollectionViewConfigu
 @available(iOS 14.0, *)
 extension CollectionViewLayout {
 
-    public func updateUICollectionViewLayout(
-        _ collectionViewLayout: UICollectionViewLayoutType,
-        context: Context,
-        options: CollectionViewLayoutOptions
-    ) {
-        let layout = makeUICollectionViewLayout(
-            context: context,
-            options: options
-        )
-        let collectionView = collectionViewLayout.collectionView
-        collectionView?.setCollectionViewLayout(
-            layout,
-            animated: context.transaction.isAnimated
-        )
-    }
-
     public func updateUICollectionViewCell(
         _ collectionView: UICollectionViewType,
         cell: UICollectionViewCellType,

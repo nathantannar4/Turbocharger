@@ -110,7 +110,7 @@ open class CollectionViewHostingConfigurationCoordinator<
 
     public var options: CollectionViewHostingConfigurationCoordinatorOptions
 
-    public private(set) var updatePhase = UpdatePhase.Value()
+    public private(set) var phase = UpdatePhase.Value()
 
     public init(
         header: @escaping HeaderProvider,
@@ -204,6 +204,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         cell.automaticallyUpdatesBackgroundConfiguration = onSelect != nil || canSelect != nil
         cell.contentView.clipsToBounds = false
         cell.clipsToBounds = false
+        // Fixes `.transition` modifier
         cell.layoutIfNeeded()
         return cell
     }
@@ -213,7 +214,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         indexPath: IndexPath,
         item: Items.Element
     ) {
-        super.configureCell(cell, indexPath: indexPath, item: item)
         let section = sections[indexPath.section]
         cell.contentConfiguration = makeContent(
             state: cell.configurationState,
@@ -221,6 +221,7 @@ open class CollectionViewHostingConfigurationCoordinator<
             section: section,
             value: item
         )
+        super.configureCell(cell, indexPath: indexPath, item: item)
     }
 
     open override func dequeueReusableSupplementaryView(
@@ -237,6 +238,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         supplementaryView.automaticallyUpdatesBackgroundConfiguration = false
         supplementaryView.contentView.clipsToBounds = false
         supplementaryView.clipsToBounds = false
+        // Fixes `.transition` modifier
         supplementaryView.layoutIfNeeded()
         return supplementaryView
     }
@@ -246,7 +248,6 @@ open class CollectionViewHostingConfigurationCoordinator<
         kind: String,
         indexPath: IndexPath
     ) {
-        super.configureSupplementaryView(supplementaryView, kind: kind, indexPath: indexPath)
         let section = sections[indexPath.section]
         switch kind {
         case UICollectionView.elementKindSectionHeader:
@@ -269,11 +270,12 @@ open class CollectionViewHostingConfigurationCoordinator<
                 kind: kind
             )
         }
+        super.configureSupplementaryView(supplementaryView, kind: kind, indexPath: indexPath)
     }
 
     open override func didStartUpdate() {
         super.didStartUpdate()
-        updatePhase.update()
+        phase.update()
     }
 
     private func makeContent(
@@ -286,8 +288,8 @@ open class CollectionViewHostingConfigurationCoordinator<
             id: value.id,
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase,
-            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
+            phase: phase,
+            options: options
         ) {
             content(indexPath, section, value)
         }
@@ -299,11 +301,14 @@ open class CollectionViewHostingConfigurationCoordinator<
         section: CollectionViewSection<Section, Items>
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
-            id: section.section.id,
+            id: SupplementaryViewID(
+                id: section.section.id,
+                kind: CollectionViewSupplementaryView.ID.header
+            ),
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase,
-            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
+            phase: phase,
+            options: options
         ) {
             header(indexPath, section)
         }
@@ -315,11 +320,14 @@ open class CollectionViewHostingConfigurationCoordinator<
         section: CollectionViewSection<Section, Items>,
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
-            id: section.section.id,
+            id: SupplementaryViewID(
+                id: section.section.id,
+                kind: CollectionViewSupplementaryView.ID.footer
+            ),
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase,
-            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
+            phase: phase,
+            options: options
         ) {
             footer(indexPath, section)
         }
@@ -332,15 +340,32 @@ open class CollectionViewHostingConfigurationCoordinator<
         kind: String
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
-            id: section.section.id,
+            id: SupplementaryViewID(
+                id: section.section.id,
+                kind: CollectionViewSupplementaryView.ID.custom(kind)
+            ),
             state: state,
             transaction: context.transaction,
-            updatePhase: updatePhase,
-            useReusableHostingConfiguration: options.contains(.useReusableHostingConfiguration)
+            phase: phase,
+            options: options
         ) {
             supplementaryView(indexPath, section, .custom(kind))
         }
     }
+}
+
+extension Animation {
+
+    /// An `Animation` that closely mirrors the cell resize animation
+    public static var collectionViewCellSizeInvalidation: Animation {
+        .interactiveSpring(duration: 0.25, extraBounce: 0.1, blendDuration: 0.25)
+    }
+}
+
+@available(iOS 14.0, *)
+private struct SupplementaryViewID<ID: Hashable>: Hashable {
+    var id: ID
+    var kind: CollectionViewSupplementaryView.ID
 }
 
 @available(iOS 14.0, *)
@@ -352,13 +377,13 @@ private func makeHostingConfiguration<
     id: ID,
     state: UICellConfigurationState,
     transaction: Transaction,
-    updatePhase: UpdatePhase.Value,
-    useReusableHostingConfiguration: Bool,
+    phase: UpdatePhase.Value,
+    options: CollectionViewHostingConfigurationCoordinatorOptions,
     @ViewBuilder content: () -> Content
 ) -> UIContentConfiguration {
 
     let content = content()
-    if #available(iOS 16.0, *), !useReusableHostingConfiguration {
+    if #available(iOS 16.0, *), !options.contains(.useReusableHostingConfiguration) {
         let configuration = UIHostingConfiguration {
             content
                 .modifier(
@@ -367,7 +392,7 @@ private func makeHostingConfiguration<
                         isEmpty: content.isEmptyView,
                         state: HostingConfigurationState(storage: state),
                         transaction: transaction,
-                        updatePhase: updatePhase
+                        phase: phase
                     )
                 )
         }
@@ -383,7 +408,7 @@ private func makeHostingConfiguration<
                         isEmpty: content.isEmptyView,
                         state: HostingConfigurationState(storage: state),
                         transaction: transaction,
-                        updatePhase: updatePhase
+                        phase: phase
                     )
                 )
         }
@@ -396,7 +421,7 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
     var isEmpty: Bool
     var state: HostingConfigurationState
     var transaction: Transaction
-    var updatePhase: UpdatePhase.Value
+    var phase: UpdatePhase.Value
 
     func body(content: Content) -> some View {
         content
@@ -404,14 +429,14 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
             .disabled(state.isDisabled)
             .opacity(isEmpty ? 0 : 1)
             .animation(nil, value: id)
-//            .transaction {
-//                // Replace the default animation curve with a curve that more closely matches UICollectionView's cell
-//                // resize animation
-//                if $0.animation == .default {
-//                    $0.animation = .spring(response: 0.3, dampingFraction: 1, blendDuration: 0)
-//                }
-//            }
-            .transaction(transaction, value: updatePhase)
+            .transaction {
+                // Replace the default animation curve with a curve that more closely matches UICollectionView's cell
+                // resize animation
+                if $0.animation == .default {
+                    $0.animation = .collectionViewCellSizeInvalidation
+                }
+            }
+            .transaction(transaction, value: phase)
     }
 }
 
@@ -455,7 +480,7 @@ open class HostingConfigurationContentView<
     public init(configuration: HostingConfiguration<Content>) {
         self.configuration = configuration
         super.init(content: HostingConfigurationView(content: configuration.content))
-        content.view = self
+        content.sourceView = self
     }
     
     public required init?(coder aDecoder: NSCoder) {
@@ -468,25 +493,24 @@ public struct HostingConfigurationView<Content: View>: View {
 
     public var content: Content
 
-    weak var view: UIView?
+    weak var sourceView: UIView?
 
     public var body: some View {
         content
-            .modifier(SizeObserver(view: view))
+            .modifier(IntrinsicContentSizeInvalidationModifier(sourceView: sourceView))
     }
 }
 
-@available(iOS 14.0, *)
-private struct SizeObserver: VersionedViewModifier {
-    weak var view: UIView?
+private struct IntrinsicContentSizeInvalidationModifier: VersionedViewModifier {
+    weak var sourceView: UIView?
 
     @available(iOS 16.0, *)
     func v4Body(content: Content) -> some View {
         content
             .onGeometryChange(for: CGSize.self) { proxy in
                 proxy.size
-            } action: { _ in
-                view?.invalidateIntrinsicContentSize()
+            } action: { [weak sourceView] _ in
+                sourceView?.invalidateIntrinsicContentSize()
             }
     }
 
@@ -494,11 +518,11 @@ private struct SizeObserver: VersionedViewModifier {
     func v2Body(content: Content) -> some View {
         content
             .background(
-                GeometryReader { proxy in
+                GeometryReader { [weak sourceView] proxy in
                     Color.clear
                         .hidden()
-                        .onChange(of: proxy.size) { _ in
-                            view?.invalidateIntrinsicContentSize()
+                        .onChange(of: proxy.size) { [weak sourceView] _ in
+                            sourceView?.invalidateIntrinsicContentSize()
                         }
                 }
             )
@@ -556,7 +580,11 @@ struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
         @State var items: [Item] = (0..<5).map { Item(value: $0) }
 
         var body: some View {
-            CollectionView(.compositional(spacing: 8), items: items) { indexPath, section, item in
+            CollectionView(
+                .compositional(spacing: 8),
+                items: items,
+//                options: [.useReusableHostingConfiguration]
+            ) { indexPath, section, item in
                 CellView(item: item)
             } header: { _, _ in
                 HeaderFooterView()
