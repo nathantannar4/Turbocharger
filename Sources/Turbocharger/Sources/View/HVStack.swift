@@ -41,17 +41,19 @@ public struct HVStack<Content: View>: VersionedView {
     }
 
     public var v1Body: some View {
-        switch axis {
-        case .vertical:
-            VStack(alignment: alignment.horizontal, spacing: spacing) {
-                content
+        ZStack {
+            switch axis {
+            case .vertical:
+                VStack(alignment: alignment.horizontal, spacing: spacing) {
+                    content
+                }
+                .transition(.identity)
+            case .horizontal:
+                HStack(alignment: alignment.vertical, spacing: spacing) {
+                    content
+                }
+                .transition(.identity)
             }
-            .transition(.identity)
-        case .horizontal:
-            HStack(alignment: alignment.vertical, spacing: spacing) {
-                content
-            }
-            .transition(.identity)
         }
     }
 }

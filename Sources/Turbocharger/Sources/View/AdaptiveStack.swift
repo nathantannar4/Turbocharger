@@ -15,23 +15,6 @@ public struct AdaptiveStack<Content: View>: View {
     public var spacing: CGFloat?
     public var content: Content
 
-    @Environment(\.self) var environment
-
-    var axis: Axis {
-        #if os(iOS) || os(visionOS)
-        if environment.horizontalSizeClass != .regular {
-            if #available(iOS 15.0, *) {
-                if environment.dynamicTypeSize.isAccessibilitySize {
-                    return .vertical
-                }
-            } else if UIApplication.shared.preferredContentSizeCategory.isAccessibilityCategory {
-                return .vertical
-            }
-        }
-        #endif
-        return .horizontal
-    }
-
     public init(
         alignment: Alignment = .center,
         spacing: CGFloat? = nil,
@@ -46,8 +29,7 @@ public struct AdaptiveStack<Content: View>: View {
         AdaptiveStackBody(
             alignment: alignment,
             spacing: spacing,
-            content: content,
-            axis: axis
+            content: content
         )
     }
 }
@@ -57,7 +39,20 @@ private struct AdaptiveStackBody<Content: View>: VersionedView {
     var alignment: Alignment
     var spacing: CGFloat?
     var content: Content
-    var axis: Axis
+
+    #if os(iOS) || os(visionOS)
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.isAccesssibilitySize) var isAccesssibilitySize
+    #endif
+
+    var axis: Axis {
+        #if os(iOS) || os(visionOS)
+        if horizontalSizeClass != .regular, isAccesssibilitySize {
+            return .vertical
+        }
+        #endif
+        return .horizontal
+    }
 
     @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
     var v4Body: some View {

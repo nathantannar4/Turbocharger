@@ -116,12 +116,13 @@ public struct FlowStackLayout: Layout {
     public func sizeThatFits(
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout Void
+        cache: inout Cache
     ) -> CGSize {
         let subviews = subviews.sorted(by: { $0.priority > $1.priority })
         let layoutProposal = layoutProposal(
             subviews: subviews,
-            proposal: proposal
+            proposal: proposal,
+            cache: &cache
         )
         return layoutProposal.frame.size
     }
@@ -130,12 +131,13 @@ public struct FlowStackLayout: Layout {
         in bounds: CGRect,
         proposal: ProposedViewSize,
         subviews: Subviews,
-        cache: inout Void
+        cache: inout Cache
     ) {
         let subviews = subviews.sorted(by: { $0.priority > $1.priority })
         let layoutProposal = layoutProposal(
             subviews: subviews,
-            proposal: proposal
+            proposal: proposal,
+            cache: &cache
         )
         for index in subviews.indices {
             let frame = layoutProposal.frames[index]!
@@ -149,14 +151,15 @@ public struct FlowStackLayout: Layout {
         }
     }
 
-    private struct LayoutProposalLine {
+    struct LayoutProposalLine {
         var frames: [LayoutSubviews.Index: CGRect] = [:]
 
         var frame: CGRect {
             frames.map({ $0.value }).union
         }
     }
-    private struct LayoutProposal {
+
+    struct LayoutProposal {
         var lines: [LayoutProposalLine] = []
 
         var frames: [LayoutSubviews.Index: CGRect] {
@@ -172,8 +175,15 @@ public struct FlowStackLayout: Layout {
 
     private func layoutProposal(
         subviews: [LayoutSubview],
-        proposal: ProposedViewSize
+        proposal: ProposedViewSize,
+        cache: inout Cache
     ) -> LayoutProposal {
+
+        if let layoutProposal = cache.layoutProposal,
+            cache.proposedSize == proposal
+        {
+            return layoutProposal
+        }
 
         var layoutProposal = LayoutProposal()
         var currentX: CGFloat = 0
@@ -327,7 +337,27 @@ public struct FlowStackLayout: Layout {
             currentY += layoutProposal.lines[lineIndex].frame.height
         }
 
+        cache.proposedSize = proposal
+        cache.layoutProposal = layoutProposal
         return layoutProposal
+    }
+
+    public struct Cache {
+        var proposedSize: ProposedViewSize?
+        var layoutProposal: LayoutProposal?
+    }
+
+    public func makeCache(
+        subviews: Subviews
+    ) -> Cache {
+        Cache()
+    }
+
+    public func updateCache(
+        _ cache: inout Cache,
+        subviews: Subviews
+    ) {
+        cache = Cache()
     }
 
     public static var layoutProperties: LayoutProperties {
@@ -337,22 +367,34 @@ public struct FlowStackLayout: Layout {
     }
 }
 
-extension Sequence where Element == CGRect {
-    var union: CGRect {
-        reduce(.null, { $0.union($1) })
-    }
-}
-
 // MARK: - Previews
 
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
 struct FlowStack_Previews: PreviewProvider {
     static var previews: some View {
-        Preview1()
-        Preview2()
-        Preview3()
-        Preview4()
-        Preview5()
+        ZStack {
+            Preview1()
+        }
+
+        ZStack {
+            Preview2()
+        }
+
+        ZStack {
+            Preview3()
+        }
+
+        ZStack {
+            Preview4()
+        }
+
+        ZStack {
+            Preview5()
+        }
+
+        ZStack {
+            Preview6()
+        }
     }
 
     struct TagView: View {
@@ -722,6 +764,44 @@ struct FlowStack_Previews: PreviewProvider {
 
                 Text("Lorem ipsum dolor sit amet consectetur adipiscing elit. Quisque faucibus ex sapien vitae pellentesque sem placerat. In id cursus mi pretium tellus duis convallis.")
                     .tracking(10)
+            }
+        }
+    }
+
+    struct Preview6: View {
+        @State var rows = 3
+        @State var flag = false
+
+        var body: some View {
+            ScrollView {
+                FlowStack(
+                    alignment: .leading,
+                    spacing: flag ? 16 : 8
+                ) {
+                    ForEach(0..<rows, id: \.self) { index in
+                        Color.blue
+                            .frame(height: index.isMultiple(of: 3) ? 50 : 100)
+                            .overlay {
+                                Text(index.description)
+                                    .foregroundColor(.white)
+                            }
+                    }
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                HStack {
+                    Button("Toggle Spacing") {
+                        withAnimation {
+                            flag.toggle()
+                        }
+                    }
+
+                    Button("Add") {
+                        withAnimation {
+                            rows += 1
+                        }
+                    }
+                }
             }
         }
     }

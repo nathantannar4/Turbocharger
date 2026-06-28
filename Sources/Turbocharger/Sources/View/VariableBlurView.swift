@@ -71,7 +71,12 @@ open class VariableBlurLayerView: PlatformView {
     public var radius: CGFloat {
         didSet {
             guard radius != oldValue else { return }
-            needsFilterUpdate = true
+            let keyPath = "filters.variableBlur.inputRadius"
+            #if os(macOS)
+            layer?.setValue(radius, forKeyPath: keyPath)
+            #else
+            layer.setValue(radius, forKeyPath: keyPath)
+            #endif
         }
     }
 
@@ -103,7 +108,7 @@ open class VariableBlurLayerView: PlatformView {
         didSet {
             if needsFilterUpdate {
                 #if os(macOS)
-                updateLayer()
+                needsDisplay = true
                 #else
                 setNeedsDisplay()
                 #endif
@@ -122,6 +127,7 @@ open class VariableBlurLayerView: PlatformView {
         super.init(frame: .zero)
         #if os(macOS)
         wantsLayer = true
+        layerContentsRedrawPolicy = .onSetNeedsDisplay
         updateFilter()
         #else
         isUserInteractionEnabled = false
@@ -161,9 +167,11 @@ open class VariableBlurLayerView: PlatformView {
     }
 
     #if os(macOS)
-    open override func updateLayer() {
-        super.updateLayer()
-        updateFilter()
+    open override func draw(_ dirtyRect: NSRect) {
+        if needsFilterUpdate {
+            updateFilter()
+        }
+        super.draw(dirtyRect)
     }
     #else
     open override func draw(_ rect: CGRect) {
@@ -232,6 +240,8 @@ open class VariableBlurLayerView: PlatformView {
 struct VariableBlurView_Previews: PreviewProvider {
     struct Preview: View {
         @State var radius: CGFloat = 40
+        @State var isVertical = true
+
         var body: some View {
             VStack {
                 VStack(spacing: 0) {
@@ -292,8 +302,8 @@ struct VariableBlurView_Previews: PreviewProvider {
                     .overlay(
                         VariableBlurView(
                             radius: radius,
-                            startPoint: .top,
-                            endPoint: .bottom
+                            startPoint: isVertical ? .top : .leading,
+                            endPoint: isVertical ? .bottom : .trailing
                         )
                     )
 
@@ -301,6 +311,10 @@ struct VariableBlurView_Previews: PreviewProvider {
 
                 Slider(value: $radius, in: 0...50)
                     .padding(.horizontal)
+
+                Toggle(isOn: $isVertical) {
+                    Text("isVertical")
+                }
 
                 let content = Text("Hello World\nHello World\nHello World")
                 let radius = radius / 10

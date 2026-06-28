@@ -29,6 +29,16 @@ public protocol CollectionViewBackgroundConfiguration: Equatable, Sendable {
 @available(watchOS, unavailable)
 extension CollectionViewBackgroundConfiguration where Self == CollectionViewSelectableBackgroundConfiguration {
     public static var selectable: CollectionViewSelectableBackgroundConfiguration { .init() }
+
+    public static func selectable(
+        cornerRadius: CGFloat = 0,
+        backgroundColor: Color? = nil
+    ) -> CollectionViewSelectableBackgroundConfiguration {
+        CollectionViewSelectableBackgroundConfiguration(
+            cornerRadius: cornerRadius,
+            backgroundColor: backgroundColor
+        )
+    }
 }
 
 @available(iOS 14.0, *)
@@ -37,12 +47,23 @@ extension CollectionViewBackgroundConfiguration where Self == CollectionViewSele
 @available(watchOS, unavailable)
 public struct CollectionViewSelectableBackgroundConfiguration: CollectionViewBackgroundConfiguration {
 
+    public var cornerRadius: CGFloat
+    public var backgroundColor: Color?
+
+    public init(
+        cornerRadius: CGFloat = 0,
+        backgroundColor: Color? = nil
+    ) {
+        self.cornerRadius = cornerRadius
+        self.backgroundColor = backgroundColor
+    }
+
     #if os(iOS) || os(visionOS)
     @MainActor @preconcurrency public func makeConfiguration(
         for kind: CollectionViewLayoutElementKind,
         state: UICellConfigurationState
     ) -> UIBackgroundConfiguration {
-        let configuration: UIBackgroundConfiguration
+        var configuration: UIBackgroundConfiguration
         if #available(iOS 18.0, visionOS 2.0, *) {
             switch kind {
             case .item:
@@ -70,6 +91,10 @@ public struct CollectionViewSelectableBackgroundConfiguration: CollectionViewBac
                 }
             }
         }
+        configuration.cornerRadius = cornerRadius
+        if let backgroundColor, state.isHighlighted {
+            configuration.backgroundColor = backgroundColor.toUIColor()
+        }
         return configuration
     }
     #endif
@@ -81,38 +106,70 @@ public struct CollectionViewSelectableBackgroundConfiguration: CollectionViewBac
 @available(iOS 14.0, *)
 struct CollectionViewBackgroundConfiguration_Previews: PreviewProvider {
 
-    struct BackgroundConfiguration: CollectionViewBackgroundConfiguration {
-        var color: Color
+    static var previews: some View {
+        PreviewA()
+        PreviewB()
+    }
 
-        func makeConfiguration(
-            for kind: CollectionViewLayoutElementKind,
-            state: UICellConfigurationState
-        ) -> UIBackgroundConfiguration {
-            var configuration = UIBackgroundConfiguration.clear()
-            configuration.backgroundColor = color.toUIColor()
-            return configuration
+    struct PreviewA: View {
+        @State var flag = false
+
+        var body: some View {
+            CollectionView(
+                .compositional(
+                    contentInsets: EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8),
+                )
+                .backgroundConfiguration(
+                    .selectable(
+                        cornerRadius: 8,
+                        backgroundColor: .accentColor
+                    )
+                )
+            ) {
+                ForEach(100) {
+                    Text("Hello, World")
+                        .frame(minHeight: 44)
+                }
+            }
+            .onSelect(action: { _, _ in
+                print("selected")
+            })
+            .ignoresSafeArea()
         }
     }
 
-    static var previews: some View {
-        ZStack {
-            StateAdapter(initialValue: false) { $flag in
-                CollectionView(
-                    .compositional.backgroundConfiguration(
-                        BackgroundConfiguration(color: flag ? .blue : .red)
-                    )
-                ) {
-                    ForEach(100) {
-                        Text("Hello, World")
-                            .foregroundColor(.white)
-                            .frame(minHeight: 44)
-                    }
+    struct PreviewB: View {
+        struct BackgroundConfiguration: CollectionViewBackgroundConfiguration {
+            var color: Color
+
+            func makeConfiguration(
+                for kind: CollectionViewLayoutElementKind,
+                state: UICellConfigurationState
+            ) -> UIBackgroundConfiguration {
+                var configuration = UIBackgroundConfiguration.clear()
+                configuration.backgroundColor = color.toUIColor()
+                return configuration
+            }
+        }
+
+        @State var flag = false
+
+        var body: some View {
+            CollectionView(
+                .compositional.backgroundConfiguration(
+                    BackgroundConfiguration(color: flag ? .blue : .red)
+                )
+            ) {
+                ForEach(100) {
+                    Text("Hello, World")
+                        .foregroundColor(.white)
+                        .frame(minHeight: 44)
                 }
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation {
-                        flag.toggle()
-                    }
+            }
+            .ignoresSafeArea()
+            .onTapGesture {
+                withAnimation {
+                    flag.toggle()
                 }
             }
         }

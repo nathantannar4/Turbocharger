@@ -35,28 +35,23 @@ extension AnyTransition {
 @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
 public struct BlurTransition: Transition {
 
-    public struct Configuration: Equatable, Sendable {
-        public var radius: CGFloat
-        public var opaque: Bool
+    public var radius: CGFloat
+    public var opaque: Bool
 
-        public init(radius: CGFloat = 6, opaque: Bool = false) {
-            self.radius = radius
-            self.opaque = opaque
-        }
-    }
-
-    public var configuration: Configuration
-
-    public init(configuration: Configuration) {
-        self.configuration = configuration
+    public init(
+        radius: CGFloat = 6,
+        opaque: Bool = false
+    ) {
+        self.radius = radius
+        self.opaque = opaque
     }
 
     public func body(content: Content, phase: TransitionPhase) -> some View {
         content
             .modifier(
                 BlurModifier(
-                    radius: phase.isIdentity ? 0 : configuration.radius,
-                    opaque: configuration.opaque
+                    radius: phase.isIdentity ? 0 : radius,
+                    opaque: opaque
                 )
             )
     }
@@ -71,7 +66,7 @@ extension Transition where Self == BlurTransition {
 
     /// A transition that blurs the view.
     public static var blur: BlurTransition {
-        BlurTransition(configuration: .init())
+        BlurTransition()
     }
 
     /// A transition that blurs the view.
@@ -80,20 +75,23 @@ extension Transition where Self == BlurTransition {
         opaque: Bool = false
     ) -> BlurTransition {
         BlurTransition(
-            configuration: BlurTransition.Configuration(
-                radius: radius,
-                opaque: opaque
-            )
+            radius: radius,
+            opaque: opaque
         )
     }
 }
 
 /// A modifier that blurs the content
 @frozen
-public struct BlurModifier: ViewModifier {
+public struct BlurModifier: ViewModifier, Animatable {
 
     public var radius: CGFloat
     public var opaque: Bool
+
+    public nonisolated var animatableData: CGFloat {
+        get { radius }
+        set { radius = newValue }
+    }
 
     public init(radius: CGFloat, opaque: Bool = false) {
         self.radius = radius

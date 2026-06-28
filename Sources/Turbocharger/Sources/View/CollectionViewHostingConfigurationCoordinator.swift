@@ -429,14 +429,8 @@ private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
             .disabled(state.isDisabled)
             .opacity(isEmpty ? 0 : 1)
             .animation(nil, value: id)
-            .transaction {
-                // Replace the default animation curve with a curve that more closely matches UICollectionView's cell
-                // resize animation
-                if $0.animation == .default {
-                    $0.animation = .collectionViewCellSizeInvalidation
-                }
-            }
             .transaction(transaction, value: phase)
+            .ignoreHostingConfigurationConstraints()
     }
 }
 
@@ -534,6 +528,7 @@ private struct IntrinsicContentSizeInvalidationModifier: VersionedViewModifier {
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
+
     static var previews: some View {
         PreviewA()
         PreviewB()
@@ -603,7 +598,7 @@ struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
                     .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
                     .background(Color.blue)
                     .onTapGesture {
-                        withAnimation {
+                        withAnimation(.collectionViewCellSizeInvalidation) {
                             isExpanded.toggle()
                         }
                     }
@@ -618,7 +613,7 @@ struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
                     .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
                     .background(Color.blue)
                     .onTapGesture {
-                        withAnimation {
+                        withAnimation(.collectionViewCellSizeInvalidation) {
                             isExpanded.toggle()
                         }
                     }
