@@ -27,7 +27,9 @@ public struct AccessibilityShowsLargeContentViewModifierIfAvailable: VersionedVi
 }
 
 @frozen
-public struct AccessibilityLargeContentViewModifierIfAvailable<Label: View>: VersionedViewModifier {
+public struct AccessibilityLargeContentViewModifierIfAvailable<
+    Label: View
+>: VersionedViewModifier {
 
     @usableFromInline
     var label: Label
@@ -63,7 +65,9 @@ extension View {
     ///
     /// Use this value for testing. It isn't visible to the user.
     @inlinable
-    public func accessibilityIdentifier(_ identifier: String?) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
+    public func accessibilityIdentifier(
+        _ identifier: String?
+    ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
         guard let identifier = identifier else {
             return accessibility(addTraits: [])
         }
@@ -78,7 +82,9 @@ extension View {
     /// don't use the label "Play button" because a button already has a trait that identifies it as a button.
     @_disfavoredOverload
     @inlinable
-    public func accessibilityLabel<S: StringProtocol>(_ label: S?) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
+    public func accessibilityLabel<S: StringProtocol>(
+        _ label: S?
+    ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
         guard let label = label else {
             return accessibility(addTraits: [])
         }
@@ -92,7 +98,9 @@ extension View {
     /// you can provide the current volume setting, like "60%", using accessibility(value:).
     @_disfavoredOverload
     @inlinable
-    public func accessibilityValue<S: StringProtocol>(_ value: S?) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
+    public func accessibilityValue<S: StringProtocol>(
+        _ value: S?
+    ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
         guard let value = value else {
             return accessibility(addTraits: [])
         }
@@ -113,7 +121,10 @@ extension View {
     ///     }
     ///
     @inlinable
-    public func accessibilityAction(named name: LocalizedStringKey?, _ handler: @escaping () -> Void) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
+    public func accessibilityAction(
+        named name: LocalizedStringKey?,
+        _ handler: @escaping () -> Void
+    ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
         guard let name = name else {
             return accessibility(addTraits: [])
         }
@@ -135,7 +146,10 @@ extension View {
     ///
     @_disfavoredOverload
     @inlinable
-    public func accessibilityAction<S: StringProtocol>(named name: S?, _ handler: @escaping () -> Void) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
+    public func accessibilityAction<S: StringProtocol>(
+        named name: S?,
+        _ handler: @escaping () -> Void
+    ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
         guard let name = name else {
             return accessibility(addTraits: [])
         }
@@ -144,11 +158,14 @@ extension View {
 }
 
 extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
+
     /// Optionally uses the specified string to identify the view.
     ///
     /// Use this value for testing. It isn't visible to the user.
     @inlinable
-    public func accessibilityIdentifier(_ identifier: String?) -> ModifiedContent {
+    public func accessibilityIdentifier(
+        _ identifier: String?
+    ) -> ModifiedContent {
         guard let identifier = identifier else {
             return accessibility(addTraits: [])
         }
@@ -163,7 +180,9 @@ extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
     /// don't use the label "Play button" because a button already has a trait that identifies it as a button.
     @_disfavoredOverload
     @inlinable
-    public func accessibilityLabel<S: StringProtocol>(_ label: S?) -> ModifiedContent {
+    public func accessibilityLabel<S: StringProtocol>(
+        _ label: S?
+    ) -> ModifiedContent {
         guard let label = label else {
             return accessibility(addTraits: [])
         }
@@ -177,7 +196,9 @@ extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
     /// you can provide the current volume setting, like "60%", using accessibility(value:).
     @_disfavoredOverload
     @inlinable
-    public func accessibilityValue<S: StringProtocol>(_ value: S?) -> ModifiedContent {
+    public func accessibilityValue<S: StringProtocol>(
+        _ value: S?
+    ) -> ModifiedContent {
         guard let value = value else {
             return accessibility(addTraits: [])
         }
@@ -198,7 +219,10 @@ extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
     ///     }
     ///
     @inlinable
-    public func accessibilityAction(named name: LocalizedStringKey?, _ handler: @escaping () -> Void) -> ModifiedContent {
+    public func accessibilityAction(
+        named name: LocalizedStringKey?,
+        _ handler: @escaping () -> Void
+    ) -> ModifiedContent {
         guard let name = name else {
             return accessibility(addTraits: [])
         }
@@ -220,10 +244,76 @@ extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
     ///
     @_disfavoredOverload
     @inlinable
-    public func accessibilityAction<S: StringProtocol>(named name: S?, _ handler: @escaping () -> Void) -> ModifiedContent {
+    public func accessibilityAction<S: StringProtocol>(
+        named name: S?,
+        _ handler: @escaping () -> Void
+    ) -> ModifiedContent {
         guard let name = name else {
             return accessibility(addTraits: [])
         }
         return accessibilityAction(AccessibilityActionKind(named: Text(name)), handler)
+    }
+}
+
+@frozen
+@available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+public struct AccessibilityCustomContent {
+
+    public var key: AccessibilityCustomContentKey
+    public var value: Text
+    public var importance: AXCustomContent.Importance
+
+    public init(
+        key: AccessibilityCustomContentKey,
+        value: Text,
+        importance: AXCustomContent.Importance = .default
+    ) {
+        self.key = key
+        self.value = value
+        self.importance = importance
+    }
+}
+
+@available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+extension View {
+
+    @inlinable
+    func accessibilityCustomContent(
+        _ customContent: AccessibilityCustomContent
+    ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
+        accessibilityCustomContent(customContent.key, customContent.value, importance: customContent.importance)
+    }
+
+    @inlinable
+    func accessibilityCustomContent(
+        _ customContent: [AccessibilityCustomContent]
+    ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
+        var modified = accessibility(addTraits: [])
+        for content in customContent {
+            modified = modified.accessibilityCustomContent(content)
+        }
+        return modified
+    }
+}
+
+@available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
+
+    @inlinable
+    func accessibilityCustomContent(
+        _ customContent: AccessibilityCustomContent
+    ) -> ModifiedContent {
+        accessibilityCustomContent(customContent.key, customContent.value, importance: customContent.importance)
+    }
+
+    @inlinable
+    func accessibilityCustomContent(
+        _ customContent: [AccessibilityCustomContent]
+    ) -> ModifiedContent {
+        var modified = accessibility(addTraits: [])
+        for content in customContent {
+            modified = modified.accessibilityCustomContent(content)
+        }
+        return modified
     }
 }

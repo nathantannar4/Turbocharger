@@ -59,9 +59,11 @@ private struct VariableBlurViewBody: PlatformViewRepresentable {
     }
 
     func updateView(_ uiView: VariableBlurLayerView, context: Context) {
-        uiView.radius = radius
         uiView.startPoint = startPoint
         uiView.endPoint = endPoint
+        UIView.animate(with: context.transaction.animation) {
+            uiView.radius = radius
+        }
     }
 }
 
@@ -115,6 +117,9 @@ open class VariableBlurLayerView: PlatformView {
             }
         }
     }
+
+    private var filter: NSObject?
+    private let context = CIContext()
 
     init(
         radius: CGFloat,
@@ -184,7 +189,34 @@ open class VariableBlurLayerView: PlatformView {
 
     private func updateFilter() {
         needsFilterUpdate = false
-        guard let filter = makeCAFilter() else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if let filter {
+            guard let mask = makeMaskImage() else { return }
+            filter.setValue(mask, forKey: "inputMaskImage")
+            let keyPath = "filters.variableBlur.inputMaskImage"
+            #if os(macOS)
+            layer?.setValue(mask, forKeyPath: keyPath)
+            #else
+            layer.setValue(mask, forKeyPath: keyPath)
+            #endif
+        } else if let filter = makeCAFilter() {
+            guard let mask = makeMaskImage() else { return }
+            filter.setValue(radius, forKey: "inputRadius")
+            filter.setValue(mask, forKey: "inputMaskImage")
+            filter.setValue(true, forKey: "inputNormalizeEdges")
+            #if os(macOS)
+            layer?.filters = [filter]
+            #else
+            layer.filters = [filter]
+            #endif
+            self.filter = filter
+        }
+        CATransaction.commit()
+    }
+
+    private func makeMaskImage() -> CGImage? {
         let size: CGFloat = 10
 
         let gradientFilter = CIFilter.linearGradient()
@@ -198,7 +230,7 @@ open class VariableBlurLayerView: PlatformView {
             x: endPoint.x * size,
             y: startPoint.y * size
         )
-        let mask = CIContext().createCGImage(
+        let mask = context.createCGImage(
             gradientFilter.outputImage!,
             from: CGRect(
                 origin: CGPoint(
@@ -210,17 +242,8 @@ open class VariableBlurLayerView: PlatformView {
                     height: size
                 )
             )
-        )!
-
-        filter.setValue(radius, forKey: "inputRadius")
-        filter.setValue(mask, forKey: "inputMaskImage")
-        filter.setValue(true, forKey: "inputNormalizeEdges")
-
-        #if os(macOS)
-        layer?.filters = [filter]
-        #else
-        layer.filters = [filter]
-        #endif
+        )
+        return mask
     }
 
     #if os(macOS)
@@ -243,6 +266,7 @@ struct VariableBlurView_Previews: PreviewProvider {
         @State var isVertical = true
 
         var body: some View {
+            let radius = radius / 10
             VStack {
                 VStack(spacing: 0) {
                     Text("Title")
@@ -273,9 +297,9 @@ struct VariableBlurView_Previews: PreviewProvider {
                             .edgesIgnoringSafeArea(.all)
 
                             VariableBlurView(
-                                radius: 2,
-                                startPoint: startPoint,
-                                endPoint: endPoint
+                                radius: radius,
+                                startPoint: isVertical ? startPoint : endPoint,
+                                endPoint: isVertical ? endPoint : startPoint
                             )
                             .edgesIgnoringSafeArea(.all)
                         }
@@ -309,15 +333,34 @@ struct VariableBlurView_Previews: PreviewProvider {
 
                 Text(radius.rounded().description)
 
-                Slider(value: $radius, in: 0...50)
-                    .padding(.horizontal)
+                VStack {
+                    Slider(value: $radius, in: 0...50)
+
+                    HStack {
+                        Button {
+                            withAnimation {
+                                self.radius = 0
+                            }
+                        } label: {
+                            Text("Set to 0")
+                        }
+
+                        Button {
+                            withAnimation {
+                                self.radius = 50
+                            }
+                        } label: {
+                            Text("Set to 5")
+                        }
+                    }
+                }
+                .padding(.horizontal)
 
                 Toggle(isOn: $isVertical) {
                     Text("isVertical")
                 }
 
                 let content = Text("Hello World\nHello World\nHello World")
-                let radius = radius / 10
 
                 HStack {
                     content
