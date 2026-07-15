@@ -42,7 +42,6 @@ public struct VariableBlurView: View {
 
 #if !os(watchOS) && !os(tvOS)
 
-@available(watchOS, unavailable)
 private struct VariableBlurViewBody: PlatformViewRepresentable {
 
     var radius: CGFloat
@@ -61,13 +60,16 @@ private struct VariableBlurViewBody: PlatformViewRepresentable {
     func updateView(_ uiView: VariableBlurLayerView, context: Context) {
         uiView.startPoint = startPoint
         uiView.endPoint = endPoint
+        #if os(iOS)
         UIView.animate(with: context.transaction.animation) {
             uiView.radius = radius
         }
+        #else
+        uiView.radius = radius
+        #endif
     }
 }
 
-@available(watchOS, unavailable)
 open class VariableBlurLayerView: PlatformView {
 
     public var radius: CGFloat {

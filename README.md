@@ -180,47 +180,6 @@ public struct RadialStack<Content: View>: View {
 }
 ```
 
-### OptionalAdapter
-
-```swift
-/// A view maps an `Optional` value to it's `Content` or `Placeholder`.
-@frozen
-public struct OptionalAdapter<
-    T,
-    Content: View,
-    Placeholder: View
->: View {
-
-    @inlinable
-    public init(
-        _ value: T?,
-        @ViewBuilder content: (T) -> Content,
-        @ViewBuilder placeholder: () -> Placeholder
-    )
-    
-    @inlinable
-    public init(
-        _ value: Binding<T?>,
-        @ViewBuilder content: (Binding<T>) -> Content,
-        @ViewBuilder placeholder: () -> Placeholder
-    )
-}
-
-extension OptionalAdapter where Placeholder == EmptyView {
-    @inlinable
-    public init(
-        _ value: T?,
-        @ViewBuilder content: (T) -> Content
-    )
-    
-    @inlinable
-    public init(
-        _ value: Binding<T?>,
-        @ViewBuilder content: (Binding<T>) -> Content
-    )
-}
-```
-
 ### ResultAdapter
 
 ```swift
@@ -261,50 +220,6 @@ extension ResultAdapter where FailureContent == EmptyView {
 }
 ```
 
-### BindingTransform
-
-```swift
-public protocol BindingTransform {
-    associatedtype Input
-    associatedtype Output
-
-    func get(_ value: Input) -> Output
-    func set(_ newValue: Output, oldValue: @autoclosure () -> Input) throws -> Input
-}
-
-extension Binding {
-@inlinable
-    public func projecting<Transform: BindingTransform>(
-        _ transform: Transform
-    ) -> Binding<Transform.Output> where Transform.Input == Value
-
-    @inlinable
-    public func isNil<Wrapped>() -> Binding<Bool> where Optional<Wrapped> == Value
-    
-    @inlinable
-    public func isNotNil<Wrapped>() -> Binding<Bool> where Optional<Wrapped> == Value
-    
-    @inlinable
-    public func map<T>(_ keyPath: WritableKeyPath<Value, T>) -> Binding<T>
-}
-```
-
-### SafeAreaPadding
-
-```swift
-@available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-extension View {
-    @inlinable
-    public func safeAreaPadding(_ edgeInsets: EdgeInsets) -> some View
-
-    @inlinable
-    public func safeAreaPadding(_ length: CGFloat = 16) -> some View
-
-    @inlinable
-    public func safeAreaPadding(_ edges: Edge.Set, _ length: CGFloat = 16) -> some View
-}
-```
-
 ### Badge
 
 ```swift
@@ -318,38 +233,6 @@ extension View {
         @ViewBuilder label: () -> Label
     ) -> some View
 }
-```
-
-### Accessibility
-
-```swift
-extension View {
-    /// Disables accessibility elements from being generated, even when an assistive technology is running
-    @inlinable
-    public func accessibilityDisabled() -> some View
-
-    /// Optionally uses the specified string to identify the view.
-    @inlinable
-    public func accessibilityIdentifier(_ identifier: String?) -> ModifiedContent<Self, AccessibilityAttachmentModifier>
-
-    /// Optionally adds a label to the view that describes its contents.
-    @_disfavoredOverload
-    @inlinable
-    public func accessibilityLabel<S: StringProtocol>(_ label: S?) -> ModifiedContent<Self, AccessibilityAttachmentModifier>
-
-    /// Optionally adds a textual description of the value that the view contains.
-    @_disfavoredOverload
-    @inlinable
-    public func accessibilityValue<S: StringProtocol>(_ value: S?) -> ModifiedContent<Self, AccessibilityAttachmentModifier>
-    
-    /// Optionally adds an accessibility action to the view.
-    @inlinable
-    public func accessibilityAction(named name: LocalizedStringKey?, _ handler: @escaping () -> Void) -> ModifiedContent<Self, AccessibilityAttachmentModifier>
-
-    /// Optionally adds an accessibility action to the view.
-    @_disfavoredOverload
-    @inlinable
-    public func accessibilityAction<S: StringProtocol>(named name: S?, _ handler: @escaping () -> Void) -> ModifiedContent<Self, AccessibilityAttachmentModifier>
 ```
 
 ### And Many More
