@@ -2,26 +2,25 @@
 // Copyright (c) Nathan Tannar
 //
 
+#if os(iOS) || os(tvOS) || os(visionOS)
+
+import UIKit
 import SwiftUI
 import Engine
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 @frozen
-public struct CollectionViewCompositionalLayoutSize: Equatable, Sendable {
+public struct CollectionViewCompositionalLayoutSize: Equatable {
 
     @frozen
-    public enum Dimension: Equatable, Sendable {
+    public enum Dimension: Equatable {
         case fractionalWidth(CGFloat)
         case fractionalHeight(CGFloat)
         case absolute(CGFloat)
         case estimated(CGFloat)
 
-        #if os(iOS) || os(visionOS)
         @MainActor
-        public func toUIKit() -> NSCollectionLayoutDimension {
+        func toUIKit() -> NSCollectionLayoutDimension {
             switch self {
             case .fractionalWidth(let value):
                 return .fractionalWidth(value)
@@ -33,7 +32,6 @@ public struct CollectionViewCompositionalLayoutSize: Equatable, Sendable {
                 return .estimated(value)
             }
         }
-        #endif
     }
 
     public var width: Dimension?
@@ -51,9 +49,8 @@ public struct CollectionViewCompositionalLayoutSize: Equatable, Sendable {
         CollectionViewCompositionalLayoutSize()
     }
 
-    #if os(iOS) || os(visionOS)
     @MainActor
-    public func toUIKit(
+    func toUIKit(
         replacingUnspecifiedDimensionBy unspecified: NSCollectionLayoutSize
     ) -> NSCollectionLayoutSize {
         NSCollectionLayoutSize(
@@ -61,13 +58,9 @@ public struct CollectionViewCompositionalLayoutSize: Equatable, Sendable {
             heightDimension: height?.toUIKit() ?? unspecified.heightDimension
         )
     }
-    #endif
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 @frozen
 public struct CollectionViewCompositionalLayoutGroup: Equatable {
 
@@ -79,9 +72,8 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         case groupPaging
         case groupPagingCentered
 
-        #if os(iOS) || os(visionOS)
         @MainActor
-        public func toUIKit() -> UICollectionLayoutSectionOrthogonalScrollingBehavior {
+        func toUIKit() -> UICollectionLayoutSectionOrthogonalScrollingBehavior {
             switch self {
             case .continuous:
                 return .continuous
@@ -95,7 +87,6 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
                 return .groupPagingCentered
             }
         }
-        #endif
     }
 
     @frozen
@@ -103,9 +94,8 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         case fixed(CGFloat)
         case flexible(CGFloat)
 
-        #if os(iOS) || os(visionOS)
         @MainActor
-        public func toUIKit() -> NSCollectionLayoutSpacing {
+        func toUIKit() -> NSCollectionLayoutSpacing {
             switch self {
             case .fixed(let spacing):
                 return .fixed(spacing)
@@ -113,7 +103,6 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
                 return .flexible(spacing)
             }
         }
-        #endif
     }
 
     @frozen
@@ -135,9 +124,8 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
             self.trailing = trailing
         }
 
-        #if os(iOS) || os(visionOS)
         @MainActor
-        public func toUIKit() -> NSCollectionLayoutEdgeSpacing {
+        func toUIKit() -> NSCollectionLayoutEdgeSpacing {
             NSCollectionLayoutEdgeSpacing(
                 leading: leading?.toUIKit(),
                 top: top?.toUIKit(),
@@ -145,7 +133,6 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
                 bottom: bottom?.toUIKit()
             )
         }
-        #endif
     }
 
     @usableFromInline
@@ -164,6 +151,12 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
             var contentInsets: EdgeInsets
         }
         case grouped(GroupedStorage)
+
+        @usableFromInline
+        struct ListStorage: Equatable {
+            var configuration: CollectionViewListLayout.Configuration
+        }
+        case list(ListStorage)
     }
 
     @usableFromInline
@@ -228,11 +221,79 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         )
     }
 
-    #if os(iOS) || os(visionOS)
+    #if os(tvOS)
+    public static func list(
+        appearance: CollectionViewListLayoutAppearance,
+        headerTopPadding: CGFloat? = nil,
+        backgroundColor: Color? = nil
+    ) -> CollectionViewCompositionalLayoutGroup {
+        CollectionViewCompositionalLayoutGroup(
+            storage: .list(
+                .init(
+                    configuration: CollectionViewListLayout.Configuration(
+                        appearance: appearance,
+                        headerTopPadding: headerTopPadding,
+                        backgroundColor: backgroundColor
+                    )
+                )
+            )
+        )
+    }
+    #else
+    @_disfavoredOverload
+    public static func list(
+        appearance: CollectionViewListLayoutAppearance,
+        showsSeparators: Bool = true,
+        separatorConfiguration: CollectionViewListLayoutSeparatorConfiguration? = nil,
+        headerTopPadding: CGFloat? = nil,
+        backgroundColor: Color? = nil,
+        leadingSwipeActionsConfiguration: (any CollectionViewCellSwipeActionsConfiguration)? = nil,
+        trailingSwipeActionsConfiguration: (any CollectionViewCellSwipeActionsConfiguration)? = nil
+    ) -> CollectionViewCompositionalLayoutGroup {
+        .list(
+            appearance: appearance,
+            showsSeparators: showsSeparators,
+            separatorConfiguration: separatorConfiguration,
+            headerTopPadding: headerTopPadding,
+            backgroundColor: backgroundColor,
+            leadingSwipeActionsConfiguration: leadingSwipeActionsConfiguration.map { AnyCollectionViewCellSwipeActionsConfiguration($0) },
+            trailingSwipeActionsConfiguration: trailingSwipeActionsConfiguration.map { AnyCollectionViewCellSwipeActionsConfiguration($0) }
+        )
+    }
+
+    public static func list(
+        appearance: CollectionViewListLayoutAppearance,
+        showsSeparators: Bool = true,
+        separatorConfiguration: CollectionViewListLayoutSeparatorConfiguration? = nil,
+        headerTopPadding: CGFloat? = nil,
+        backgroundColor: Color? = nil,
+        leadingSwipeActionsConfiguration: AnyCollectionViewCellSwipeActionsConfiguration? = nil,
+        trailingSwipeActionsConfiguration: AnyCollectionViewCellSwipeActionsConfiguration? = nil
+    ) -> CollectionViewCompositionalLayoutGroup {
+        CollectionViewCompositionalLayoutGroup(
+            storage: .list(
+                .init(
+                    configuration: CollectionViewListLayout.Configuration(
+                        appearance: appearance,
+                        showsSeparators: showsSeparators,
+                        separatorConfiguration: separatorConfiguration,
+                        headerTopPadding: headerTopPadding,
+                        backgroundColor: backgroundColor,
+                        leadingSwipeActionsConfiguration: leadingSwipeActionsConfiguration,
+                        trailingSwipeActionsConfiguration: trailingSwipeActionsConfiguration
+                    )
+                )
+            )
+        )
+    }
+    #endif
+
     @MainActor
-    public func toUIKit(
+    func toUIKit(
         axis: Axis,
-        replacingUnspecifiedDimensionBy unspecified: NSCollectionLayoutSize
+        replacingUnspecifiedDimensionBy unspecified: NSCollectionLayoutSize,
+        context: CollectionViewLayoutContext,
+        layoutEnvironment: any NSCollectionLayoutEnvironment
     ) -> NSCollectionLayoutSection {
         switch storage {
         case .item(let itemSize):
@@ -290,32 +351,25 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
             group.contentInsets = NSDirectionalEdgeInsets(storage.contentInsets)
             let section = NSCollectionLayoutSection(group: group)
             section.orthogonalScrollingBehavior = storage.scrollingBehaviour?.toUIKit() ?? .none
-            if #available(iOS 17.0, *) {
+            if #available(iOS 17.0, tvOS 17.0, *) {
                 section.orthogonalScrollingProperties.bounce = storage.bounces
                     .map { $0 ? .always : .never } ?? .automatic
             }
             return section
+
+        case .list(let storage):
+            var configuration = storage.configuration.toUIKit(context: context)
+            configuration.headerMode = .none
+            configuration.footerMode = .none
+            let section = NSCollectionLayoutSection.list(using: configuration, layoutEnvironment: layoutEnvironment)
+            return section
+
         }
     }
-    #endif
-}
-
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-public protocol CollectionViewVisibleItemsScrollEffect: Equatable, Sendable {
-
-    #if os(iOS) || os(visionOS)
-    @MainActor @preconcurrency func onScroll(visibleItem: [NSCollectionLayoutVisibleItem], contentOffset: CGPoint, environment: NSCollectionLayoutEnvironment)
-    #endif
 }
 
 /// A ``CollectionViewLayout``
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 @frozen
 public struct CollectionViewCompositionalLayout: CollectionViewLayout {
 
@@ -328,14 +382,14 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         public var contentInsets: EdgeInsets
         public var pinnedViews: Set<CollectionViewSupplementaryView.ID>
         public var supplementaryViewVisibility: [CollectionViewSupplementaryView.ID: CollectionViewSupplementaryViewVisibility]
+        public var scrollEffect: AnyCollectionViewVisibleItemsScrollEffect?
     }
 
     public var configuration: Configuration
     public var showsIndicators: Bool
-    public var safeAreaInsets: EdgeInsets?
-    public var backgroundConfiguration: (any CollectionViewBackgroundConfiguration)?
+    public var backgroundColor: Color?
+    public var backgroundConfiguration: AnyCollectionViewBackgroundConfiguration?
     public var layoutAttributes: (any CollectionViewLayoutAttributes)?
-    public var scrollEffect: (any CollectionViewVisibleItemsScrollEffect)?
 
     public init(
         axis: Axis = .vertical,
@@ -344,9 +398,9 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         itemSpacing: CGFloat = 0,
         sectionSpacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
-        safeAreaInsets: EdgeInsets? = nil,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = [],
-        supplementaryViewVisibility: [CollectionViewSupplementaryView.ID: CollectionViewSupplementaryViewVisibility] = [:]
+        supplementaryViewVisibility: [CollectionViewSupplementaryView.ID: CollectionViewSupplementaryViewVisibility] = [:],
+        backgroundColor: Color? = nil,
     ) {
         self.configuration = Configuration(
             axis: axis,
@@ -358,10 +412,9 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
             supplementaryViewVisibility: supplementaryViewVisibility
         )
         self.showsIndicators = showsIndicators
-        self.safeAreaInsets = safeAreaInsets
+        self.backgroundColor = backgroundColor
     }
 
-    #if os(iOS) || os(visionOS)
     public func makeUICollectionViewLayout(
         context: Context,
         options: CollectionViewLayoutOptions
@@ -369,8 +422,8 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         let sectionProvider = CollectionViewCompositionalLayoutImpl.SectionProvider(
             configuration: configuration,
             options: options,
-            layoutAttributes: layoutAttributes,
-            scrollEffect: scrollEffect
+            context: context,
+            layoutAttributes: layoutAttributes
         )
         let layout = CollectionViewCompositionalLayoutImpl(
             sectionProvider: sectionProvider,
@@ -397,6 +450,8 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
     ) {
         collectionViewLayout.sectionProvider.configuration = configuration
         collectionViewLayout.sectionProvider.options = options
+        collectionViewLayout.sectionProvider.context = context
+        collectionViewLayout.sectionProvider.layoutAttributes = layoutAttributes
         collectionViewLayout.configuration.interSectionSpacing = configuration.sectionSpacing
         switch configuration.axis {
         case .vertical:
@@ -417,7 +472,6 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         #if os(iOS)
         uiCollectionView.keyboardDismissMode = .interactive
         #endif
-        uiCollectionView.backgroundColor = nil
         return uiCollectionView
     }
 
@@ -427,22 +481,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
     ) {
         collectionView.showsVerticalScrollIndicator = showsIndicators
         collectionView.showsHorizontalScrollIndicator = showsIndicators
-
-        let safeAreaInsets = safeAreaInsets.map {
-            UIEdgeInsets(
-                edgeInsets: $0,
-                layoutDirection: context.environment.layoutDirection
-            )
-        } ?? .zero
-        var contentInset = safeAreaInsets
-        contentInset.top = max(0, safeAreaInsets.top - collectionView.safeAreaInsets.top)
-        contentInset.bottom = max(0, safeAreaInsets.bottom - collectionView.safeAreaInsets.bottom)
-        contentInset.left = max(0, safeAreaInsets.left - collectionView.safeAreaInsets.left)
-        contentInset.right = max(0, safeAreaInsets.right - collectionView.safeAreaInsets.right)
-        if collectionView.contentInset != contentInset {
-            collectionView.contentInset = contentInset
-            collectionView.scrollIndicatorInsets = contentInset
-        }
+        collectionView.backgroundColor = backgroundColor?.toUIColor(in: context.environment)
     }
 
     public func updateUICollectionViewCell(
@@ -452,15 +491,13 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         context: Context
     ) {
         if let backgroundConfiguration = backgroundConfiguration {
-            if #available(iOS 15.0, *) {
-                cell.configurationUpdateHandler = { cell, state in
-                    let configuration = backgroundConfiguration.makeConfiguration(for: .item, state: state)
-                    cell.backgroundConfiguration = configuration
-                }
-            } else {
-                let configuration = backgroundConfiguration.makeConfiguration(for: .item, state: cell.configurationState)
-                cell.backgroundConfiguration = configuration
-            }
+            let configuration = backgroundConfiguration.makeConfiguration(
+                for: .item,
+                indexPath: indexPath,
+                state: cell.configurationState,
+                context: context
+            )
+            cell.backgroundConfiguration = configuration
         } else {
             cell.backgroundConfiguration = nil
         }
@@ -475,26 +512,20 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
     ) {
         if let backgroundConfiguration = backgroundConfiguration {
             let kind = CollectionViewLayoutElementKind.supplementaryView(.custom(kind))
-            if #available(iOS 15.0, *) {
-                supplementaryView.configurationUpdateHandler = { cell, state in
-                    let configuration = backgroundConfiguration.makeConfiguration(for: kind, state: state)
-                    cell.backgroundConfiguration = configuration
-                }
-            } else {
-                let configuration = backgroundConfiguration.makeConfiguration(for: kind, state: supplementaryView.configurationState)
-                supplementaryView.backgroundConfiguration = configuration
-            }
+            let configuration = backgroundConfiguration.makeConfiguration(
+                for: kind,
+                indexPath: indexPath,
+                state: supplementaryView.configurationState,
+                context: context
+            )
+            supplementaryView.backgroundConfiguration = configuration
         } else {
             supplementaryView.backgroundConfiguration = nil
         }
     }
-    #endif
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionViewCompositionalLayout {
 
     public func supplementaryViewVisibility(
@@ -506,13 +537,21 @@ extension CollectionViewCompositionalLayout {
         return copy
     }
 
+    public func backgroundColor(
+        _ color: Color?
+    ) -> CollectionViewCompositionalLayout {
+        var copy = self
+        copy.backgroundColor = color
+        return copy
+    }
+
     public func backgroundConfiguration<
         Configuration: CollectionViewBackgroundConfiguration
     >(
         _ configuration: Configuration
     ) -> CollectionViewCompositionalLayout {
         var copy = self
-        copy.backgroundConfiguration = configuration
+        copy.backgroundConfiguration = AnyCollectionViewBackgroundConfiguration(configuration)
         return copy
     }
 
@@ -532,7 +571,7 @@ extension CollectionViewCompositionalLayout {
         _ scrollEffect: ScrollEffect
     ) -> CollectionViewCompositionalLayout {
         var copy = self
-        copy.scrollEffect = scrollEffect
+        copy.configuration.scrollEffect = AnyCollectionViewVisibleItemsScrollEffect(scrollEffect)
         return copy
     }
 
@@ -543,7 +582,6 @@ extension CollectionViewCompositionalLayout {
         itemSpacing: CGFloat = 0,
         sectionSpacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
-        safeAreaInsets: EdgeInsets? = nil,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = [],
         supplementaryViewVisibility: [CollectionViewSupplementaryView.ID: CollectionViewSupplementaryViewVisibility] = [:]
     ) {
@@ -554,42 +592,37 @@ extension CollectionViewCompositionalLayout {
             itemSpacing: itemSpacing,
             sectionSpacing: sectionSpacing,
             contentInsets: contentInsets,
-            safeAreaInsets: safeAreaInsets,
             pinnedViews: pinnedViews,
             supplementaryViewVisibility: supplementaryViewVisibility
         )
     }
 }
 
-
-#if os(iOS) || os(visionOS)
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalLayout {
 
     public class SectionProvider {
         public var configuration: CollectionViewCompositionalLayout.Configuration
         public var options: CollectionViewLayoutOptions
         public var layoutAttributes: (any CollectionViewLayoutAttributes)?
-        public var scrollEffect: (any CollectionViewVisibleItemsScrollEffect)?
+        public var context: CollectionViewLayoutContext
 
         public init(
             configuration: CollectionViewCompositionalLayout.Configuration,
             options: CollectionViewLayoutOptions,
-            layoutAttributes: (any CollectionViewLayoutAttributes)?,
-            scrollEffect: (any CollectionViewVisibleItemsScrollEffect)?
+            context: CollectionViewLayoutContext,
+            layoutAttributes: (any CollectionViewLayoutAttributes)?
         ) {
             self.configuration = configuration
             self.options = options
+            self.context = context
             self.layoutAttributes = layoutAttributes
-            self.scrollEffect = scrollEffect
         }
 
         @MainActor
         func makeSection(
-            section: Int, environment: any NSCollectionLayoutEnvironment
+            section: Int,
+            environment: any NSCollectionLayoutEnvironment
         ) -> NSCollectionLayoutSection? {
             let widthDimension: NSCollectionLayoutDimension = configuration.axis == .vertical
                 ? .fractionalWidth(1.0)
@@ -604,11 +637,13 @@ public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositiona
             let layoutGroup = configuration.layoutGroup
             let layoutSection = layoutGroup.toUIKit(
                 axis: configuration.axis,
-                replacingUnspecifiedDimensionBy: unspecifiedDimension
+                replacingUnspecifiedDimensionBy: unspecifiedDimension,
+                context: context,
+                layoutEnvironment: environment
             )
             layoutSection.interGroupSpacing = configuration.itemSpacing
             layoutSection.contentInsets = NSDirectionalEdgeInsets(configuration.contentInsets)
-            if #available(iOS 16.0, *) {
+            if #available(iOS 16.0, tvOS 16.0, *) {
                 layoutSection.supplementaryContentInsetsReference = .none
             } else {
                 layoutSection.supplementariesFollowContentInsets = false
@@ -623,50 +658,18 @@ public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositiona
                     return visibility.isVisible(in: section)
                 }()
                 guard isVisible else { continue }
-                let supplementaryItemSize: NSCollectionLayoutSize
-                if let layoutSize = supplementaryView.layoutSize {
-                    supplementaryItemSize = layoutSize.toUIKit(
-                        replacingUnspecifiedDimensionBy: unspecifiedDimension
-                    )
-                } else {
-                    supplementaryItemSize = unspecifiedDimension
-                }
-                let item = NSCollectionLayoutBoundarySupplementaryItem(
-                    layoutSize: supplementaryItemSize,
-                    elementKind: supplementaryView.kind,
-                    alignment: {
-                        switch supplementaryView.alignment {
-                        case .top:
-                            return .top
-                        case .topLeading:
-                            return .topLeading
-                        case .topTrailing:
-                            return .topLeading
-                        case .bottom:
-                            return .bottom
-                        case .bottomLeading:
-                            return .bottomLeading
-                        case .bottomTrailing:
-                            return .bottomTrailing
-                        case .leading:
-                            return .leading
-                        case .trailing:
-                            return .trailing
-                        default:
-                            return .none
-                        }
-                    }(),
-                    absoluteOffset: supplementaryView.offset
-                )
-                item.extendsBoundary = supplementaryView.extendsBoundary
-                item.contentInsets = NSDirectionalEdgeInsets(supplementaryView.contentInset)
-                item.zIndex = supplementaryView.zIndex
+                let item = supplementaryView.toUIKit(unspecifiedDimension: unspecifiedDimension)
                 item.pinToVisibleBounds = configuration.pinnedViews.contains(supplementaryView.id)
                 layoutSection.boundarySupplementaryItems.append(item)
             }
-            if let scrollEffect {
-                layoutSection.visibleItemsInvalidationHandler = { visibleItems, offset, environment in
-                    scrollEffect.onScroll(visibleItem: visibleItems, contentOffset: offset, environment: environment)
+            if let scrollEffect = configuration.scrollEffect {
+                layoutSection.visibleItemsInvalidationHandler = { [unowned self] visibleItems, offset, environment in
+                    scrollEffect.onScroll(
+                        visibleItem: visibleItems,
+                        contentOffset: offset,
+                        environment: environment,
+                        context: context
+                    )
                 }
             }
             return layoutSection
@@ -850,12 +853,8 @@ public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositiona
         return attributes
     }
 }
-#endif
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
 
     public static var compositional: Self { .compositional() }
@@ -866,7 +865,6 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
         layoutSize: CollectionViewCompositionalLayoutSize = .unspecified,
         spacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
-        safeAreaInsets: EdgeInsets? = nil,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = []
     ) -> Self {
         .compositional(
@@ -875,7 +873,6 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
             layoutSize: layoutSize,
             itemSpacing: spacing,
             contentInsets: contentInsets,
-            safeAreaInsets: safeAreaInsets,
             pinnedViews: pinnedViews
         )
     }
@@ -887,7 +884,6 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
         itemSpacing: CGFloat = 0,
         sectionSpacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
-        safeAreaInsets: EdgeInsets? = nil,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = []
     ) -> Self {
         CollectionViewCompositionalLayout(
@@ -897,7 +893,6 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
             itemSpacing: itemSpacing,
             sectionSpacing: sectionSpacing,
             contentInsets: contentInsets,
-            safeAreaInsets: safeAreaInsets,
             pinnedViews: pinnedViews
         )
     }
@@ -909,7 +904,6 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
         itemSpacing: CGFloat = 0,
         sectionSpacing: CGFloat = 0,
         contentInsets: EdgeInsets = .zero,
-        safeAreaInsets: EdgeInsets? = nil,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = []
     ) -> Self {
         CollectionViewCompositionalLayout(
@@ -919,7 +913,6 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
             itemSpacing: itemSpacing,
             sectionSpacing: sectionSpacing,
             contentInsets: contentInsets,
-            safeAreaInsets: safeAreaInsets,
             pinnedViews: pinnedViews
         )
     }
@@ -927,65 +920,100 @@ extension CollectionViewLayout where Self == CollectionViewCompositionalLayout {
 
 // MARK: - Previews
 
-#if os(iOS) || os(visionOS)
 @available(iOS 15.0, *)
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 struct CollectionViewLayout_Previews: PreviewProvider {
     static var previews: some View {
-        CollectionView(
-            .compositional(
-                spacing: 12,
-                pinnedViews: [.header]
-            ),
-            sections: [
-                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
-            ]
-        ) { indexPath, section, id in
-            CellView(axis: .vertical, text: "Cell \(id.value)")
-        } header: { _, _ in
-            HeaderFooter(axis: .vertical, isHeader: true)
-        } footer: { _, _ in
-            HeaderFooter(axis: .vertical, isHeader: false)
+        ZStack {
+            CollectionView(
+                .compositional(
+                    layoutGroup: .list(
+                        appearance: .plain
+                    )
+                ),
+                sections: [
+                    CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0)
+                ],
+                supplementaryViews: [
+                    .custom(
+                        "bottomContent",
+                        alignment: .bottom,
+                        offset: CGPoint(x: 0, y: 24)
+                    )
+                ]
+            ) { indexPath, section, id in
+                CellView(axis: .vertical, text: "Cell \(id.value)")
+            } header: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Header")
+            } footer: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Footer")
+            } supplementaryView: { _, _, _ in
+                HeaderFooter(axis: .vertical, label: "SupplementaryView")
+            }
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
 
-        CollectionView(
-            .compositional(
-                itemSpacing: 12,
-                sectionSpacing: 4,
-                contentInsets: .init(top: 8, leading: 8, bottom: 8, trailing: 8)
-            ),
-            sections: [
-                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
-                CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
-            ]
-        ) { indexPath, section, id in
-            CellView(axis: .vertical, text: "Cell \(id.value)")
-        } header: { _, _ in
-            HeaderFooter(axis: .vertical, isHeader: true)
-        } footer: { _, _ in
-            HeaderFooter(axis: .vertical, isHeader: false)
+        ZStack {
+            CollectionView(
+                .compositional(
+                    spacing: 12,
+                    pinnedViews: [.header]
+                ),
+                sections: [
+                    CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+                    CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
+                ]
+            ) { indexPath, section, id in
+                CellView(axis: .vertical, text: "Cell \(id.value)")
+            } header: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Header")
+            } footer: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Footer")
+            }
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
 
-        CollectionView(
-            .compositional(
-                axis: .horizontal,
-                spacing: 12,
-                pinnedViews: [.header]
-            ),
-            sections: [
-                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
-                CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
-            ]
-        ) { indexPath, section, id in
-            CellView(axis: .horizontal, text: "Cell \(id.value)")
-        } header: { _, _ in
-            HeaderFooter(axis: .horizontal, isHeader: true)
-        } footer: { _, _ in
-            HeaderFooter(axis: .horizontal, isHeader: false)
+        ZStack {
+            CollectionView(
+                .compositional(
+                    itemSpacing: 12,
+                    sectionSpacing: 4,
+                    contentInsets: .init(top: 8, leading: 8, bottom: 8, trailing: 8)
+                ),
+                sections: [
+                    CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+                    CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
+                ]
+            ) { indexPath, section, id in
+                CellView(axis: .vertical, text: "Cell \(id.value)")
+            } header: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Header")
+            } footer: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Footer")
+            }
+            .ignoresSafeArea()
+        }
+
+        ZStack {
+            CollectionView(
+                .compositional(
+                    axis: .horizontal,
+                    spacing: 12,
+                    pinnedViews: [.header]
+                ),
+                sections: [
+                    CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+                    CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
+                ]
+            ) { indexPath, section, id in
+                CellView(axis: .horizontal, text: "Cell \(id.value)")
+            } header: { _, _ in
+                HeaderFooter(axis: .horizontal, label: "Header")
+            } footer: { _, _ in
+                HeaderFooter(axis: .horizontal, label: "Footer")
+            }
         }
 
         ScrollView {
@@ -1022,9 +1050,9 @@ struct CollectionViewLayout_Previews: PreviewProvider {
                                 .foregroundColor(.white)
                         }
                 } header: { _, _ in
-                    HeaderFooter(axis: .vertical, isHeader: true)
+                    HeaderFooter(axis: .vertical, label: "Header")
                 } footer: { _, _ in
-                    HeaderFooter(axis: .vertical, isHeader: false)
+                    HeaderFooter(axis: .vertical, label: "Footer")
                 }
                 .frame(height: 300)
 
@@ -1069,68 +1097,69 @@ struct CollectionViewLayout_Previews: PreviewProvider {
             }
         }
 
-        CollectionView(
-            .compositional(
-                axis: .horizontal,
-                layoutGroup: .item(
-                    CollectionViewCompositionalLayoutSize(
-                        width: .fractionalHeight(1.0),
-                        height: .fractionalHeight(1.0)
-                    )
+        ZStack {
+            CollectionView(
+                .compositional(
+                    axis: .horizontal,
+                    layoutGroup: .item(
+                        CollectionViewCompositionalLayoutSize(
+                            width: .fractionalHeight(1.0),
+                            height: .fractionalHeight(1.0)
+                        )
+                    ),
+                    itemSpacing: 12,
+                    sectionSpacing: 12
                 ),
-                itemSpacing: 12,
-                sectionSpacing: 12
-            ),
-            sections: [
-                CollectionViewSection(items: 0...5, id: \.self, section: 0),
-                CollectionViewSection(items: 6...12, id: \.self, section: 1),
-            ]
-        ) { indexPath, section, id in
-            Color.blue
-                .overlay {
-                    Text("Cell \(id.value)")
-                        .foregroundColor(.white)
-                }
+                sections: [
+                    CollectionViewSection(items: 0...5, id: \.self, section: 0),
+                    CollectionViewSection(items: 6...12, id: \.self, section: 1),
+                ]
+            ) { indexPath, section, id in
+                Color.blue
+                    .overlay {
+                        Text("Cell \(id.value)")
+                            .foregroundColor(.white)
+                    }
+            }
+            .frame(height: 100)
         }
-        .frame(height: 100)
 
-        CollectionView(
-            .compositional(
-                spacing: 12,
-                pinnedViews: [.header]
-            )
-            .supplementaryViewVisibility(.visible(in: [0]), for: .custom("banner"))
-            .supplementaryViewVisibility(.hidden(in: [0]), for: .custom("card")),
-            sections: [
-                CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
-                CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
-            ],
-            supplementaryViews: [
-                .header,
-                .custom(
-                    "banner",
-                    alignment: .topLeading,
-                    offset: CGPoint(x: 0, y: -24)
-                ),
-                .custom(
-                    "card",
-                    alignment: .bottom,
-                    offset: CGPoint(x: 0, y: 24)
+        ZStack {
+            CollectionView(
+                .compositional(
+                    spacing: 12,
+                    pinnedViews: [.header]
                 )
-            ]
-        ) { indexPath, section, id in
-            CellView(axis: .vertical, text: "Cell \(id.value)")
-        } header: { _, _ in
-            HeaderFooter(axis: .vertical, isHeader: true)
-        } footer: { _, _ in
-            HeaderFooter(axis: .vertical, isHeader: false)
-        } supplementaryView: { id, indexPath, index in
-            Color.purple
-                .overlay { Text(verbatim: "\(id)") }
-                .frame(height: 100)
-                .border(Color.pink, width: 5)
+                .supplementaryViewVisibility(.visible(in: [0]), for: .custom("banner"))
+                .supplementaryViewVisibility(.hidden(in: [0]), for: .custom("card")),
+                sections: [
+                    CollectionViewSection(items: [1, 2, 3], id: \.self, section: 0),
+                    CollectionViewSection(items: [4, 5, 6], id: \.self, section: 1),
+                ],
+                supplementaryViews: [
+                    .header,
+                    .custom(
+                        "banner",
+                        alignment: .topLeading,
+                        offset: CGPoint(x: 0, y: -24)
+                    ),
+                    .custom(
+                        "card",
+                        alignment: .bottom,
+                        offset: CGPoint(x: 0, y: 24)
+                    )
+                ]
+            ) { indexPath, section, id in
+                CellView(axis: .vertical, text: "Cell \(id.value)")
+            } header: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Header")
+            } footer: { _, _ in
+                HeaderFooter(axis: .vertical, label: "Footer")
+            } supplementaryView: { _, _, _ in
+                HeaderFooter(axis: .vertical, label: "SupplementaryView")
+            }
+            .ignoresSafeArea()
         }
-        .ignoresSafeArea()
     }
 
     struct CellView: View {
@@ -1147,13 +1176,14 @@ struct CollectionViewLayout_Previews: PreviewProvider {
 
     struct HeaderFooter: View {
         var axis: Axis
-        var isHeader: Bool
+        var label: String
 
         var body: some View {
-            Text(isHeader ? "Header" : "Footer")
+            Text(label)
                 .frame(maxWidth: axis == .vertical ? .infinity : nil, minHeight: 24, maxHeight: axis == .horizontal ? .infinity : nil)
                 .background(Material.ultraThin)
         }
     }
 }
+
 #endif

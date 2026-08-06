@@ -5,6 +5,7 @@
 import SwiftUI
 
 extension NSTextAlignment {
+
     public init(
         alignment: HorizontalAlignment,
         layoutDirection: LayoutDirection

@@ -5,6 +5,21 @@
 import SwiftUI
 import Engine
 
+extension Transaction {
+
+    public func animation(_ animation: Animation?) -> Transaction {
+        var copy = self
+        copy.animation = animation
+        return copy
+    }
+
+    public func disablesAnimations(_ disablesAnimations: Bool) -> Transaction {
+        var copy = self
+        copy.disablesAnimations = disablesAnimations
+        return copy
+    }
+}
+
 #if !os(watchOS)
 
 @inline(__always)

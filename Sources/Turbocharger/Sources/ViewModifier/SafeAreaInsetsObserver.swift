@@ -6,20 +6,20 @@ import SwiftUI
 import Engine
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-public struct ProposedSizeObserver: VersionedViewModifier {
-    @Binding var size: ProposedSize
+public struct SafeAreaInsetsObserver: VersionedViewModifier {
+    @Binding var safeAreaInsets: EdgeInsets?
 
-    public init(size: Binding<ProposedSize>) {
-        self._size = size
+    public init(safeAreaInsets: Binding<EdgeInsets?>) {
+        self._safeAreaInsets = safeAreaInsets
     }
 
     @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
     public func v4Body(content: Content) -> some View {
         content
-            .onGeometryChange(for: CGSize.self) { proxy in
-                proxy.size
+            .onGeometryChange(for: EdgeInsets.self) { proxy in
+                proxy.safeAreaInsets
             } action: { newValue in
-                size = ProposedSize(size: newValue)
+                safeAreaInsets = newValue
             }
     }
 
@@ -28,7 +28,7 @@ public struct ProposedSizeObserver: VersionedViewModifier {
             .background(
                 GeometryReader { proxy in
                     Color.clear
-                        .onAppearAndChange(of: proxy.size) { size = ProposedSize(size: $0) }
+                        .onAppearAndChange(of: proxy.safeAreaInsets) { safeAreaInsets = $0 }
                 }
                 .hidden()
             )

@@ -10,7 +10,6 @@ import Engine
 /// A wrapper for a QuartzCore layer that you use to integrate that layer into your
 /// SwiftUI view hierarchy.
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
-@MainActor @preconcurrency
 public protocol CALayerRepresentable: PrimitiveView {
 
     associatedtype CALayerType: CALayer

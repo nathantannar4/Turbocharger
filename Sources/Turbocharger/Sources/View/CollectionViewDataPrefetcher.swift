@@ -2,9 +2,13 @@
 // Copyright (c) Nathan Tannar
 //
 
+#if os(iOS) || os(tvOS) || os(visionOS)
+
 import SwiftUI
 
+@available(iOS 14.0, tvOS 14.0, *)
 public protocol CollectionViewDataPrefetcher<Item> {
+
     associatedtype Item: Equatable & Identifiable
 
     func startPrefetching(items: [Item])
@@ -13,9 +17,7 @@ public protocol CollectionViewDataPrefetcher<Item> {
 
 // MARK: - Previews
 
-#if os(iOS) || os(visionOS)
-
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 struct CollectionViewDataPrefetcher_Previews: PreviewProvider {
     static var previews: some View {
         Preview()

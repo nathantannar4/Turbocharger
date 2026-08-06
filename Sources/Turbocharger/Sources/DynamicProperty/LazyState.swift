@@ -5,10 +5,10 @@
 import SwiftUI
 
 /// A property wrapper that defers initialization similar to `StateObject`
+@MainActor @preconcurrency
 @propertyWrapper
 @frozen
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-@MainActor @preconcurrency
 public struct LazyState<Value>: DynamicProperty {
 
     @usableFromInline
@@ -33,7 +33,6 @@ public struct LazyState<Value>: DynamicProperty {
         set { storage.wrappedValue.value = newValue }
     }
 
-    @MainActor @preconcurrency
     public var projectedValue: Binding<Value> {
         storage.projectedValue.value
     }
