@@ -5,14 +5,7 @@
 import SwiftUI
 import Engine
 
-#if os(iOS) || os(visionOS)
-
-@available(iOS 14.0, *)
-public enum CollectionViewSelectionAvailability {
-    case unavailable
-    case disabled
-    case available
-}
+#if os(iOS) || os(tvOS) || os(visionOS)
 
 /// A bridging view to `UICollectionView` that renders cells in a `UIHostingConfiguration`
 ///
@@ -22,10 +15,7 @@ public enum CollectionViewSelectionAvailability {
 /// > Tip: For improved diffing performance, your data should conform
 /// to `Equatable` and `Identifiable`
 ///
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 public struct CollectionView<
     Header: View,
     Content: View,
@@ -33,14 +23,16 @@ public struct CollectionView<
     SupplementaryView: View,
     Layout: CollectionViewLayout,
     Section: Equatable & Identifiable,
-    Items: RandomAccessCollection
+    Items: RandomAccessCollection,
+    Configuration: CollectionViewCoordinatorConfiguration
 >: View where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
     Items.Element.ID: Equatable & Sendable,
     Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
-    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
+    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell,
+    Configuration.Item == Items.Element
 {
     var layout: Layout
     var sections: [CollectionViewSection<Section, Items>]
@@ -50,13 +42,17 @@ public struct CollectionView<
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
     var options: CollectionViewHostingConfigurationCoordinatorOptions
+    var configuration: Configuration
     private var modifiers = CollectionViewModifierFields<Section, Items>()
+
+    @State var safeAreaInsets: EdgeInsets?
 
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         supplementaryViews: [CollectionViewSupplementaryView],
         options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration,
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
@@ -70,12 +66,37 @@ public struct CollectionView<
         self.supplementaryViews = supplementaryViews
         self.supplementaryView = supplementaryView
         self.options = options
+        self.configuration = configuration
+    }
+
+    public init(
+        _ layout: Layout,
+        sections: [CollectionViewSection<Section, Items>],
+        supplementaryViews: [CollectionViewSupplementaryView],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
+    ) where Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element> {
+        self.init(
+            layout,
+            sections: sections,
+            supplementaryViews: supplementaryViews,
+            options: options,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>(),
+            content: content,
+            header: header,
+            footer: footer,
+            supplementaryView: supplementaryView
+        )
     }
 
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration,
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
@@ -85,10 +106,33 @@ public struct CollectionView<
             sections: sections,
             supplementaryViews: [],
             options: options,
+            configuration: configuration,
             content: content,
             header: header,
             footer: footer,
             supplementaryView: { _, _, _ in EmptyView() }
+        )
+    }
+
+    public init(
+        _ layout: Layout,
+        sections: [CollectionViewSection<Section, Items>],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
+    ) where
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
+    {
+        self.init(
+            layout,
+            sections: sections,
+            options: options,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>(),
+            content: content,
+            header: header,
+            footer: footer
         )
     }
 
@@ -102,13 +146,38 @@ public struct CollectionView<
             supplementaryViews: supplementaryViews,
             supplementaryView: supplementaryView,
             options: options,
+            configuration: configuration,
+            safeAreaInsets: safeAreaInsets.map { insets in
+                var insets = insets
+                if !modifiers.ignoredSafeAreaEdges.contains(.top) {
+                    insets.top = 0
+                }
+                if !modifiers.ignoredSafeAreaEdges.contains(.bottom) {
+                    insets.bottom = 0
+                }
+                if !modifiers.ignoredSafeAreaEdges.contains(.leading) {
+                    insets.leading = 0
+                }
+                if !modifiers.ignoredSafeAreaEdges.contains(.trailing) {
+                    insets.trailing = 0
+                }
+                return insets
+            },
             modifiers: modifiers
         )
+        .ignoresSafeArea(.all, edges: modifiers.ignoredSafeAreaEdges)
+        .modifier(SafeAreaInsetsObserver(safeAreaInsets: $safeAreaInsets))
     }
 }
 
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionView {
+
+    public func ignoresSafeArea(_ edges: Edge.Set = .all) -> Self {
+        var copy = self
+        copy.modifiers.ignoredSafeAreaEdges = edges
+        return copy
+    }
 
     public func onSelect(
         isEnabled: Bool = true,
@@ -120,7 +189,7 @@ extension CollectionView {
     }
 
     public func onSelect(
-        isEnabled: @escaping (IndexPath, Items.Element) -> CollectionViewSelectionAvailability,
+        isEnabled: @escaping (IndexPath, Items.Element) -> CollectionViewCoordinatorSelectionAvailability,
         action: ((IndexPath, Items.Element) -> Void)?
     ) -> Self {
         var copy = self
@@ -129,12 +198,15 @@ extension CollectionView {
         return copy
     }
 
+    @available(tvOS, unavailable)
     public func onRefresh(
         isEnabled: Bool = true,
         action: (@MainActor @Sendable () async -> Void)?
     ) -> Self {
         var copy = self
+        #if !os(tvOS)
         copy.modifiers.onRefresh = isEnabled ? action : nil
+        #endif
         return copy
     }
 
@@ -203,18 +275,40 @@ extension CollectionView {
         copy.modifiers.itemScrollPosition = itemScrollPosition.map { .init($0) }
         return copy
     }
+
+    public func editingConfiguration(
+        isEditing: Binding<Bool>,
+        selection: Binding<Set<Items.Element.ID>>? = nil,
+        allowsMultipleSelectionDuringEditing: Bool = false,
+        shouldToggleEditingOnLongPress: Bool = false
+    ) -> Self {
+        var copy = self
+        copy.modifiers.editingConfiguration = CollectionViewCoordinatorEditingConfiguration(
+            isEditing: isEditing,
+            selection: selection,
+            allowsMultipleSelectionDuringEditing: allowsMultipleSelectionDuringEditing,
+            shouldToggleEditingOnLongPress: shouldToggleEditingOnLongPress
+        )
+        return copy
+    }
+
+    public func editingConfiguration(
+        _ configuration: CollectionViewCoordinatorEditingConfiguration<Items.Element>?
+    ) -> Self {
+        var copy = self
+        copy.modifiers.editingConfiguration = configuration
+        return copy
+    }
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionView {
 
     public init(
         _ layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration,
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
     ) where
         Header == EmptyView,
@@ -225,6 +319,7 @@ extension CollectionView {
             layout,
             sections: sections,
             options: options,
+            configuration: configuration,
             content: content,
             header: { _, _ in EmptyView() },
             footer: { _, _ in EmptyView() }
@@ -233,9 +328,30 @@ extension CollectionView {
 
     public init(
         _ layout: Layout,
+        sections: [CollectionViewSection<Section, Items>],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
+    ) where
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
+    {
+        self.init(
+            layout,
+            sections: sections,
+            options: options,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>(),
+            content: content
+        )
+    }
+
+    public init(
+        _ layout: Layout,
         items: Items,
         supplementaryViews: [CollectionViewSupplementaryView],
         options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration,
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
@@ -250,6 +366,33 @@ extension CollectionView {
             ],
             supplementaryViews: supplementaryViews,
             options: options,
+            configuration: configuration,
+            content: content,
+            header: header,
+            footer: footer,
+            supplementaryView: supplementaryView
+        )
+    }
+
+    public init(
+        _ layout: Layout,
+        items: Items,
+        supplementaryViews: [CollectionViewSupplementaryView],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer,
+        @ViewBuilder supplementaryView: @escaping (IndexPath, CollectionViewSection<Section, Items>, CollectionViewSupplementaryView.ID) -> SupplementaryView
+    ) where
+        Section == CollectionViewSectionIndex,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
+    {
+        self.init(
+            layout,
+            items: items,
+            supplementaryViews: supplementaryViews,
+            options: options,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>(),
             content: content,
             header: header,
             footer: footer,
@@ -261,6 +404,7 @@ extension CollectionView {
         _ layout: Layout,
         items: Items,
         options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration,
         @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
         @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
         @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
@@ -273,10 +417,57 @@ extension CollectionView {
             items: items,
             supplementaryViews: [],
             options: options,
+            configuration: configuration,
             content: content,
             header: header,
             footer: footer,
             supplementaryView: { _, _, _ in EmptyView() }
+        )
+    }
+
+    public init(
+        _ layout: Layout,
+        items: Items,
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content,
+        @ViewBuilder header: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Header,
+        @ViewBuilder footer: @escaping (IndexPath, CollectionViewSection<Section, Items>) -> Footer
+    ) where
+        Section == CollectionViewSectionIndex,
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
+    {
+        self.init(
+            layout,
+            items: items,
+            options: options,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>(),
+            content: content,
+            header: header,
+            footer: footer
+        )
+    }
+
+    public init(
+        _ layout: Layout,
+        items: Items,
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration,
+        @ViewBuilder content: @escaping (IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Content
+    ) where
+        Section == CollectionViewSectionIndex,
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView
+    {
+        self.init(
+            layout,
+            items: items,
+            options: options,
+            configuration: configuration,
+            content: content,
+            header: { _, _ in EmptyView() },
+            footer: { _, _ in EmptyView() }
         )
     }
 
@@ -289,15 +480,15 @@ extension CollectionView {
         Section == CollectionViewSectionIndex,
         Header == EmptyView,
         Footer == EmptyView,
-        SupplementaryView == EmptyView
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
     {
         self.init(
             layout,
             items: items,
             options: options,
-            content: content,
-            header: { _, _ in EmptyView() },
-            footer: { _, _ in EmptyView() }
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>(),
+            content: content
         )
     }
 
@@ -313,7 +504,8 @@ extension CollectionView {
         Items == Array<EquatableBox<MultiViewSubviewVisitor.Subview>>,
         Header == EmptyView,
         Footer == EmptyView,
-        SupplementaryView == EmptyView
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
     {
         var visitor = MultiViewSubviewVisitor()
         let content = views()
@@ -337,7 +529,8 @@ extension CollectionView {
         Items == Array<EquatableBox<VariadicView.Subview>>,
         Header == EmptyView,
         Footer == EmptyView,
-        SupplementaryView == EmptyView
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
     {
         let items = views.map { EquatableBox($0) }
         self.init(
@@ -349,7 +542,7 @@ extension CollectionView {
     }
 }
 
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 private struct CollectionViewModifierFields<
     Section: Equatable & Identifiable,
     Items: RandomAccessCollection
@@ -360,17 +553,21 @@ private struct CollectionViewModifierFields<
     Section.ID: Equatable & Sendable
 {
     var onSelect: ((IndexPath, Items.Element) -> Void)?
-    var canSelect: ((IndexPath, Items.Element) -> CollectionViewSelectionAvailability)?
+    var canSelect: ((IndexPath, Items.Element) -> CollectionViewCoordinatorSelectionAvailability)?
+    #if !os(tvOS)
     var onRefresh: (@MainActor @Sendable () async -> Void)?
+    #endif
     var onItemWillAppear: ((IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Void)?
     var dataPrefetcher: (any CollectionViewDataPrefetcher<Items.Element>)?
     var onReorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)?
     var onScroll: ((EdgeInsets, CGPoint) -> Void)?
     var sectionScrollPosition: PublishedStateOrBinding<Section.ID?>?
     var itemScrollPosition: PublishedStateOrBinding<Items.Element.ID?>?
+    var editingConfiguration: CollectionViewCoordinatorEditingConfiguration<Items.Element>?
+    var ignoredSafeAreaEdges: Edge.Set = []
 }
 
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 private struct CollectionViewBody<
     Header: View,
     Content: View,
@@ -379,13 +576,15 @@ private struct CollectionViewBody<
     Layout: CollectionViewLayout,
     Section: Equatable & Identifiable,
     Items: RandomAccessCollection,
+    Configuration: CollectionViewCoordinatorConfiguration
 >: CollectionViewRepresentable where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
     Items.Element.ID: Equatable & Sendable,
     Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
-    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
+    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell,
+    Configuration.Item == Items.Element
 {
 
     var layout: Layout
@@ -396,12 +595,17 @@ private struct CollectionViewBody<
     var supplementaryViews: [CollectionViewSupplementaryView]
     var supplementaryView: Coordinator.SupplementaryViewProvider
     var options: CollectionViewHostingConfigurationCoordinatorOptions
+    var configuration: Configuration
+    var safeAreaInsets: EdgeInsets?
     var modifiers: CollectionViewModifierFields<Section, Items>
 
-    typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items>
+    typealias Coordinator = CollectionViewHostingConfigurationCoordinator<Header, Content, Footer, SupplementaryView, Layout, Section, Items, Configuration>
 
     var layoutOptions: CollectionViewLayoutOptions {
-        var layoutOptions = CollectionViewLayoutOptions(supplementaryViews: supplementaryViews)
+        var layoutOptions = CollectionViewLayoutOptions(
+            safeAreaInsets: safeAreaInsets,
+            supplementaryViews: supplementaryViews
+        )
         if Header.self != EmptyView.self, !layoutOptions.supplementaryViews.contains(where: { $0.id == .header }) {
             layoutOptions.supplementaryViews.append(.header)
         }
@@ -419,13 +623,16 @@ private struct CollectionViewBody<
         coordinator.options = options
         coordinator.onSelect = modifiers.onSelect
         coordinator.canSelect = modifiers.canSelect
+        #if !os(tvOS)
         coordinator.onRefresh = modifiers.onRefresh
+        #endif
         coordinator.onItemWillAppear = modifiers.onItemWillAppear
         coordinator.dataPrefetcher = modifiers.dataPrefetcher
         coordinator.onReorder = modifiers.onReorder
         coordinator.onScroll = modifiers.onScroll
         coordinator.sectionScrollPosition = modifiers.sectionScrollPosition
         coordinator.itemScrollPosition = modifiers.itemScrollPosition
+        coordinator.editingConfiguration = modifiers.editingConfiguration
     }
 
     func makeCoordinator() -> Coordinator {
@@ -437,7 +644,8 @@ private struct CollectionViewBody<
             layout: layout,
             sections: sections,
             layoutOptions: layoutOptions,
-            options: options
+            options: options,
+            configuration: configuration
         )
     }
 }
@@ -446,12 +654,9 @@ private struct CollectionViewBody<
 
 // MARK: - Previews
 
-#if os(iOS) || os(visionOS)
+#if os(iOS) || os(tvOS) || os(visionOS)
 
-@available(iOS 15.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 15.0, tvOS 15.0, *)
 struct CollectionView_Previews: PreviewProvider {
     static var previews: some View {
         PreviewA()
@@ -478,15 +683,14 @@ struct CollectionView_Previews: PreviewProvider {
             @State var isExpanded = false
 
             var body: some View {
-                VStack(spacing: 0) {
-                    Text(item.id)
-                        .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
-                        .background(item.value.isMultiple(of: 2) ? .blue : .red)
-                }
-                .onTapGesture {
+                Button {
                     withAnimation {
                         isExpanded.toggle()
                     }
+                } label: {
+                    Text(item.id)
+                        .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
+                        .background(item.value.isMultiple(of: 2) ? .blue : .red)
                 }
             }
         }
@@ -497,13 +701,14 @@ struct CollectionView_Previews: PreviewProvider {
             @State var isExpanded = false
 
             var body: some View {
-                Text("Header/Footer \(index)")
-                    .frame(maxWidth: .infinity, minHeight: isExpanded ? 44 : 22)
-                    .onTapGesture {
-                        withAnimation {
-                            isExpanded.toggle()
-                        }
+                Button {
+                    withAnimation {
+                        isExpanded.toggle()
                     }
+                } label: {
+                    Text("Header/Footer \(index)")
+                        .frame(maxWidth: .infinity, minHeight: isExpanded ? 44 : 22)
+                }
             }
         }
 
@@ -579,31 +784,32 @@ struct CollectionView_Previews: PreviewProvider {
             @State var isExpanded = false
 
             var body: some View {
-                VStack(spacing: 0) {
-                    Text(item.id)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-
-                    if #available(iOS 16.0, *) {
-                        Text(item.value, format: .number)
-                            .contentTransition(.numericText())
-                    } else {
-                        Text(item.value, format: .number)
-                    }
-
-                    RoundedRectangle(cornerRadius: isExpanded ? 6 : 0)
-                        .fill(.yellow)
-                        .frame(height: isExpanded ? 100 : 0)
-                        .opacity(isExpanded ? 1 : 0)
-                }
-                .padding(6)
-                .background(item.value.isMultiple(of: 2) ? .blue : .red)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(6)
-                .onTapGesture {
+                Button {
                     withAnimation {
                         isExpanded.toggle()
                     }
+                } label: {
+                    VStack(spacing: 0) {
+                        Text(item.id)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+
+                        if #available(iOS 16.0, tvOS 16.0, *) {
+                            Text(item.value, format: .number)
+                                .contentTransition(.numericText())
+                        } else {
+                            Text(item.value, format: .number)
+                        }
+
+                        RoundedRectangle(cornerRadius: isExpanded ? 6 : 0)
+                            .fill(.yellow)
+                            .frame(height: isExpanded ? 100 : 0)
+                            .opacity(isExpanded ? 1 : 0)
+                    }
+                    .padding(6)
+                    .background(item.value.isMultiple(of: 2) ? .blue : .red)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(6)
                 }
             }
         }
@@ -710,7 +916,7 @@ struct CollectionView_Previews: PreviewProvider {
         var body: some View {
             VStack {
                 CollectionView(
-                    .compositional.backgroundConfiguration(.selectable),
+                    .compositional.backgroundConfiguration(.plain(backgroundColor: .red)),
                     items: items
                 ) { indexPath, section, item in
                     CellView(isReordering: isReordering)

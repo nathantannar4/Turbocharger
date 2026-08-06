@@ -69,13 +69,17 @@ public struct FlowStack<Content: View>: View {
 public struct FlowStackLayout: Layout {
 
     @frozen
-    public struct Options: OptionSet, Sendable {
+    public struct Options: OptionSet {
+
         public var rawValue: UInt8
+
         public init(rawValue: UInt8) {
             self.rawValue = rawValue
         }
 
-        public static let fill = Options(rawValue: 1 << 0)
+        public static var fill: Options {
+            Options(rawValue: 1 << 0)
+        }
     }
 
     public var alignment: Alignment = .center

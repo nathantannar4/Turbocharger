@@ -2,7 +2,7 @@
 // Copyright (c) Nathan Tannar
 //
 
-#if os(iOS) || os(visionOS)
+#if os(iOS) || os(tvOS) || os(visionOS)
 
 import UIKit
 import SwiftUI
@@ -86,7 +86,6 @@ public struct CollectionViewSection<
 
 extension CollectionViewSection: Equatable where Section: Equatable, Items: Equatable { }
 extension CollectionViewSection: Hashable where Section: Hashable, Items: Hashable { }
-extension CollectionViewSection: Sendable where Section: Sendable, Items: Sendable { }
 
 @frozen
 public struct CollectionViewSectionIndex: Hashable, Identifiable, Sendable {

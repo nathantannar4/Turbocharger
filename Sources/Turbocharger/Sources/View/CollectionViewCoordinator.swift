@@ -2,30 +2,36 @@
 // Copyright (c) Nathan Tannar
 //
 
-#if os(iOS) || os(visionOS)
+#if os(iOS) || os(tvOS) || os(visionOS)
 
 import UIKit
 import SwiftUI
 import Combine
 import Engine
 
+#if os(tvOS)
+public typealias UICollectionViewDelegates = UICollectionViewDelegate & UICollectionViewDataSourcePrefetching
+#else
+public typealias UICollectionViewDelegates = UICollectionViewDelegate & UICollectionViewDragDelegate & UICollectionViewDropDelegate & UICollectionViewDataSourcePrefetching
+#endif
+
 /// A `UICollectionViewDiffableDataSource` wrapper
-@MainActor
-@available(iOS 14.0, *)
+@MainActor @preconcurrency
+@available(iOS 14.0, tvOS 14.0, *)
 open class CollectionViewCoordinator<
     Layout: CollectionViewLayout,
     Section: Equatable & Identifiable,
-    Items: RandomAccessCollection
+    Items: RandomAccessCollection,
+    Configuration: CollectionViewCoordinatorConfiguration
 >: NSObject,
-    UICollectionViewDelegate,
-    UICollectionViewDragDelegate,
-    UICollectionViewDropDelegate,
-    UICollectionViewDataSourcePrefetching
+    UICollectionViewDelegates,
+    UIGestureRecognizerDelegate
 where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
     Items.Element.ID: Equatable & Sendable,
-    Section.ID: Equatable & Sendable
+    Section.ID: Equatable & Sendable,
+    Configuration.Item == Items.Element
 {
     public typealias ID = Items.Element.ID
 
@@ -38,14 +44,45 @@ where
     public private(set) weak var collectionView: Layout.UICollectionViewType!
 
     public var onSelect: ((IndexPath, Items.Element) -> Void)?
-    public var canSelect: ((IndexPath, Items.Element) -> CollectionViewSelectionAvailability)?
+    public var canSelect: ((IndexPath, Items.Element) -> CollectionViewCoordinatorSelectionAvailability)?
 
+    public var editingConfiguration: CollectionViewCoordinatorEditingConfiguration<Items.Element>? {
+        willSet {
+            if newValue == nil, editingConfiguration != nil {
+                withCATransaction {
+                    self.endEditing()
+                }
+            }
+        }
+        didSet {
+            if let configuration = editingConfiguration {
+                if !collectionView.isEditing, configuration.isEditing.wrappedValue {
+                    withCATransaction {
+                        self.beginEditing()
+                    }
+                } else if collectionView.isEditing, !configuration.isEditing.wrappedValue {
+                    withCATransaction {
+                        self.endEditing()
+                    }
+                } else {
+                    withCATransaction {
+                        self.updateEditingSelection()
+                    }
+                }
+                collectionView.allowsMultipleSelectionDuringEditing = configuration.allowsMultipleSelectionDuringEditing
+            }
+            configureLongPressGesture()
+        }
+    }
+
+    #if !os(tvOS)
     public var onRefresh: (@MainActor @Sendable () async -> Void)? {
         didSet {
             configureRefreshControl()
         }
     }
     private var refreshTask: Task<Void, Never>?
+    #endif
 
     public var onItemWillAppear: ((IndexPath, CollectionViewSection<Section, Items>, Items.Element) -> Void)?
 
@@ -53,9 +90,11 @@ where
 
     public var onReorder: ((_ from: (Int, IndexSet), _ to: (Int, Int)) -> Void)? {
         didSet {
+            #if !os(tvOS)
             let isEnabled = onReorder != nil
             guard isEnabled != collectionView.dragInteractionEnabled else { return }
             collectionView.dragInteractionEnabled = isEnabled
+            #endif
         }
     }
 
@@ -71,25 +110,45 @@ where
     private var isUpdatingScrollPosition = false
     private var scrollPositionObserver: AnyCancellable?
     private var isReadyForDisplay = false
+    private var isUpdatingContentOffset = false
 
     public private(set) var isUpdating: Bool = false
     private var updates: UInt = 0
 
     private var deferredInvalidationContext: UICollectionViewLayoutInvalidationContext?
 
+    private var longPressGesture: UILongPressGestureRecognizer?
+
+    private let configuration: Configuration
+
     // Defaults
-    private var cellRegistration: UICollectionView.CellRegistration<Layout.UICollectionViewCellType, ID>!
+    private var cellRegistration = [Configuration.ReuseIdentifier: UICollectionView.CellRegistration<Layout.UICollectionViewCellType, ID>]()
     private var supplementaryViewRegistration = [String: UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>]()
 
     public init(
         sections: [CollectionViewSection<Section, Items>],
         layout: Layout,
-        layoutOptions: CollectionViewLayoutOptions
+        layoutOptions: CollectionViewLayoutOptions,
+        configuration: Configuration
     ) {
         self.layout = layout
         self.sections = sections
         self.layoutOptions = layoutOptions
+        self.configuration = configuration
         super.init()
+    }
+
+    public convenience init(
+        sections: [CollectionViewSection<Section, Items>],
+        layout: Layout,
+        layoutOptions: CollectionViewLayoutOptions
+    ) where Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element> {
+        self.init(
+            sections: sections,
+            layout: layout,
+            layoutOptions: layoutOptions,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>()
+        )
     }
 
     public func item(for indexPath: IndexPath) -> Items.Element {
@@ -108,8 +167,11 @@ where
         indexPath: IndexPath,
         id: ID
     ) -> Layout.UICollectionViewCellType? {
+        let item = item(for: indexPath)
+        let reuseIdentifier = Configuration.reuseIdentifier(for: item)
+        let registration = cellRegistration[reuseIdentifier]!
         return collectionView.dequeueConfiguredReusableCell(
-            using: cellRegistration,
+            using: registration,
             for: indexPath,
             item: id
         )
@@ -120,6 +182,17 @@ where
         indexPath: IndexPath,
         item: Items.Element
     ) {
+        if #available(iOS 15.0, tvOS 15.0, *) {
+            cell.configurationUpdateHandler = { [weak self] cell, state in
+                guard let self, let cell = cell as? Layout.UICollectionViewCellType else { return }
+                layout.updateUICollectionViewCell(
+                    collectionView,
+                    cell: cell,
+                    indexPath: indexPath,
+                    context: context
+                )
+            }
+        }
         layout.updateUICollectionViewCell(
             collectionView,
             cell: cell,
@@ -147,7 +220,19 @@ where
         _ supplementaryView: Layout.UICollectionViewSupplementaryViewType,
         kind: String,
         indexPath: IndexPath
-    ) {
+) {
+    if #available(iOS 15.0, tvOS 15.0, *), let supplementaryView = supplementaryView as? UICollectionViewCell {
+            supplementaryView.configurationUpdateHandler = { [weak self] supplementaryView, state in
+                guard let self, let supplementaryView = supplementaryView as? Layout.UICollectionViewSupplementaryViewType else { return }
+                layout.updateUICollectionViewSupplementaryView(
+                    collectionView,
+                    supplementaryView: supplementaryView,
+                    kind: kind,
+                    indexPath: indexPath,
+                    context: context
+                )
+            }
+        }
         layout.updateUICollectionViewSupplementaryView(
             collectionView,
             supplementaryView: supplementaryView,
@@ -158,14 +243,16 @@ where
     }
 
     open func configure(to collectionView: Layout.UICollectionViewType) {
-        cellRegistration = UICollectionView.CellRegistration<
-            Layout.UICollectionViewCellType, ID
-        > { [unowned self] cellView, indexPath, id in
-            configureCell(
-                cellView,
-                indexPath: indexPath,
-                item: item(for: indexPath)
-            )
+        for reuseIdentifier in Configuration.reuseIdentifiers {
+            cellRegistration[reuseIdentifier] = UICollectionView.CellRegistration<
+                Layout.UICollectionViewCellType, ID
+            > { [unowned self] cellView, indexPath, id in
+                configureCell(
+                    cellView,
+                    indexPath: indexPath,
+                    item: item(for: indexPath)
+                )
+            }
         }
 
         for supplementaryView in layoutOptions.supplementaryViews {
@@ -203,7 +290,7 @@ where
             }
             return supplementaryView
         }
-        if #available(iOS 15.0, *) {
+        if #available(iOS 15.0, tvOS 15.0, *) {
             dataSource.reorderingHandlers.canReorderItem = { [unowned self] id in
                 guard let indexPath = self.indexPath(for: id) else { return false }
                 return canMoveItem(at: indexPath)
@@ -215,17 +302,22 @@ where
                 didReorder(transaction: transaction)
             }
         }
+        #if !os(tvOS)
         collectionView.dragInteractionEnabled = onReorder != nil
         collectionView.dragDelegate = self
         collectionView.dropDelegate = self
+        #endif
         collectionView.prefetchDataSource = self
         collectionView.delegate = self
         self.collectionView = collectionView
         self.dataSource = dataSource
+        #if !os(tvOS)
         configureRefreshControl()
+        #endif
     }
 
-    open func configureRefreshControl() {
+    #if !os(tvOS)
+    private func configureRefreshControl() {
         if onRefresh == nil {
             refreshTask?.cancel()
             collectionView.refreshControl = nil
@@ -248,6 +340,73 @@ where
             await MainActor.run {
                 refreshControl.endRefreshing()
             }
+        }
+    }
+    #endif
+
+    private func beginEditing() {
+        collectionView.isEditing = true
+        updateEditingSelection()
+    }
+
+    private func updateEditingSelection() {
+        if collectionView.isEditing {
+            for id in editingConfiguration?.selection?.wrappedValue ?? [] {
+                guard let indexPath = indexPath(for: id) else { continue }
+                collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
+            }
+        } else {
+            for indexPath in collectionView.indexPathsForSelectedItems ?? [] {
+                collectionView.deselectItem(at: indexPath, animated: false)
+            }
+        }
+    }
+
+    private func endEditing() {
+        collectionView.isEditing = false
+        updateEditingSelection()
+        if let selection = editingConfiguration?.selection {
+            selection.wrappedValue = []
+        }
+    }
+
+    open func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if gestureRecognizer == longPressGesture {
+            let point = gestureRecognizer.location(in: collectionView)
+            guard collectionView.indexPathForItem(at: point) != nil else { return false }
+            if collectionView.isEditing {
+                return collectionView.indexPathsForSelectedItems?.isEmpty == true
+            }
+            return true
+        }
+        return true
+    }
+
+    private func configureLongPressGesture() {
+        if editingConfiguration?.shouldToggleEditingOnLongPress != true, let gesture = longPressGesture {
+            collectionView.removeGestureRecognizer(gesture)
+            longPressGesture = nil
+        } else if editingConfiguration?.shouldToggleEditingOnLongPress == true, longPressGesture == nil {
+            let gesture = UILongPressGestureRecognizer(target: self, action: #selector(didLongPress(_:)))
+            gesture.delegate = self
+            gesture.minimumPressDuration = 0.3
+            collectionView.addGestureRecognizer(gesture)
+            longPressGesture = gesture
+        }
+    }
+
+    @objc
+    private func didLongPress(_ gestureRecognizer: UILongPressGestureRecognizer) {
+        guard gestureRecognizer.state == .began, let editingConfiguration else { return }
+        let point = gestureRecognizer.location(in: collectionView)
+        guard let indexPath = collectionView.indexPathForItem(at: point) else { return }
+        if collectionView.isEditing {
+            editingConfiguration.isEditing.wrappedValue = false
+        } else {
+            if let selection = editingConfiguration.selection {
+                selection.wrappedValue.insert(item(for: indexPath).id)
+            }
+            editingConfiguration.isEditing.wrappedValue = true
         }
     }
 
@@ -286,7 +445,7 @@ where
         onItemWillAppear(indexPath, section, item)
     }
 
-    func update(
+    public func update(
         layout: Layout,
         layoutOptions: CollectionViewLayoutOptions,
         sections: [CollectionViewSection<Section, Items>]
@@ -297,29 +456,18 @@ where
         self.layout = layout
         self.layoutOptions = layoutOptions
 
-        let changes: (Set<ID>) -> Void = { [unowned self] updated in
-            layout.updateUICollectionView(collectionView, context: context)
-            if layoutDidChange, let collectionViewLayout = collectionView.collectionViewLayout as? Layout.UICollectionViewLayoutType {
-                layout.updateUICollectionViewLayout(
-                    collectionViewLayout,
-                    context: context,
-                    options: layoutOptions
-                )
-            }
-            if layoutDidChange {
-                collectionView.collectionViewLayout.invalidateLayout()
-                syncScrollPosition(scrollViewDidScroll: false)
-            } else {
-                let layoutInvalidationContext = self.updateVisibleViews(updated: updated)
-                let didScroll = syncScrollPosition(scrollViewDidScroll: false)
-                if layoutInvalidationContext.invalidatedItemIndexPaths?.isEmpty == false || layoutInvalidationContext.invalidatedSupplementaryIndexPaths?.isEmpty == false {
-                    if didScroll || isUpdatingScrollPosition || collectionView.isTracking || collectionView.isDecelerating {
-                        deferredInvalidationContext = layoutInvalidationContext
-                    } else {
-                        collectionView.collectionViewLayout.invalidateLayout(with: layoutInvalidationContext)
-                    }
-                }
-            }
+        let safeAreaInsets = UIEdgeInsets(
+            edgeInsets: layoutOptions.safeAreaInsets ?? .zero,
+            layoutDirection: context.environment.layoutDirection
+        )
+        var contentInset = safeAreaInsets
+        contentInset.top = max(0, safeAreaInsets.top - collectionView.safeAreaInsets.top)
+        contentInset.bottom = max(0, safeAreaInsets.bottom - collectionView.safeAreaInsets.bottom)
+        contentInset.left = max(0, safeAreaInsets.left - collectionView.safeAreaInsets.left)
+        contentInset.right = max(0, safeAreaInsets.right - collectionView.safeAreaInsets.right)
+        if updates < 1, collectionView.contentInset != contentInset {
+            collectionView.contentInset = contentInset
+            collectionView.scrollIndicatorInsets = contentInset
         }
 
         let animation = isUpdatingScrollPosition ? nil : context.transaction.animation
@@ -330,18 +478,59 @@ where
                 guard let self else { return }
                 if animation != nil {
                     collectionView.performBatchUpdates {
-                        changes(updated)
+                        self.onUpdate(
+                            updated: updated,
+                            layoutDidChange: layoutDidChange,
+                            contentInset: contentInset
+                        )
                     } completion: { [weak self] _ in
                         self?.didFinishUpdate()
                     }
                 } else {
                     UIView.performWithoutAnimation {
-                        changes(updated)
+                        onUpdate(
+                            updated: updated,
+                            layoutDidChange: layoutDidChange,
+                            contentInset: contentInset
+                        )
                         didFinishUpdate()
                     }
                 }
             }
         )
+    }
+
+    private func onUpdate(
+        updated: [ID],
+        layoutDidChange: Bool,
+        contentInset: UIEdgeInsets
+    ) {
+        if collectionView.contentInset != contentInset {
+            collectionView.contentInset = contentInset
+            collectionView.scrollIndicatorInsets = contentInset
+        }
+        layout.updateUICollectionView(collectionView, context: context)
+        if layoutDidChange, let collectionViewLayout = collectionView.collectionViewLayout as? Layout.UICollectionViewLayoutType {
+            layout.updateUICollectionViewLayout(
+                collectionViewLayout,
+                context: context,
+                options: layoutOptions
+            )
+        }
+        if layoutDidChange {
+            collectionView.collectionViewLayout.invalidateLayout()
+            syncScrollPosition(scrollViewDidScroll: false)
+        } else {
+            let layoutInvalidationContext = updateVisibleViews(updated: updated)
+            let didScroll = syncScrollPosition(scrollViewDidScroll: false)
+            if layoutInvalidationContext.invalidatedItemIndexPaths?.isEmpty == false || layoutInvalidationContext.invalidatedSupplementaryIndexPaths?.isEmpty == false {
+                if didScroll || isUpdatingScrollPosition || collectionView.isTracking || collectionView.isDecelerating {
+                    deferredInvalidationContext = layoutInvalidationContext
+                } else {
+                    collectionView.collectionViewLayout.invalidateLayout(with: layoutInvalidationContext)
+                }
+            }
+        }
     }
 
     open func didStartUpdate() {
@@ -357,12 +546,18 @@ where
         }
         isUpdating = false
         updates &+= 1
+        if isUpdatingContentOffset {
+            isUpdatingContentOffset = false
+            withCATransaction {
+                self.scrollViewDidScroll()
+            }
+        }
     }
 
     private func updateDataSource(
         sections: [CollectionViewSection<Section, Items>],
         animated: Bool,
-        completion: ((Set<ID>) -> Void)? = nil
+        completion: @MainActor @escaping ([ID]) -> Void
     ) {
         var snapshot = NSDiffableDataSourceSnapshot<Section.ID, ID>()
         if !sections.isEmpty {
@@ -372,58 +567,41 @@ where
                 snapshot.appendItems(ids, toSection: section.section.id)
             }
         }
-        var updated = Set<ID>()
+        let oldValue = Set(self.sections.flatMap { $0.items.map { $0.id }})
+        let newValue = Set(sections.flatMap { $0.items.map { $0.id }})
+        var updated = Array(newValue.intersection(oldValue))
 
-        let indexPathsForVisibleItems = collectionView.indexPathsForVisibleItems
-        for indexPath in indexPathsForVisibleItems {
-            guard
-                self.sections.count > indexPath.section,
-                sections.count > indexPath.section
-            else {
-                continue
-            }
-            guard
-                self.sections[indexPath.section].items.count > indexPath.item,
-                sections[indexPath.section].items.count > indexPath.item
-            else {
-                continue
-            }
-            let index = sections[indexPath.section].items.index(
-                sections[indexPath.section].items.startIndex,
-                offsetBy: indexPath.item
-            )
-            let id = sections[indexPath.section].items[index].id
-            updated.insert(id)
-        }
-
-        if #available(iOS 15.0, *), !updated.isEmpty {
-            snapshot.reconfigureItems(Array(updated))
+        if #available(iOS 15.0, tvOS 15.0, *), !updated.isEmpty {
+            snapshot.reconfigureItems(updated)
             updated = []
         }
 
         self.sections = sections
+        #if !os(tvOS)
         // Preserve content offset during snapshot update to prevent jumpy glitch
         let isRefreshing = collectionView.refreshControl?.isRefreshing ?? false
         let contentOffset = collectionView.contentOffset
+        #endif
         dataSource.applySnapshot(snapshot, animated: animated) {
-            completion?(updated)
+            completion(updated)
         }
+        #if !os(tvOS)
         if isRefreshing, collectionView.isDragging {
             collectionView.setContentOffset(contentOffset, animated: false)
         }
+        #endif
     }
 
     @discardableResult
-    private func updateVisibleViews(updated: Set<ID>) -> UICollectionViewLayoutInvalidationContext {
+    private func updateVisibleViews(updated: [ID]) -> UICollectionViewLayoutInvalidationContext {
         let context = UICollectionViewLayoutInvalidationContext()
         if !updated.isEmpty {
             for indexPath in collectionView.indexPathsForVisibleItems {
                 if let cellView = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType {
-                    let section = sections[indexPath.section]
-                    let index = section.items.index(section.items.startIndex, offsetBy: indexPath.item)
-                    let item = section.items[index]
+                    let item = item(for: indexPath)
                     if updated.contains(item.id) {
                         configureCell(cellView, indexPath: indexPath, item: item)
+                        cellView.layoutIfNeeded()
                         context.invalidateItems(at: [indexPath])
                     }
                 }
@@ -436,6 +614,7 @@ where
                     continue
                 }
                 configureSupplementaryView(supplementaryView, kind: kind, indexPath: indexPath)
+                supplementaryView.layoutIfNeeded()
                 context.invalidateSupplementaryElements(ofKind: kind, at: [indexPath])
             }
         }
@@ -456,6 +635,9 @@ where
     }
 
     private func syncScrollViewDidScroll() {
+        if isUpdating {
+            isUpdatingContentOffset = true
+        }
         if !isUpdating, !isUpdatingScrollPosition, !collectionView.isBouncing {
             isUpdatingScrollPosition = true
             let didSync = syncScrollPosition(scrollViewDidScroll: true)
@@ -464,20 +646,25 @@ where
             }
             isUpdatingScrollPosition = false
         }
-        if isReadyForDisplay, !isUpdating || isUpdatingScrollPosition, let onScroll {
-            let contentOffset = collectionView.contentOffset
-            let edgeInsets = EdgeInsets(
-                edgeInsets: collectionView.adjustedContentInset,
-                layoutDirection: collectionView.traitCollection.layoutDirection
-            )
+        if isReadyForDisplay, !isUpdating || isUpdatingScrollPosition {
             if updates > 1 {
-                onScroll(edgeInsets, contentOffset)
+                scrollViewDidScroll()
             } else {
                 withCATransaction {
-                    onScroll(edgeInsets, contentOffset)
+                    self.scrollViewDidScroll()
                 }
             }
         }
+    }
+
+    private func scrollViewDidScroll() {
+        guard let onScroll else { return }
+        let contentOffset = collectionView.contentOffset
+        let edgeInsets = EdgeInsets(
+            edgeInsets: collectionView.adjustedContentInset,
+            layoutDirection: collectionView.traitCollection.layoutDirection
+        )
+        onScroll(edgeInsets, contentOffset)
     }
 
     @discardableResult
@@ -519,7 +706,7 @@ where
             }
             if sectionScrollPosition != nil, let sectionId = position.section, lastScrollPosition?.section != sectionId {
                 let section: Int?
-                if #available(iOS 15.0, *) {
+                if #available(iOS 15.0, tvOS 15.0, *) {
                     section = dataSource.index(for: sectionId)
                 } else {
                     section = sections.firstIndex(where: { $0.id == sectionId })
@@ -540,7 +727,7 @@ where
             let wasUpdatingScrollPosition = isUpdatingScrollPosition
             isUpdatingScrollPosition = true
             if wasUpdatingScrollPosition {
-                if #available(iOS 17.4, visionOS 1.1, *), collectionView.isScrollAnimating {
+                if #available(iOS 17.4, tvOS 17.4, visionOS 1.1, *), collectionView.isScrollAnimating {
                     collectionView.stopScrollingAndZooming()
                 } else {
                     collectionView.setContentOffset(collectionView.contentOffset, animated: false)
@@ -598,7 +785,7 @@ where
     // MARK: - Drag and Drop Reordering
 
     open func canMoveItem(at indexPath: IndexPath) -> Bool {
-        return true
+        return canSelect?(indexPath, item(for: indexPath)) != .disabled
     }
 
     open func willReorder(transaction: NSDiffableDataSourceTransaction<Section.ID, ID>) {
@@ -651,6 +838,8 @@ where
         let items = indexPaths.map { item(for: $0) }
         dataPrefetcher.cancelPrefetching(items: items)
     }
+
+    #if !os(tvOS)
 
     // MARK: - UICollectionViewDragDelegate
 
@@ -705,16 +894,22 @@ where
         return UICollectionViewDropProposal(operation: .forbidden)
     }
 
+    #endif
+
     // MARK: - UICollectionViewDelegate
 
     open func collectionView(
         _ collectionView: UICollectionView,
         shouldHighlightItemAt indexPath: IndexPath
     ) -> Bool {
-        if let availability = canSelect?(indexPath, item(for: indexPath)) {
-            return availability == .available
+        if collectionView.isEditing {
+            return true
         } else {
-            return onSelect != nil
+            if let availability = canSelect?(indexPath, item(for: indexPath)) {
+                return availability == .available
+            } else {
+                return onSelect != nil
+            }
         }
     }
 
@@ -732,18 +927,29 @@ where
         _ collectionView: UICollectionView,
         shouldSelectItemAt indexPath: IndexPath
     ) -> Bool {
-        return false
+        guard collectionView.isEditing, editingConfiguration != nil else { return false }
+        return canSelect?(indexPath, item(for: indexPath)) != .disabled
     }
 
     open func collectionView(
         _ collectionView: UICollectionView,
         didSelectItemAt indexPath: IndexPath
-    ) {}
+    ) {
+        if let selection = editingConfiguration?.selection {
+            let item = item(for: indexPath)
+            selection.wrappedValue.insert(item.id)
+        }
+    }
 
     open func collectionView(
         _ collectionView: UICollectionView,
         didDeselectItemAt indexPath: IndexPath
-    ) {}
+    ) {
+        if let selection = editingConfiguration?.selection {
+            let item = item(for: indexPath)
+            selection.wrappedValue.remove(item.id)
+        }
+    }
 
     open func collectionView(
         _ collectionView: UICollectionView,
@@ -756,6 +962,7 @@ where
         _ collectionView: UICollectionView,
         canPerformPrimaryActionForItemAt indexPath: IndexPath
     ) -> Bool {
+        guard !collectionView.isEditing else { return false }
         if let availability = canSelect?(indexPath, item(for: indexPath)) {
             return availability == .available
         } else {
@@ -770,22 +977,28 @@ where
         onSelect?(indexPath, item(for: indexPath))
     }
 
+    #if !os(tvOS)
     open func collectionView(
         _ collectionView: UICollectionView,
         shouldBeginMultipleSelectionInteractionAt indexPath: IndexPath
     ) -> Bool {
-        return false
+        guard let editingConfiguration else { return false }
+        return editingConfiguration.allowsMultipleSelectionDuringEditing
     }
 
     open func collectionView(
         _ collectionView: UICollectionView,
         didBeginMultipleSelectionInteractionAt indexPath: IndexPath
-    ) {}
+    ) {
+        editingConfiguration?.isEditing.wrappedValue = true
+    }
 
     open func collectionViewDidEndMultipleSelectionInteraction(
         _ collectionView: UICollectionView
     ) {}
+    #endif
 
+    @available(iOS 16.0, tvOS 17.0, *)
     open func collectionView(
         _ collectionView: UICollectionView,
         contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
@@ -794,18 +1007,21 @@ where
         return nil
     }
 
+    @available(iOS 14.0, tvOS 17.0, *)
     open func collectionView(
         _ collectionView: UICollectionView,
         willDisplayContextMenu configuration: UIContextMenuConfiguration,
         animator: (any UIContextMenuInteractionAnimating)?
     ) {}
 
+    @available(iOS 14.0, tvOS 17.0, *)
     open func collectionView(
         _ collectionView: UICollectionView,
         willEndContextMenuInteraction configuration: UIContextMenuConfiguration,
         animator: (any UIContextMenuInteractionAnimating)?
     ) {}
 
+    @available(iOS 16.0, tvOS 17.0, *)
     open func collectionView(
         _ collectionView: UICollectionView,
         contextMenuConfiguration configuration: UIContextMenuConfiguration,
@@ -814,6 +1030,7 @@ where
         return nil
     }
 
+    @available(iOS 16.0, tvOS 17.0, *)
     open func collectionView(
         _ collectionView: UICollectionView,
         contextMenuConfiguration configuration: UIContextMenuConfiguration,
@@ -822,11 +1039,13 @@ where
         return nil
     }
 
+    #if !os(tvOS)
     open func collectionView(
         _ collectionView: UICollectionView,
         willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
         animator: any UIContextMenuInteractionCommitAnimating
     ) {}
+    #endif
 
     open func collectionView(
         _ collectionView: UICollectionView,
@@ -835,12 +1054,14 @@ where
         return true
     }
 
+    #if !os(tvOS)
     open func collectionView(
         _ collectionView: UICollectionView,
         selectionFollowsFocusForItemAt indexPath: IndexPath
     ) -> Bool {
         return false
     }
+    #endif
 
     open func collectionView(
         _ collectionView: UICollectionView,
@@ -855,6 +1076,7 @@ where
         with coordinator: UIFocusAnimationCoordinator
     ) {}
 
+    #if !os(tvOS)
     open func collectionView(
         _ collectionView: UICollectionView,
         shouldSpringLoadItemAt indexPath: IndexPath,
@@ -862,6 +1084,7 @@ where
     ) -> Bool {
         return false
     }
+    #endif
 
     open func collectionView(
         _ collectionView: UICollectionView,
@@ -895,7 +1118,8 @@ where
         _ collectionView: UICollectionView,
         canEditItemAt indexPath: IndexPath
     ) -> Bool {
-        return false
+        guard editingConfiguration != nil else { return false }
+        return canSelect?(indexPath, item(for: indexPath)) != .disabled
     }
 
     open func collectionView(
@@ -983,12 +1207,13 @@ where
 }
 
 extension UICollectionViewDiffableDataSource {
+
     func applySnapshot(
         _ snapshot: NSDiffableDataSourceSnapshot<SectionIdentifierType, ItemIdentifierType>,
         animated: Bool,
         completion: (() -> Void)? = nil
     ) {
-        if #available(iOS 15.0, *) {
+        if #available(iOS 15.0, tvOS 15.0, *) {
             apply(
                 snapshot,
                 animatingDifferences: animated,
@@ -1127,18 +1352,20 @@ extension UICollectionView {
     }
 }
 
-#endif
-
 // MARK: - Previews
 
-#if os(iOS) || os(visionOS)
-
-@available(iOS 15.0, *)
+@available(iOS 15.0, tvOS 15.0, *)
 struct CollectionViewCoordinator_Previews: PreviewProvider {
     static var previews: some View {
-        PreviewA()
-        PreviewB()
-        PreviewC()
+        ZStack {
+            PreviewA()
+        }
+        ZStack {
+            PreviewB()
+        }
+        ZStack {
+            PreviewC()
+        }
     }
 
     struct PreviewA: View {
@@ -1244,6 +1471,11 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
     }
 
     struct ListView: CollectionViewRepresentable {
+        typealias Layout = ListLayout
+        typealias Section = CollectionViewSectionIndex
+        typealias Items = [ListItem]
+        typealias Configuration = CollectionViewCoordinatorDefaultConfiguration<ListItem>
+        typealias Coordinator = ListCoordinator
 
         var sections: [CollectionViewSection<CollectionViewSectionIndex, [ListItem]>]
         var layout = ListLayout()
@@ -1263,7 +1495,7 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
             return coordinator
         }
 
-        func updateCoordinator(_ coordinator: Coordinator) { }
+        func updateCoordinator(_ coordinator: ListCoordinator) { }
     }
 
     struct ListLayout: CollectionViewLayout {
@@ -1274,7 +1506,35 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
             context: Context,
             options: CollectionViewLayoutOptions
         ) -> UICollectionViewCompositionalLayout {
-            let configuration = UICollectionLayoutListConfiguration(appearance: .plain)
+            var configuration = UICollectionLayoutListConfiguration(appearance: .plain)
+            #if !os(tvOS)
+            configuration.trailingSwipeActionsConfigurationProvider = { _ in
+                let action = UIContextualAction(
+                    style: .normal,
+                    title: "Action",
+                    handler: { _, _, block in
+                        block(true)
+                    }
+                )
+                action.image = UIImage(systemName: "plus")
+                let delete = UIContextualAction(
+                    style: .destructive,
+                    title: "Delete",
+                    handler: { _, _, block in
+                        block(true)
+                    }
+                )
+                delete.image = UIImage(systemName: "trash")
+                let configuration = UISwipeActionsConfiguration(
+                    actions: [
+                        action,
+                        delete,
+                    ]
+                )
+                configuration.performsFirstActionWithFullSwipe = true
+                return configuration
+            }
+            #endif
             let layout = UICollectionViewCompositionalLayout.list(using: configuration)
             return layout
         }
@@ -1320,7 +1580,7 @@ struct CollectionViewCoordinator_Previews: PreviewProvider {
     }
 
     class ListCoordinator: CollectionViewCoordinator<
-        ListLayout, CollectionViewSectionIndex, Array<ListItem>
+        ListLayout, CollectionViewSectionIndex, Array<ListItem>, CollectionViewCoordinatorDefaultConfiguration<ListItem>
     >, ListCoordinatorProxy.InputDelegate {
 
         weak var proxy: ListCoordinatorProxy?

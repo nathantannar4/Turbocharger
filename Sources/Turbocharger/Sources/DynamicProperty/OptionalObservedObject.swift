@@ -7,9 +7,9 @@ import Combine
 
 /// A property wrapper that subscribes to an optional observable
 /// object and invalidates a view whenever the observable object changes.
+@MainActor @preconcurrency
 @propertyWrapper
 @frozen
-@MainActor @preconcurrency
 public struct OptionalObservedObject<ObjectType: ObservableObject>: @preconcurrency DynamicProperty {
 
     @usableFromInline

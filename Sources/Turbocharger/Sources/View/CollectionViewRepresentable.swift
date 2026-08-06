@@ -2,19 +2,20 @@
 // Copyright (c) Nathan Tannar
 //
 
+#if os(iOS) || os(tvOS) || os(visionOS)
+
+import UIKit
 import SwiftUI
 import Engine
 
-#if os(iOS) || os(visionOS)
-
-@available(iOS 14.0, *)
-@MainActor @preconcurrency
+@available(iOS 14.0, tvOS 14.0, *)
 public protocol CollectionViewRepresentable: View {
 
     associatedtype Layout: CollectionViewLayout
     associatedtype Section: Equatable & Identifiable where Section.ID: Equatable & Sendable
     associatedtype Items: RandomAccessCollection where Items.Index: Hashable & Sendable, Items.Element: Equatable & Identifiable, Items.Element.ID: Equatable & Sendable
-    associatedtype Coordinator: CollectionViewCoordinator<Layout, Section, Items>
+    associatedtype Configuration: CollectionViewCoordinatorConfiguration where Configuration.Item == Items.Element
+    associatedtype Coordinator: CollectionViewCoordinator<Layout, Section, Items, Configuration>
 
     var layout: Layout { get }
     var layoutOptions: CollectionViewLayoutOptions { get }
@@ -25,7 +26,7 @@ public protocol CollectionViewRepresentable: View {
     func makeCoordinator() -> Coordinator
 }
 
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionViewRepresentable where Body == _CollectionViewRepresentableBody<Self> {
 
     public var body: _CollectionViewRepresentableBody<Self> {
@@ -34,7 +35,7 @@ extension CollectionViewRepresentable where Body == _CollectionViewRepresentable
 }
 
 @frozen
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepresentable>: UIViewRepresentable {
 
     public typealias Coordinator = Representable.Coordinator

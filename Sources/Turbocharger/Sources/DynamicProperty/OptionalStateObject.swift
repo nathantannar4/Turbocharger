@@ -7,10 +7,10 @@ import Combine
 
 /// A property wrapper that instantiates an optional observable object
 /// and invalidates a view whenever the observable object changes.
+@MainActor @preconcurrency
 @propertyWrapper
 @frozen
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, watchOS 7.0, *)
-@MainActor @preconcurrency
 public struct OptionalStateObject<ObjectType: ObservableObject>: DynamicProperty {
 
     @usableFromInline
