@@ -61,7 +61,7 @@ extension View {
 }
 
 @frozen
-public struct ShimmerAnimation: Sendable {
+public struct ShimmerAnimation {
     public var duration: TimeInterval
     public var delay: TimeInterval
     public var isSynchronized: Bool
@@ -82,7 +82,9 @@ public struct ShimmerAnimation: Sendable {
         self.endPoint = endPoint
     }
 
-    public static let `default` = ShimmerAnimation(duration: 1.25, delay: 0)
+    public static var `default`: ShimmerAnimation {
+        ShimmerAnimation(duration: 1.25, delay: 0)
+    }
 }
 
 /// A modifier that redacts content and overlays a shimmering effect.

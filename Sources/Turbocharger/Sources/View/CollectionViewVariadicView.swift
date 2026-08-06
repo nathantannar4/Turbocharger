@@ -5,12 +5,9 @@
 import SwiftUI
 import Engine
 
-#if os(iOS) || os(visionOS)
+#if os(iOS) || os(tvOS) || os(visionOS)
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 public struct CollectionViewVariadicView<
     Layout: CollectionViewLayout,
     Content: View
@@ -44,21 +41,14 @@ public struct CollectionViewVariadicView<
     }
 }
 
-#endif
-
 // MARK: - Previews
 
-#if os(iOS) || os(visionOS)
-
-@available(iOS 15.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 15.0, tvOS 15.0, *)
 struct CollectionViewVariadicView_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             CollectionViewVariadicView(
-                layout: .insetGrouped
+                layout: .plain
             ) {
                 Text("Hello, World")
                 VStack {

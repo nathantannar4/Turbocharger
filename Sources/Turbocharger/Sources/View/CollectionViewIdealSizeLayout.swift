@@ -2,15 +2,13 @@
 // Copyright (c) Nathan Tannar
 //
 
+#if os(iOS) || os(tvOS) || os(visionOS)
+
+import UIKit
 import SwiftUI
 import Engine
 
-#if os(iOS) || os(visionOS)
-
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 @frozen
 public struct CollectionViewIdealSizeLayout<
     Layout: CollectionViewLayout
@@ -106,10 +104,7 @@ public struct CollectionViewIdealSizeLayout<
     }
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionViewLayout {
 
     public static func ideal<
@@ -127,16 +122,9 @@ extension CollectionViewLayout {
     }
 }
 
-#endif
-
 // MARK: - Previews
 
-#if os(iOS) || os(visionOS)
-
-@available(iOS 15.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 15.0, tvOS 15.0, *)
 struct CollectionViewIdealSizeLayout_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {

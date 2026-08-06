@@ -15,7 +15,6 @@ public typealias PlatformView = UIView
 
 /// A protocol for defining a `NSViewRepresentable`/`UIViewRepresentable`
 /// that has a  backwards compatible `sizeThatFits`
-@MainActor @preconcurrency
 public protocol PlatformViewRepresentable: DynamicProperty, PrimitiveView {
 
     #if os(macOS)

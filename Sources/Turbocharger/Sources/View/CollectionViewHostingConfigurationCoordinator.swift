@@ -2,73 +2,28 @@
 // Copyright (c) Nathan Tannar
 //
 
-#if os(iOS) || os(visionOS)
+#if os(iOS) || os(tvOS) || os(visionOS)
 
+import SwiftUI
+import UIKit
 import Engine
 
-import UIKit
-import SwiftUI
-
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 public struct HostingConfigurationStateKey: EnvironmentKey {
-    public static let defaultValue = HostingConfigurationState(storage: .init(traitCollection: .current))
+    public static var defaultValue: HostingConfigurationState { HostingConfigurationState(storage: .init(traitCollection: .current)) }
 }
 
 extension EnvironmentValues {
 
-    @available(iOS 14.0, *)
+    @available(iOS 14.0, tvOS 14.0, *)
     public var hostingConfigurationState: HostingConfigurationState {
         get { self[HostingConfigurationStateKey.self] }
         set { self[HostingConfigurationStateKey.self] = newValue }
     }
 }
 
-@available(iOS 14.0, *)
-@dynamicMemberLookup
-public struct HostingConfigurationState: Equatable, @unchecked Sendable {
-
-    var storage: UICellConfigurationState
-
-    public subscript<T>(dynamicMember keyPath: KeyPath<UICellConfigurationState, T>) -> T {
-        storage[keyPath: keyPath]
-    }
-
-    public subscript(key: UIConfigurationStateCustomKey) -> AnyHashable? {
-        storage[key]
-    }
-}
-
-/// Ignores the `UIHostingConfiguration` constraints, such as disabling
-/// `UIViewControllerRepresentable`'s from being used.
-@frozen
-public struct IgnoreHostingConfigurationConstraintsModifier: ViewModifier {
-
-    @inlinable
-    public init() { }
-
-    public func body(content: Content) -> some View {
-        content
-            .modifier(Modifier())
-    }
-
-    private struct Modifier: ViewInputsModifier {
-        nonisolated static func makeInputs(inputs: inout ViewInputs) {
-            inputs["IsInHostingConfiguration"] = false
-        }
-    }
-}
-
-extension View {
-
-    /// Ignores the `UIHostingConfiguration` constraints, such as disabling
-    /// `UIViewControllerRepresentable`'s from being used.
-    @inlinable
-    public func ignoreHostingConfigurationConstraints() -> some View {
-        modifier(IgnoreHostingConfigurationConstraintsModifier())
-    }
-}
-
-public struct CollectionViewHostingConfigurationCoordinatorOptions: OptionSet, Sendable {
+@available(iOS 14.0, tvOS 14.0, *)
+public struct CollectionViewHostingConfigurationCoordinatorOptions: OptionSet {
     public var rawValue: UInt8
 
     public init(rawValue: UInt8) {
@@ -76,12 +31,14 @@ public struct CollectionViewHostingConfigurationCoordinatorOptions: OptionSet, S
     }
 
     /// Uses a custom `UIContentConfiguration` that reuses SwiftUI content view, preserving things like `@State` and any `UIViewRepresentable`'s
-    public static let useReusableHostingConfiguration = CollectionViewHostingConfigurationCoordinatorOptions(rawValue: 1 << 0)
+    public static var useReusableHostingConfiguration: CollectionViewHostingConfigurationCoordinatorOptions {
+        CollectionViewHostingConfigurationCoordinatorOptions(rawValue: 1 << 0)
+    }
 }
 
 /// A ``CollectionViewCoordinator`` that manages the rendering of a View
 /// for a `UICollectionViewDiffableDataSource`
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 open class CollectionViewHostingConfigurationCoordinator<
     Header: View,
     Content: View,
@@ -89,14 +46,16 @@ open class CollectionViewHostingConfigurationCoordinator<
     SupplementaryView: View,
     Layout: CollectionViewLayout,
     Section: Equatable & Identifiable,
-    Items: RandomAccessCollection
->: CollectionViewCoordinator<Layout, Section, Items> where
+    Items: RandomAccessCollection,
+    Configuration: CollectionViewCoordinatorConfiguration
+>: CollectionViewCoordinator<Layout, Section, Items, Configuration> where
     Items.Index: Hashable & Sendable,
     Items.Element: Equatable & Identifiable,
     Items.Element.ID: Equatable & Sendable,
     Section.ID: Equatable & Sendable,
     Layout.UICollectionViewCellType: UICollectionViewCell,
-    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell
+    Layout.UICollectionViewSupplementaryViewType: UICollectionViewCell,
+    Configuration.Item == Items.Element
 {
 
     public typealias HeaderProvider = (IndexPath, CollectionViewSection<Section, Items>) -> Header
@@ -120,7 +79,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         layoutOptions: CollectionViewLayoutOptions,
-        options: CollectionViewHostingConfigurationCoordinatorOptions = []
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration
     ) {
         self.header = header
         self.content = content
@@ -130,7 +90,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         super.init(
             sections: sections,
             layout: layout,
-            layoutOptions: layoutOptions
+            layoutOptions: layoutOptions,
+            configuration: configuration
         )
 
         // Invoke the view builders to trigger SwiftUI's runtime to form a
@@ -158,7 +119,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
         layoutOptions: CollectionViewLayoutOptions,
-        options: CollectionViewHostingConfigurationCoordinatorOptions = []
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration
     ) where SupplementaryView == EmptyView {
         self.init(
             header: header,
@@ -168,7 +130,32 @@ open class CollectionViewHostingConfigurationCoordinator<
             layout: layout,
             sections: sections,
             layoutOptions: layoutOptions,
-            options: options
+            options: options,
+            configuration: configuration
+        )
+    }
+
+    public convenience init(
+        header: @escaping HeaderProvider,
+        content: @escaping ContentProvider,
+        footer: @escaping FooterProvider,
+        layout: Layout,
+        sections: [CollectionViewSection<Section, Items>],
+        layoutOptions: CollectionViewLayoutOptions,
+        options: CollectionViewHostingConfigurationCoordinatorOptions = []
+    ) where
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
+    {
+        self.init(
+            header: header,
+            content: content,
+            footer: footer,
+            layout: layout,
+            sections: sections,
+            layoutOptions: layoutOptions,
+            options: options,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>()
         )
     }
 
@@ -176,8 +163,13 @@ open class CollectionViewHostingConfigurationCoordinator<
         content: @escaping ContentProvider,
         layout: Layout,
         sections: [CollectionViewSection<Section, Items>],
-        options: CollectionViewHostingConfigurationCoordinatorOptions = []
-    ) where Header == EmptyView, Footer == EmptyView, SupplementaryView == EmptyView {
+        options: CollectionViewHostingConfigurationCoordinatorOptions = [],
+        configuration: Configuration
+    ) where
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView
+    {
         self.init(
             header: { _, _ in EmptyView() },
             content: content,
@@ -186,7 +178,28 @@ open class CollectionViewHostingConfigurationCoordinator<
             layout: layout,
             sections: sections,
             layoutOptions: .init(),
-            options: options
+            options: options,
+            configuration: configuration
+        )
+    }
+
+    public convenience init(
+        content: @escaping ContentProvider,
+        layout: Layout,
+        sections: [CollectionViewSection<Section, Items>],
+        options: CollectionViewHostingConfigurationCoordinatorOptions = []
+    ) where
+        Header == EmptyView,
+        Footer == EmptyView,
+        SupplementaryView == EmptyView,
+        Configuration == CollectionViewCoordinatorDefaultConfiguration<Items.Element>
+    {
+        self.init(
+            content: content,
+            layout: layout,
+            sections: sections,
+            options: options,
+            configuration: CollectionViewCoordinatorDefaultConfiguration<Items.Element>()
         )
     }
 
@@ -200,12 +213,12 @@ open class CollectionViewHostingConfigurationCoordinator<
         else {
             return nil
         }
-        cell.automaticallyUpdatesContentConfiguration = false
-        cell.automaticallyUpdatesBackgroundConfiguration = onSelect != nil || canSelect != nil
         cell.contentView.clipsToBounds = false
         cell.clipsToBounds = false
         // Fixes `.transition` modifier
-        cell.layoutIfNeeded()
+        if context.transaction.isAnimated {
+            cell.layoutIfNeeded()
+        }
         return cell
     }
 
@@ -214,14 +227,23 @@ open class CollectionViewHostingConfigurationCoordinator<
         indexPath: IndexPath,
         item: Items.Element
     ) {
+        super.configureCell(cell, indexPath: indexPath, item: item)
         let section = sections[indexPath.section]
+        let bridgedState = HostingConfigurationStateBridge(state: cell.configurationState)
         cell.contentConfiguration = makeContent(
-            state: cell.configurationState,
+            state: bridgedState,
             indexPath: indexPath,
             section: section,
             value: item
         )
-        super.configureCell(cell, indexPath: indexPath, item: item)
+        if #available(iOS 15.0, tvOS 15.0, *) {
+            let handler = cell.configurationUpdateHandler
+            cell.configurationUpdateHandler = { [weak self, weak bridgedState] cell, state in
+                handler?(cell, state)
+                guard let self, let bridgedState else { return }
+                bridgedState.update(state, defer: isUpdating)
+            }
+        }
     }
 
     open override func dequeueReusableSupplementaryView(
@@ -234,12 +256,12 @@ open class CollectionViewHostingConfigurationCoordinator<
         else {
             return nil
         }
-        supplementaryView.automaticallyUpdatesContentConfiguration = false
-        supplementaryView.automaticallyUpdatesBackgroundConfiguration = false
         supplementaryView.contentView.clipsToBounds = false
         supplementaryView.clipsToBounds = false
         // Fixes `.transition` modifier
-        supplementaryView.layoutIfNeeded()
+        if context.transaction.isAnimated {
+            supplementaryView.layoutIfNeeded()
+        }
         return supplementaryView
     }
 
@@ -248,29 +270,23 @@ open class CollectionViewHostingConfigurationCoordinator<
         kind: String,
         indexPath: IndexPath
     ) {
-        let section = sections[indexPath.section]
-        switch kind {
-        case UICollectionView.elementKindSectionHeader:
-            supplementaryView.contentConfiguration = makeHeaderContent(
-                state: supplementaryView.configurationState,
-                indexPath: indexPath,
-                section: section
-            )
-        case UICollectionView.elementKindSectionFooter:
-            supplementaryView.contentConfiguration = makeFooterContent(
-                state: supplementaryView.configurationState,
-                indexPath: indexPath,
-                section: section
-            )
-        default:
-            supplementaryView.contentConfiguration = makeSupplementaryContent(
-                state: supplementaryView.configurationState,
-                indexPath: indexPath,
-                section: section,
-                kind: kind
-            )
-        }
         super.configureSupplementaryView(supplementaryView, kind: kind, indexPath: indexPath)
+        let section = sections[indexPath.section]
+        let bridgedState = HostingConfigurationStateBridge(state: supplementaryView.configurationState)
+        supplementaryView.contentConfiguration = makeSupplementaryContent(
+            state: bridgedState,
+            indexPath: indexPath,
+            section: section,
+            kind: kind
+        )
+        if #available(iOS 15.0, tvOS 15.0, *) {
+            let handler = supplementaryView.configurationUpdateHandler
+            supplementaryView.configurationUpdateHandler = { [weak self, weak bridgedState] supplementaryView, state in
+                handler?(supplementaryView, state)
+                guard let self, let bridgedState else { return }
+                bridgedState.update(state, defer: isUpdating)
+            }
+        }
     }
 
     open override func didStartUpdate() {
@@ -278,8 +294,66 @@ open class CollectionViewHostingConfigurationCoordinator<
         phase.update()
     }
 
+    open override func collectionView(
+        _ collectionView: UICollectionView,
+        didSelectItemAt indexPath: IndexPath
+    ) {
+        super.collectionView(collectionView, didSelectItemAt: indexPath)
+
+        if #unavailable(iOS 15.0, tvOS 15.0) {
+            guard let cell = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType else { return }
+            let item = item(for: indexPath)
+            self.configureCell(cell, indexPath: indexPath, item: item)
+            cell.layoutIfNeeded()
+        }
+    }
+
+    open override func collectionView(
+        _ collectionView: UICollectionView,
+        didDeselectItemAt indexPath: IndexPath
+    ) {
+        super.collectionView(collectionView, didDeselectItemAt: indexPath)
+
+        if #unavailable(iOS 15.0, tvOS 15.0) {
+            guard let cell = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType else { return }
+            let item = item(for: indexPath)
+            self.configureCell(cell, indexPath: indexPath, item: item)
+            cell.layoutIfNeeded()
+        }
+    }
+
+    open override func collectionView(
+        _ collectionView: UICollectionView,
+        willDisplay cell: UICollectionViewCell,
+        forItemAt indexPath: IndexPath
+    ) {
+        super.collectionView(collectionView, willDisplay: cell, forItemAt: indexPath)
+
+        if #unavailable(iOS 15.0, tvOS 15.0) {
+            guard let cell = cell as? Layout.UICollectionViewCellType else { return }
+            let item = item(for: indexPath)
+            self.configureCell(cell, indexPath: indexPath, item: item)
+            cell.layoutIfNeeded()
+        }
+    }
+
+    open override func collectionView(
+        _ collectionView: UICollectionView,
+        willDisplaySupplementaryView view: UICollectionReusableView,
+        forElementKind elementKind: String,
+        at indexPath: IndexPath
+    ) {
+        super.collectionView(collectionView, willDisplaySupplementaryView: view, forElementKind: elementKind, at: indexPath)
+
+        if #unavailable(iOS 15.0, tvOS 15.0) {
+            guard let supplementaryView = view as? Layout.UICollectionViewSupplementaryViewType else { return }
+            self.configureSupplementaryView(supplementaryView, kind: elementKind, indexPath: indexPath)
+            supplementaryView.layoutIfNeeded()
+        }
+    }
+
     private func makeContent(
-        state: UICellConfigurationState,
+        state: HostingConfigurationStateBridge,
         indexPath: IndexPath,
         section: CollectionViewSection<Section, Items>,
         value: Items.Element
@@ -295,8 +369,37 @@ open class CollectionViewHostingConfigurationCoordinator<
         }
     }
 
+    private func makeSupplementaryContent(
+        state: HostingConfigurationStateBridge,
+        indexPath: IndexPath,
+        section: CollectionViewSection<Section, Items>,
+        kind: String
+    ) -> UIContentConfiguration {
+        switch kind {
+        case UICollectionView.elementKindSectionHeader:
+            return makeHeaderContent(
+                state: state,
+                indexPath: indexPath,
+                section: section
+            )
+        case UICollectionView.elementKindSectionFooter:
+            return makeFooterContent(
+                state: state,
+                indexPath: indexPath,
+                section: section
+            )
+        default:
+            return makeCustomSupplementaryContent(
+                state: state,
+                indexPath: indexPath,
+                section: section,
+                kind: kind
+            )
+        }
+    }
+
     private func makeHeaderContent(
-        state: UICellConfigurationState,
+        state: HostingConfigurationStateBridge,
         indexPath: IndexPath,
         section: CollectionViewSection<Section, Items>
     ) -> UIContentConfiguration {
@@ -315,7 +418,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     }
 
     private func makeFooterContent(
-        state: UICellConfigurationState,
+        state: HostingConfigurationStateBridge,
         indexPath: IndexPath,
         section: CollectionViewSection<Section, Items>,
     ) -> UIContentConfiguration {
@@ -333,8 +436,8 @@ open class CollectionViewHostingConfigurationCoordinator<
         }
     }
 
-    private func makeSupplementaryContent(
-        state: UICellConfigurationState,
+    private func makeCustomSupplementaryContent(
+        state: HostingConfigurationStateBridge,
         indexPath: IndexPath,
         section: CollectionViewSection<Section, Items>,
         kind: String
@@ -362,20 +465,41 @@ extension Animation {
     }
 }
 
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 private struct SupplementaryViewID<ID: Hashable>: Hashable {
     var id: ID
     var kind: CollectionViewSupplementaryView.ID
 }
 
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
+private class HostingConfigurationStateBridge: ObservableObject {
+    private(set) var state: UICellConfigurationState
+
+    init(state: UICellConfigurationState) {
+        self.state = state
+    }
+
+    func update(_ newValue: UICellConfigurationState, defer shouldDefer: Bool) {
+        guard state != newValue else { return }
+        state = newValue
+        if shouldDefer {
+            withCATransaction { [objectWillChange] in
+                objectWillChange.send()
+            }
+        } else {
+            objectWillChange.send()
+        }
+    }
+}
+
+@available(iOS 14.0, tvOS 14.0, *)
 @MainActor
 private func makeHostingConfiguration<
     ID: Hashable,
     Content: View
 >(
     id: ID,
-    state: UICellConfigurationState,
+    state: HostingConfigurationStateBridge,
     transaction: Transaction,
     phase: UpdatePhase.Value,
     options: CollectionViewHostingConfigurationCoordinatorOptions,
@@ -383,30 +507,29 @@ private func makeHostingConfiguration<
 ) -> UIContentConfiguration {
 
     let content = content()
-    if #available(iOS 16.0, *), !options.contains(.useReusableHostingConfiguration) {
+    if #available(iOS 16.0, tvOS 16.0, *), !options.contains(.useReusableHostingConfiguration) {
         let configuration = UIHostingConfiguration {
             content
                 .modifier(
-                    HostingConfigurationModifier(
+                    CollectionViewHostingConfigurationModifier(
                         id: id,
                         isEmpty: content.isEmptyView,
-                        state: HostingConfigurationState(storage: state),
+                        state: state,
                         transaction: transaction,
                         phase: phase
                     )
                 )
         }
-        .background(.clear)
         .margins(.all, 0)
         return configuration
     } else {
         return HostingConfiguration {
             content
                 .modifier(
-                    HostingConfigurationModifier(
+                    CollectionViewHostingConfigurationModifier(
                         id: id,
                         isEmpty: content.isEmptyView,
-                        state: HostingConfigurationState(storage: state),
+                        state: state,
                         transaction: transaction,
                         phase: phase
                     )
@@ -415,123 +538,51 @@ private func makeHostingConfiguration<
     }
 }
 
-@available(iOS 14.0, *)
-private struct HostingConfigurationModifier<ID: Hashable>: ViewModifier {
+@available(iOS 14.0, tvOS 14.0, *)
+private struct CollectionViewHostingConfigurationModifier<ID: Hashable>: ViewModifier {
     var id: ID
     var isEmpty: Bool
-    var state: HostingConfigurationState
+    @ObservedObject var state: HostingConfigurationStateBridge
     var transaction: Transaction
     var phase: UpdatePhase.Value
 
     func body(content: Content) -> some View {
         content
-            .environment(\.hostingConfigurationState, state)
-            .disabled(state.isDisabled)
+            .environment(\.hostingConfigurationState, HostingConfigurationState(storage: state.state))
+            .disabled(state.state.isDisabled)
             .opacity(isEmpty ? 0 : 1)
-            .animation(nil, value: id)
+            .transaction(transaction.disablesAnimations(true), value: id)
             .transaction(transaction, value: phase)
+            .modifier(HostingConfigurationModifier())
             .ignoreHostingConfigurationConstraints()
     }
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-public struct HostingConfiguration<
-    Content: View
->: UIContentConfiguration {
+@available(iOS 14.0, tvOS 14.0, *)
+@dynamicMemberLookup
+public struct HostingConfigurationState: Equatable {
 
-    public var content: Content
+    var storage: UICellConfigurationState
 
-    public init(
-        @ViewBuilder content: () -> Content
-    ) {
-        self.content = content()
+    public subscript<T>(dynamicMember keyPath: KeyPath<UICellConfigurationState, T>) -> T {
+        storage[keyPath: keyPath]
     }
 
-    public func makeContentView() -> UIView & UIContentView {
-        return HostingConfigurationContentView(configuration: self)
-    }
-
-    public func updated(for state: UIConfigurationState) -> Self {
-        return self
+    public subscript(key: UIConfigurationStateCustomKey) -> AnyHashable? {
+        storage[key]
     }
 }
 
-@available(iOS 14.0, *)
-open class HostingConfigurationContentView<
-    Content: View
->: HostingView<HostingConfigurationView<Content>>, UIContentView {
-
-    public var configuration: UIContentConfiguration {
-        didSet {
-            let configuration = configuration as! HostingConfiguration<Content>
-            content.content = configuration.content
-        }
-    }
-
-    public init(configuration: HostingConfiguration<Content>) {
-        self.configuration = configuration
-        super.init(content: HostingConfigurationView(content: configuration.content))
-        content.sourceView = self
-    }
-    
-    public required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-}
-
-@available(iOS 14.0, *)
-public struct HostingConfigurationView<Content: View>: View {
-
-    public var content: Content
-
-    weak var sourceView: UIView?
-
-    public var body: some View {
-        content
-            .modifier(IntrinsicContentSizeInvalidationModifier(sourceView: sourceView))
-    }
-}
-
-private struct IntrinsicContentSizeInvalidationModifier: VersionedViewModifier {
-    weak var sourceView: UIView?
-
-    @available(iOS 16.0, *)
-    func v4Body(content: Content) -> some View {
-        content
-            .onGeometryChange(for: CGSize.self) { proxy in
-                proxy.size
-            } action: { [weak sourceView] _ in
-                sourceView?.invalidateIntrinsicContentSize()
-            }
-    }
-
-    @available(iOS 14.0, *)
-    func v2Body(content: Content) -> some View {
-        content
-            .background(
-                GeometryReader { [weak sourceView] proxy in
-                    Color.clear
-                        .hidden()
-                        .onChange(of: proxy.size) { [weak sourceView] _ in
-                            sourceView?.invalidateIntrinsicContentSize()
-                        }
-                }
-            )
-    }
-}
-
-@available(iOS 15.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 15.0, tvOS 15.0, *)
 struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
 
     static var previews: some View {
-        PreviewA()
-        PreviewB()
+        ZStack {
+            PreviewA()
+        }
+        ZStack {
+            PreviewB()
+        }
     }
 
     struct PreviewA: View {
@@ -594,14 +645,15 @@ struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
             @State var isExpanded = false
 
             var body: some View {
-                Text(item.value.description)
-                    .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
-                    .background(Color.blue)
-                    .onTapGesture {
-                        withAnimation(.collectionViewCellSizeInvalidation) {
-                            isExpanded.toggle()
-                        }
+                Button {
+                    withAnimation(.collectionViewCellSizeInvalidation) {
+                        isExpanded.toggle()
                     }
+                } label: {
+                    Text(item.value.description)
+                        .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
+                        .background(Color.blue)
+                }
             }
         }
 
@@ -609,14 +661,15 @@ struct CollectionViewHostingConfigurationCoordinator_Previews: PreviewProvider {
             @State var isExpanded = false
 
             var body: some View {
-                Text("Header/Footer")
-                    .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
-                    .background(Color.blue)
-                    .onTapGesture {
-                        withAnimation(.collectionViewCellSizeInvalidation) {
-                            isExpanded.toggle()
-                        }
+                Button {
+                    withAnimation(.collectionViewCellSizeInvalidation) {
+                        isExpanded.toggle()
                     }
+                } label: {
+                    Text("Header/Footer")
+                        .frame(maxWidth: .infinity, minHeight: isExpanded ? 88 : 44)
+                        .background(Color.blue)
+                }
             }
         }
     }

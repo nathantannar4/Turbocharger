@@ -2,19 +2,18 @@
 // Copyright (c) Nathan Tannar
 //
 
+#if os(iOS) || os(tvOS) || os(visionOS)
+
+import UIKit
 import SwiftUI
 import Engine
 
 public struct EmptyCollectionViewConfiguration: Equatable { }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 @MainActor @preconcurrency
-public protocol CollectionViewLayout: Sendable {
+public protocol CollectionViewLayout {
 
-    #if os(iOS) || os(visionOS)
     associatedtype UICollectionViewLayoutType: UICollectionViewLayout
     associatedtype UICollectionViewType: UICollectionView
     associatedtype UICollectionViewCellType: UICollectionViewCell = UICollectionViewCell
@@ -65,19 +64,17 @@ public protocol CollectionViewLayout: Sendable {
         in proposedSize: ProposedSize,
         collectionView: UICollectionViewType
     )
-    #endif
 
     typealias Context = CollectionViewLayoutContext
 }
 
-#if os(iOS) || os(visionOS)
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionViewLayout where Configuration == EmptyCollectionViewConfiguration {
 
     public var configuration: EmptyCollectionViewConfiguration { .init() }
 }
 
-@available(iOS 14.0, *)
+@available(iOS 14.0, tvOS 14.0, *)
 extension CollectionViewLayout {
 
     public func updateUICollectionViewCell(
@@ -101,26 +98,17 @@ extension CollectionViewLayout {
         collectionView: UICollectionViewType
     ) { }
 }
-#endif
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@MainActor @preconcurrency
+@available(iOS 14.0, tvOS 14.0, *)
 public protocol ComposableCollectionViewLayout: CollectionViewLayout {
 
     associatedtype Layout: CollectionViewLayout
     var layout: Layout { get }
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 extension ComposableCollectionViewLayout {
 
-    #if os(iOS) || os(visionOS)
     public var configuration: Layout.Configuration {
         layout.configuration
     }
@@ -208,42 +196,41 @@ extension ComposableCollectionViewLayout {
             collectionView: collectionView
         )
     }
-    #endif
 }
 
 @frozen
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 public struct CollectionViewLayoutContext {
+
     public var environment: EnvironmentValues
     public var transaction: Transaction
+
+    public init(environment: EnvironmentValues, transaction: Transaction) {
+        self.environment = environment
+        self.transaction = transaction
+    }
 }
 
 @frozen
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 public struct CollectionViewLayoutOptions: Equatable {
+
+    public var safeAreaInsets: EdgeInsets?
     public var supplementaryViews: [CollectionViewSupplementaryView]
 
     public init(
+        safeAreaInsets: EdgeInsets? = nil,
         supplementaryViews: [CollectionViewSupplementaryView] = []
     ) {
+        self.safeAreaInsets = safeAreaInsets
         self.supplementaryViews = supplementaryViews
     }
 }
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@MainActor
-public struct CollectionViewSupplementaryView: Equatable, Sendable {
+@available(iOS 14.0, tvOS 14.0, *)
+public struct CollectionViewSupplementaryView: Equatable {
 
-    public enum ID: Hashable, Sendable, ExpressibleByStringLiteral {
+    public enum ID: Hashable, ExpressibleByStringLiteral {
         case header
         case footer
         case custom(String)
@@ -252,7 +239,6 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
             self = .custom(value)
         }
 
-        #if os(iOS) || os(visionOS)
         init(_ kind: String) {
             switch kind {
             case UICollectionView.elementKindSectionHeader:
@@ -263,11 +249,9 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
                 self = .custom(kind)
             }
         }
-        #endif
 
         @MainActor
         public var kind: String {
-            #if os(iOS) || os(visionOS)
             switch self {
             case .header:
                 return UICollectionView.elementKindSectionHeader
@@ -276,13 +260,10 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
             case .custom(let id):
                 return id
             }
-            #else
-            fatalError("unreachable")
-            #endif
         }
     }
 
-    public nonisolated var id: ID
+    public var id: ID
     public var alignment: Alignment
     public var offset: CGPoint
     public var contentInset: EdgeInsets
@@ -308,12 +289,13 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
         self.layoutSize = layoutSize
     }
 
+    @MainActor
     public var kind: String {
         id.kind
     }
 
     /// The `UICollectionViewLayout` should include a header
-    public static let header = CollectionViewSupplementaryView.header()
+    public static var header: CollectionViewSupplementaryView { .header() }
 
     /// The `UICollectionViewLayout` should include a header
     public static func header(
@@ -333,7 +315,7 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
     }
 
     /// The `UICollectionViewLayout` should include a footer
-    public static let footer = CollectionViewSupplementaryView.footer()
+    public static var footer: CollectionViewSupplementaryView { .footer() }
 
     /// The `UICollectionViewLayout` should include a footer
     public static func footer(
@@ -372,4 +354,51 @@ public struct CollectionViewSupplementaryView: Equatable, Sendable {
             layoutSize: layoutSize
         )
     }
+
+    @MainActor
+    func toUIKit(
+        unspecifiedDimension: NSCollectionLayoutSize
+    ) -> NSCollectionLayoutBoundarySupplementaryItem {
+        let supplementaryItemSize: NSCollectionLayoutSize
+        if let layoutSize = layoutSize {
+            supplementaryItemSize = layoutSize.toUIKit(
+                replacingUnspecifiedDimensionBy: unspecifiedDimension
+            )
+        } else {
+            supplementaryItemSize = unspecifiedDimension
+        }
+        let item = NSCollectionLayoutBoundarySupplementaryItem(
+            layoutSize: supplementaryItemSize,
+            elementKind: kind,
+            alignment: {
+                switch alignment {
+                case .top:
+                    return .top
+                case .topLeading:
+                    return .topLeading
+                case .topTrailing:
+                    return .topLeading
+                case .bottom:
+                    return .bottom
+                case .bottomLeading:
+                    return .bottomLeading
+                case .bottomTrailing:
+                    return .bottomTrailing
+                case .leading:
+                    return .leading
+                case .trailing:
+                    return .trailing
+                default:
+                    return .none
+                }
+            }(),
+            absoluteOffset: offset
+        )
+        item.extendsBoundary = extendsBoundary
+        item.contentInsets = NSDirectionalEdgeInsets(contentInset)
+        item.zIndex = zIndex
+        return item
+    }
 }
+
+#endif

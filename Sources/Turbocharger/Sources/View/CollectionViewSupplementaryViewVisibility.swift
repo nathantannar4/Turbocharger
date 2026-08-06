@@ -2,17 +2,16 @@
 // Copyright (c) Nathan Tannar
 //
 
+#if os(iOS) || os(tvOS) || os(visionOS)
+
 import SwiftUI
 
-@available(iOS 14.0, *)
-@available(macOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
+@available(iOS 14.0, tvOS 14.0, *)
 @frozen
-public struct CollectionViewSupplementaryViewVisibility: Equatable, Sendable {
+public struct CollectionViewSupplementaryViewVisibility: Equatable {
 
     @usableFromInline
-    enum Visibility: Equatable, Sendable {
+    enum Visibility: Equatable {
         case visible
         case hidden
     }
@@ -37,9 +36,9 @@ public struct CollectionViewSupplementaryViewVisibility: Equatable, Sendable {
         )
     }
 
-    public static let hidden = CollectionViewSupplementaryViewVisibility(
-        visibility: .hidden
-    )
+    public static var hidden: CollectionViewSupplementaryViewVisibility {
+        CollectionViewSupplementaryViewVisibility(visibility: .hidden)
+    }
 
     public static func hidden(
         in sections: IndexSet
@@ -50,9 +49,9 @@ public struct CollectionViewSupplementaryViewVisibility: Equatable, Sendable {
         )
     }
 
-    public static let visible = CollectionViewSupplementaryViewVisibility(
-        visibility: .visible
-    )
+    public static var visible: CollectionViewSupplementaryViewVisibility {
+        CollectionViewSupplementaryViewVisibility(visibility: .visible)
+    }
 
     public static func visible(
         in sections: IndexSet
@@ -63,3 +62,5 @@ public struct CollectionViewSupplementaryViewVisibility: Equatable, Sendable {
         )
     }
 }
+
+#endif
