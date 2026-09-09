@@ -228,7 +228,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         item: Items.Element
     ) {
         super.configureCell(cell, indexPath: indexPath, item: item)
-        let section = sections[indexPath.section]
+        guard let section = section(containing: item.id) else { return }
         let bridgedState = HostingConfigurationStateBridge(state: cell.configurationState)
         cell.contentConfiguration = makeContent(
             state: bridgedState,
@@ -271,7 +271,7 @@ open class CollectionViewHostingConfigurationCoordinator<
         indexPath: IndexPath
     ) {
         super.configureSupplementaryView(supplementaryView, kind: kind, indexPath: indexPath)
-        let section = sections[indexPath.section]
+        guard let section = section(for: indexPath) else { return }
         let bridgedState = HostingConfigurationStateBridge(state: supplementaryView.configurationState)
         supplementaryView.contentConfiguration = makeSupplementaryContent(
             state: bridgedState,
@@ -301,8 +301,12 @@ open class CollectionViewHostingConfigurationCoordinator<
         super.collectionView(collectionView, didSelectItemAt: indexPath)
 
         if #unavailable(iOS 15.0, tvOS 15.0) {
-            guard let cell = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType else { return }
-            let item = item(for: indexPath)
+            guard
+                let cell = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType,
+                let item = item(for: indexPath)
+            else {
+                return
+            }
             self.configureCell(cell, indexPath: indexPath, item: item)
             cell.layoutIfNeeded()
         }
@@ -315,8 +319,12 @@ open class CollectionViewHostingConfigurationCoordinator<
         super.collectionView(collectionView, didDeselectItemAt: indexPath)
 
         if #unavailable(iOS 15.0, tvOS 15.0) {
-            guard let cell = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType else { return }
-            let item = item(for: indexPath)
+            guard
+                let cell = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType,
+                let item = item(for: indexPath)
+            else {
+                return
+            }
             self.configureCell(cell, indexPath: indexPath, item: item)
             cell.layoutIfNeeded()
         }
@@ -330,8 +338,12 @@ open class CollectionViewHostingConfigurationCoordinator<
         super.collectionView(collectionView, willDisplay: cell, forItemAt: indexPath)
 
         if #unavailable(iOS 15.0, tvOS 15.0) {
-            guard let cell = cell as? Layout.UICollectionViewCellType else { return }
-            let item = item(for: indexPath)
+            guard
+                let cell = cell as? Layout.UICollectionViewCellType,
+                let item = item(for: indexPath)
+            else {
+                return
+            }
             self.configureCell(cell, indexPath: indexPath, item: item)
             cell.layoutIfNeeded()
         }

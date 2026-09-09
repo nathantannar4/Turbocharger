@@ -39,7 +39,11 @@ where
     public var context: CollectionViewLayoutContext = .init(environment: .init(), transaction: .init())
     public private(set) var layout: Layout
     public private(set) var layoutOptions: CollectionViewLayoutOptions
-    public private(set) var sections: [CollectionViewSection<Section, Items>]
+    public private(set) var sections: [CollectionViewSection<Section, Items>] {
+        didSet {
+            rebuildLookups()
+        }
+    }
     public private(set) var dataSource: UICollectionViewDiffableDataSource<Section.ID, ID>!
     public private(set) weak var collectionView: Layout.UICollectionViewType!
 
@@ -136,6 +140,7 @@ where
         self.layoutOptions = layoutOptions
         self.configuration = configuration
         super.init()
+        rebuildLookups()
     }
 
     public convenience init(
@@ -151,11 +156,55 @@ where
         )
     }
 
-    public func item(for indexPath: IndexPath) -> Items.Element {
-        let section = sections[indexPath.section]
-        let index = section.items.index(section.items.startIndex, offsetBy: indexPath.item)
-        let value = section.items[index]
-        return value
+    private struct ItemLocation {
+        var section: Int
+        var index: Items.Index
+    }
+
+    private var itemLocations: [ID: ItemLocation] = [:]
+    private var sectionLocations: [Section.ID: Int] = [:]
+
+    private func rebuildLookups() {
+        itemLocations.removeAll(keepingCapacity: true)
+        sectionLocations.removeAll(keepingCapacity: true)
+        for (offset, section) in sections.enumerated() {
+            sectionLocations[section.id] = offset
+            for index in section.items.indices {
+                itemLocations[section.items[index].id] = ItemLocation(section: offset, index: index)
+            }
+        }
+    }
+
+    public func item(for id: ID) -> Items.Element? {
+        guard let location = itemLocations[id] else { return nil }
+        return sections[location.section].items[location.index]
+    }
+
+    public func section(for id: Section.ID) -> CollectionViewSection<Section, Items>? {
+        guard let index = sectionLocations[id] else { return nil }
+        return sections[index]
+    }
+
+    public func section(containing id: ID) -> CollectionViewSection<Section, Items>? {
+        guard let location = itemLocations[id] else { return nil }
+        return sections[location.section]
+    }
+
+    /// `sections` is replaced before the new snapshot is applied, so an index path from
+    /// UIKit addresses the applied snapshot rather than the model. Resolving the identifier
+    /// first keeps the two apart; `nil` means the pending update drops that row.
+    public func item(for indexPath: IndexPath) -> Items.Element? {
+        guard let id = dataSource?.itemIdentifier(for: indexPath) else { return nil }
+        return item(for: id)
+    }
+
+    public func section(for indexPath: IndexPath) -> CollectionViewSection<Section, Items>? {
+        if #available(iOS 15.0, tvOS 15.0, *) {
+            guard let id = dataSource?.sectionIdentifier(for: indexPath.section) else { return nil }
+            return section(for: id)
+        }
+        guard sections.indices.contains(indexPath.section) else { return nil }
+        return sections[indexPath.section]
     }
 
     public func indexPath(for id: Items.Element.ID) -> IndexPath? {
@@ -167,9 +216,12 @@ where
         indexPath: IndexPath,
         id: ID
     ) -> Layout.UICollectionViewCellType? {
-        let item = item(for: indexPath)
-        let reuseIdentifier = Configuration.reuseIdentifier(for: item)
-        let registration = cellRegistration[reuseIdentifier]!
+        // A missing item means a pending update drops this row; any registration will do.
+        let reuseIdentifier = item(for: id).map { Configuration.reuseIdentifier(for: $0) }
+            ?? Configuration.reuseIdentifiers.first
+        guard let reuseIdentifier, let registration = cellRegistration[reuseIdentifier] else {
+            return nil
+        }
         return collectionView.dequeueConfiguredReusableCell(
             using: registration,
             for: indexPath,
@@ -247,10 +299,11 @@ where
             cellRegistration[reuseIdentifier] = UICollectionView.CellRegistration<
                 Layout.UICollectionViewCellType, ID
             > { [unowned self] cellView, indexPath, id in
+                guard let item = item(for: id) else { return }
                 configureCell(
                     cellView,
                     indexPath: indexPath,
-                    item: item(for: indexPath)
+                    item: item
                 )
             }
         }
@@ -403,8 +456,8 @@ where
         if collectionView.isEditing {
             editingConfiguration.isEditing.wrappedValue = false
         } else {
-            if let selection = editingConfiguration.selection {
-                selection.wrappedValue.insert(item(for: indexPath).id)
+            if let selection = editingConfiguration.selection, let item = item(for: indexPath) {
+                selection.wrappedValue.insert(item.id)
             }
             editingConfiguration.isEditing.wrappedValue = true
         }
@@ -439,9 +492,13 @@ where
     }
 
     private func onAppear(for indexPath: IndexPath) {
-        guard let onItemWillAppear else { return }
-        let section = sections[indexPath.section]
-        let item = item(for: indexPath)
+        guard
+            let onItemWillAppear,
+            let item = item(for: indexPath),
+            let section = section(containing: item.id)
+        else {
+            return
+        }
         onItemWillAppear(indexPath, section, item)
     }
 
@@ -597,8 +654,8 @@ where
         let context = UICollectionViewLayoutInvalidationContext()
         if !updated.isEmpty {
             for indexPath in collectionView.indexPathsForVisibleItems {
-                if let cellView = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType {
-                    let item = item(for: indexPath)
+                if let cellView = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType,
+                   let item = item(for: indexPath) {
                     if updated.contains(item.id) {
                         configureCell(cellView, indexPath: indexPath, item: item)
                         cellView.layoutIfNeeded()
@@ -713,7 +770,7 @@ where
                 }
                 if let section, indexPath?.section != section {
                     indexPath = IndexPath(item: 0, section: section)
-                    position.item = sections[section].items.first?.id
+                    position.item = self.section(for: sectionId)?.items.first?.id
                 }
             }
             if indexPath == nil, let previousPosition = lastScrollPosition ?? currentScrollPosition() {
@@ -773,19 +830,23 @@ where
     }
 
     private func currentScrollPosition() -> ScrollPosition? {
-        guard let indexPath = currentIndexPath() else {
+        guard
+            let indexPath = currentIndexPath(),
+            let section = section(for: indexPath)
+        else {
             return nil
         }
         return ScrollPosition(
-            section: sections[indexPath.section].id,
-            item: sections[indexPath.section].isEmpty ? nil : item(for: indexPath).id
+            section: section.id,
+            item: item(for: indexPath)?.id
         )
     }
 
     // MARK: - Drag and Drop Reordering
 
     open func canMoveItem(at indexPath: IndexPath) -> Bool {
-        return canSelect?(indexPath, item(for: indexPath)) != .disabled
+        guard let item = item(for: indexPath) else { return false }
+        return canSelect?(indexPath, item) != .disabled
     }
 
     open func willReorder(transaction: NSDiffableDataSourceTransaction<Section.ID, ID>) {
@@ -826,7 +887,7 @@ where
         prefetchItemsAt indexPaths: [IndexPath]
     ) {
         guard let dataPrefetcher else { return }
-        let items = indexPaths.map { item(for: $0) }
+        let items = indexPaths.compactMap { item(for: $0) }
         dataPrefetcher.startPrefetching(items: items)
     }
 
@@ -835,7 +896,7 @@ where
         cancelPrefetchingForItemsAt indexPaths: [IndexPath]
     ) {
         guard let dataPrefetcher else { return }
-        let items = indexPaths.map { item(for: $0) }
+        let items = indexPaths.compactMap { item(for: $0) }
         dataPrefetcher.cancelPrefetching(items: items)
     }
 
@@ -905,7 +966,8 @@ where
         if collectionView.isEditing {
             return true
         } else {
-            if let availability = canSelect?(indexPath, item(for: indexPath)) {
+            guard let item = item(for: indexPath) else { return false }
+            if let availability = canSelect?(indexPath, item) {
                 return availability == .available
             } else {
                 return onSelect != nil
@@ -927,16 +989,17 @@ where
         _ collectionView: UICollectionView,
         shouldSelectItemAt indexPath: IndexPath
     ) -> Bool {
-        guard collectionView.isEditing, editingConfiguration != nil else { return false }
-        return canSelect?(indexPath, item(for: indexPath)) != .disabled
+        guard collectionView.isEditing, editingConfiguration != nil, let item = item(for: indexPath) else {
+            return false
+        }
+        return canSelect?(indexPath, item) != .disabled
     }
 
     open func collectionView(
         _ collectionView: UICollectionView,
         didSelectItemAt indexPath: IndexPath
     ) {
-        if let selection = editingConfiguration?.selection {
-            let item = item(for: indexPath)
+        if let selection = editingConfiguration?.selection, let item = item(for: indexPath) {
             selection.wrappedValue.insert(item.id)
         }
     }
@@ -945,8 +1008,7 @@ where
         _ collectionView: UICollectionView,
         didDeselectItemAt indexPath: IndexPath
     ) {
-        if let selection = editingConfiguration?.selection {
-            let item = item(for: indexPath)
+        if let selection = editingConfiguration?.selection, let item = item(for: indexPath) {
             selection.wrappedValue.remove(item.id)
         }
     }
@@ -962,8 +1024,8 @@ where
         _ collectionView: UICollectionView,
         canPerformPrimaryActionForItemAt indexPath: IndexPath
     ) -> Bool {
-        guard !collectionView.isEditing else { return false }
-        if let availability = canSelect?(indexPath, item(for: indexPath)) {
+        guard !collectionView.isEditing, let item = item(for: indexPath) else { return false }
+        if let availability = canSelect?(indexPath, item) {
             return availability == .available
         } else {
             return onSelect != nil
@@ -974,7 +1036,8 @@ where
         _ collectionView: UICollectionView,
         performPrimaryActionForItemAt indexPath: IndexPath
     ) {
-        onSelect?(indexPath, item(for: indexPath))
+        guard let item = item(for: indexPath) else { return }
+        onSelect?(indexPath, item)
     }
 
     #if !os(tvOS)
@@ -1118,8 +1181,8 @@ where
         _ collectionView: UICollectionView,
         canEditItemAt indexPath: IndexPath
     ) -> Bool {
-        guard editingConfiguration != nil else { return false }
-        return canSelect?(indexPath, item(for: indexPath)) != .disabled
+        guard editingConfiguration != nil, let item = item(for: indexPath) else { return false }
+        return canSelect?(indexPath, item) != .disabled
     }
 
     open func collectionView(
