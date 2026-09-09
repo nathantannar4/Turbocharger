@@ -6,7 +6,8 @@ import SwiftUI
 
 #if os(macOS)
 extension NSEdgeInsets {
-    public init(
+
+    init(
         edgeInsets: EdgeInsets,
         layoutDirection: LayoutDirection
     ) {
@@ -21,7 +22,7 @@ extension NSEdgeInsets {
 #elseif !os(watchOS)
 extension EdgeInsets {
 
-    public init(
+    init(
         edgeInsets: UIEdgeInsets,
         layoutDirection: UITraitEnvironmentLayoutDirection
     ) {
@@ -35,7 +36,8 @@ extension EdgeInsets {
 }
 
 extension UIEdgeInsets {
-    public init(
+
+    init(
         edgeInsets: EdgeInsets,
         layoutDirection: LayoutDirection
     ) {

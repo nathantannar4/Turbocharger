@@ -39,11 +39,7 @@ where
     public var context: CollectionViewLayoutContext = .init(environment: .init(), transaction: .init())
     public private(set) var layout: Layout
     public private(set) var layoutOptions: CollectionViewLayoutOptions
-    public private(set) var sections: [CollectionViewSection<Section, Items>] {
-        didSet {
-            rebuildLookups()
-        }
-    }
+    public private(set) var sections: [CollectionViewSection<Section, Items>]
     public private(set) var dataSource: UICollectionViewDiffableDataSource<Section.ID, ID>!
     public private(set) weak var collectionView: Layout.UICollectionViewType!
 
@@ -126,6 +122,7 @@ where
     private let configuration: Configuration
 
     // Defaults
+    private var defaultCellRegistration: UICollectionView.CellRegistration<Layout.UICollectionViewCellType, ID>!
     private var cellRegistration = [Configuration.ReuseIdentifier: UICollectionView.CellRegistration<Layout.UICollectionViewCellType, ID>]()
     private var supplementaryViewRegistration = [String: UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>]()
 
@@ -140,7 +137,6 @@ where
         self.layoutOptions = layoutOptions
         self.configuration = configuration
         super.init()
-        rebuildLookups()
     }
 
     public convenience init(
@@ -156,28 +152,14 @@ where
         )
     }
 
-    private struct ItemLocation {
-        var section: Int
-        var index: Items.Index
-    }
-
-    private var itemLocations: [ID: ItemLocation] = [:]
+    private var itemLocations: [ID: IndexPath] = [:]
     private var sectionLocations: [Section.ID: Int] = [:]
 
-    private func rebuildLookups() {
-        itemLocations.removeAll(keepingCapacity: true)
-        sectionLocations.removeAll(keepingCapacity: true)
-        for (offset, section) in sections.enumerated() {
-            sectionLocations[section.id] = offset
-            for index in section.items.indices {
-                itemLocations[section.items[index].id] = ItemLocation(section: offset, index: index)
-            }
-        }
-    }
-
     public func item(for id: ID) -> Items.Element? {
-        guard let location = itemLocations[id] else { return nil }
-        return sections[location.section].items[location.index]
+        guard let indexPath = itemLocations[id] else { return nil }
+        let section = sections[indexPath.section]
+        let index = section.items.index(section.items.startIndex, offsetBy: indexPath.item)
+        return section.items[index]
     }
 
     public func section(for id: Section.ID) -> CollectionViewSection<Section, Items>? {
@@ -190,9 +172,6 @@ where
         return sections[location.section]
     }
 
-    /// `sections` is replaced before the new snapshot is applied, so an index path from
-    /// UIKit addresses the applied snapshot rather than the model. Resolving the identifier
-    /// first keeps the two apart; `nil` means the pending update drops that row.
     public func item(for indexPath: IndexPath) -> Items.Element? {
         guard let id = dataSource?.itemIdentifier(for: indexPath) else { return nil }
         return item(for: id)
@@ -216,11 +195,16 @@ where
         indexPath: IndexPath,
         id: ID
     ) -> Layout.UICollectionViewCellType? {
-        // A missing item means a pending update drops this row; any registration will do.
-        let reuseIdentifier = item(for: id).map { Configuration.reuseIdentifier(for: $0) }
-            ?? Configuration.reuseIdentifiers.first
-        guard let reuseIdentifier, let registration = cellRegistration[reuseIdentifier] else {
-            return nil
+
+        guard
+            let reuseIdentifier = item(for: id).map({ Configuration.reuseIdentifier(for: $0) }),
+            let registration = cellRegistration[reuseIdentifier]
+        else {
+            return collectionView.dequeueConfiguredReusableCell(
+                using: defaultCellRegistration,
+                for: indexPath,
+                item: id
+            )
         }
         return collectionView.dequeueConfiguredReusableCell(
             using: registration,
@@ -272,8 +256,8 @@ where
         _ supplementaryView: Layout.UICollectionViewSupplementaryViewType,
         kind: String,
         indexPath: IndexPath
-) {
-    if #available(iOS 15.0, tvOS 15.0, *), let supplementaryView = supplementaryView as? UICollectionViewCell {
+    ) {
+        if #available(iOS 15.0, tvOS 15.0, *), let supplementaryView = supplementaryView as? UICollectionViewCell {
             supplementaryView.configurationUpdateHandler = { [weak self] supplementaryView, state in
                 guard let self, let supplementaryView = supplementaryView as? Layout.UICollectionViewSupplementaryViewType else { return }
                 layout.updateUICollectionViewSupplementaryView(
@@ -295,6 +279,16 @@ where
     }
 
     open func configure(to collectionView: Layout.UICollectionViewType) {
+        defaultCellRegistration =  UICollectionView.CellRegistration<
+            Layout.UICollectionViewCellType, ID
+        > { [unowned self] cellView, indexPath, id in
+            guard let item = item(for: id) else { return }
+            configureCell(
+                cellView,
+                indexPath: indexPath,
+                item: item
+            )
+        }
         for reuseIdentifier in Configuration.reuseIdentifiers {
             cellRegistration[reuseIdentifier] = UICollectionView.CellRegistration<
                 Layout.UICollectionViewCellType, ID
@@ -616,12 +610,22 @@ where
         animated: Bool,
         completion: @MainActor @escaping ([ID]) -> Void
     ) {
+        itemLocations.removeAll(keepingCapacity: true)
+        sectionLocations.removeAll(keepingCapacity: true)
+
         var snapshot = NSDiffableDataSourceSnapshot<Section.ID, ID>()
         if !sections.isEmpty {
             snapshot.appendSections(sections.map({ $0.section.id }))
-            for section in sections {
+            for (sectionIndex, section) in sections.enumerated() {
                 let ids = section.items.map({ $0.id })
                 snapshot.appendItems(ids, toSection: section.section.id)
+
+                /// `sections` is replaced before the new snapshot is applied, so an index path from
+                /// UIKit addresses the applied snapshot rather than the model. Keep track of an item lookup table.
+                sectionLocations[section.id] = sectionIndex
+                for (index, item) in section.items.enumerated() {
+                    itemLocations[item.id] = IndexPath(item: index, section: sectionIndex)
+                }
             }
         }
         let oldValue = Set(self.sections.flatMap { $0.items.map { $0.id }})
@@ -655,7 +659,8 @@ where
         if !updated.isEmpty {
             for indexPath in collectionView.indexPathsForVisibleItems {
                 if let cellView = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType,
-                   let item = item(for: indexPath) {
+                    let item = item(for: indexPath)
+                {
                     if updated.contains(item.id) {
                         configureCell(cellView, indexPath: indexPath, item: item)
                         cellView.layoutIfNeeded()
