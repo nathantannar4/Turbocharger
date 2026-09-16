@@ -599,7 +599,7 @@ extension CollectionViewCompositionalLayout {
 }
 
 @available(iOS 14.0, tvOS 14.0, *)
-public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalLayout {
+open class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalLayout {
 
     public class SectionProvider {
         public var configuration: CollectionViewCompositionalLayout.Configuration
@@ -694,7 +694,7 @@ public class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositiona
         )
     }
     
-    required init?(coder: NSCoder) {
+    public required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
