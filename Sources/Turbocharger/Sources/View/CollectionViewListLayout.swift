@@ -24,7 +24,7 @@ public enum CollectionViewListLayoutAppearance: Equatable {
     @available(tvOS, unavailable)
     case sidebarPlain
 
-    func toUIKit() -> UICollectionLayoutListConfiguration.Appearance {
+    public func toUIKit() -> UICollectionLayoutListConfiguration.Appearance {
         switch self {
         case .plain:
             return .plain
@@ -64,7 +64,7 @@ public struct CollectionViewListLayoutSeparatorConfiguration: Equatable {
 
         @available(iOS 14.5, *)
         @available(tvOS, unavailable)
-        func toUIKit() -> UIListSeparatorConfiguration.Visibility {
+        public func toUIKit() -> UIListSeparatorConfiguration.Visibility {
             switch self {
             case .automatic:
                 return .automatic
@@ -99,7 +99,7 @@ public struct CollectionViewListLayoutSeparatorConfiguration: Equatable {
 
     @available(iOS 14.5, *)
     @available(tvOS, unavailable)
-    func toUIKit(
+    public func toUIKit(
         appearance: UICollectionLayoutListConfiguration.Appearance,
         in environment: EnvironmentValues
     ) -> UIListSeparatorConfiguration {
@@ -474,7 +474,7 @@ extension CollectionViewLayout where Self == CollectionViewListLayout {
 extension CollectionViewListLayout.Configuration {
 
     @MainActor
-    func toUIKit(
+    public func toUIKit(
         context: CollectionViewLayoutContext
     ) -> UICollectionLayoutListConfiguration {
         var layoutConfiguration = UICollectionLayoutListConfiguration(appearance: appearance.toUIKit())

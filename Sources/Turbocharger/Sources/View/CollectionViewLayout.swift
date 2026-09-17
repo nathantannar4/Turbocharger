@@ -356,7 +356,7 @@ public struct CollectionViewSupplementaryView: Equatable {
     }
 
     @MainActor
-    func toUIKit(
+    public func toUIKit(
         unspecifiedDimension: NSCollectionLayoutSize
     ) -> NSCollectionLayoutBoundarySupplementaryItem {
         let supplementaryItemSize: NSCollectionLayoutSize

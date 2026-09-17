@@ -20,7 +20,7 @@ public struct CollectionViewCompositionalLayoutSize: Equatable {
         case estimated(CGFloat)
 
         @MainActor
-        func toUIKit() -> NSCollectionLayoutDimension {
+        public func toUIKit() -> NSCollectionLayoutDimension {
             switch self {
             case .fractionalWidth(let value):
                 return .fractionalWidth(value)
@@ -50,12 +50,12 @@ public struct CollectionViewCompositionalLayoutSize: Equatable {
     }
 
     @MainActor
-    func toUIKit(
-        replacingUnspecifiedDimensionBy unspecified: NSCollectionLayoutSize
+    public func toUIKit(
+        replacingUnspecifiedDimensionBy proposedSize: NSCollectionLayoutSize
     ) -> NSCollectionLayoutSize {
         NSCollectionLayoutSize(
-            widthDimension: width?.toUIKit() ?? unspecified.widthDimension,
-            heightDimension: height?.toUIKit() ?? unspecified.heightDimension
+            widthDimension: width?.toUIKit() ?? proposedSize.widthDimension,
+            heightDimension: height?.toUIKit() ?? proposedSize.heightDimension
         )
     }
 }
@@ -73,7 +73,7 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         case groupPagingCentered
 
         @MainActor
-        func toUIKit() -> UICollectionLayoutSectionOrthogonalScrollingBehavior {
+        public func toUIKit() -> UICollectionLayoutSectionOrthogonalScrollingBehavior {
             switch self {
             case .continuous:
                 return .continuous
@@ -95,7 +95,7 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         case flexible(CGFloat)
 
         @MainActor
-        func toUIKit() -> NSCollectionLayoutSpacing {
+        public func toUIKit() -> NSCollectionLayoutSpacing {
             switch self {
             case .fixed(let spacing):
                 return .fixed(spacing)
@@ -125,7 +125,7 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
         }
 
         @MainActor
-        func toUIKit() -> NSCollectionLayoutEdgeSpacing {
+        public func toUIKit() -> NSCollectionLayoutEdgeSpacing {
             NSCollectionLayoutEdgeSpacing(
                 leading: leading?.toUIKit(),
                 top: top?.toUIKit(),
@@ -289,16 +289,16 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
     #endif
 
     @MainActor
-    func toUIKit(
+    public func toUIKit(
         axis: Axis,
-        replacingUnspecifiedDimensionBy unspecified: NSCollectionLayoutSize,
+        replacingUnspecifiedDimensionBy proposedSize: NSCollectionLayoutSize,
         context: CollectionViewLayoutContext,
-        layoutEnvironment: any NSCollectionLayoutEnvironment
+        layoutEnvironment: NSCollectionLayoutEnvironment
     ) -> NSCollectionLayoutSection {
         switch storage {
         case .item(let itemSize):
             let layoutSize = itemSize.toUIKit(
-                replacingUnspecifiedDimensionBy: unspecified
+                replacingUnspecifiedDimensionBy: proposedSize
             )
             let group: NSCollectionLayoutGroup
             switch axis {
@@ -326,22 +326,22 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
             case .vertical:
                 group = NSCollectionLayoutGroup.vertical(
                     layoutSize: storage.groupSize.toUIKit(
-                        replacingUnspecifiedDimensionBy: unspecified
+                        replacingUnspecifiedDimensionBy: proposedSize
                     ),
                     subitems: storage.itemSizes.map {
                         NSCollectionLayoutItem(
-                            layoutSize: $0.toUIKit(replacingUnspecifiedDimensionBy: unspecified)
+                            layoutSize: $0.toUIKit(replacingUnspecifiedDimensionBy: proposedSize)
                         )
                     }
                 )
             case .horizontal:
                 group = NSCollectionLayoutGroup.horizontal(
                     layoutSize: storage.groupSize.toUIKit(
-                        replacingUnspecifiedDimensionBy: unspecified
+                        replacingUnspecifiedDimensionBy: proposedSize
                     ),
                     subitems: storage.itemSizes.map {
                         NSCollectionLayoutItem(
-                            layoutSize: $0.toUIKit(replacingUnspecifiedDimensionBy: unspecified)
+                            layoutSize: $0.toUIKit(replacingUnspecifiedDimensionBy: proposedSize)
                         )
                     }
                 )
@@ -601,7 +601,8 @@ extension CollectionViewCompositionalLayout {
 @available(iOS 14.0, tvOS 14.0, *)
 open class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalLayout {
 
-    public class SectionProvider {
+    @MainActor
+    open class SectionProvider {
         public var configuration: CollectionViewCompositionalLayout.Configuration
         public var options: CollectionViewLayoutOptions
         public var layoutAttributes: (any CollectionViewLayoutAttributes)?
@@ -619,36 +620,27 @@ open class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalL
             self.layoutAttributes = layoutAttributes
         }
 
-        @MainActor
-        func makeSection(
+        open func layoutSection(
             section: Int,
-            environment: any NSCollectionLayoutEnvironment
-        ) -> NSCollectionLayoutSection? {
-            let widthDimension: NSCollectionLayoutDimension = configuration.axis == .vertical
-                ? .fractionalWidth(1.0)
-                : .estimated(100)
-            let heightDimension: NSCollectionLayoutDimension = configuration.axis == .vertical
-                ? .estimated(100)
-                : .fractionalHeight(1.0)
-            let unspecifiedDimension = NSCollectionLayoutSize(
-                widthDimension: widthDimension,
-                heightDimension: heightDimension
-            )
+            proposedSize: NSCollectionLayoutSize,
+            environment: NSCollectionLayoutEnvironment
+        ) -> NSCollectionLayoutSection {
             let layoutGroup = configuration.layoutGroup
             let layoutSection = layoutGroup.toUIKit(
                 axis: configuration.axis,
-                replacingUnspecifiedDimensionBy: unspecifiedDimension,
+                replacingUnspecifiedDimensionBy: proposedSize,
                 context: context,
                 layoutEnvironment: environment
             )
-            layoutSection.interGroupSpacing = configuration.itemSpacing
-            layoutSection.contentInsets = NSDirectionalEdgeInsets(configuration.contentInsets)
-            if #available(iOS 16.0, tvOS 16.0, *) {
-                layoutSection.supplementaryContentInsetsReference = .none
-            } else {
-                layoutSection.supplementariesFollowContentInsets = false
-            }
-            for supplementaryView in options.supplementaryViews {
+            return layoutSection
+        }
+
+        open func supplementaryItems(
+            section: Int,
+            proposedSize: NSCollectionLayoutSize,
+            environment: NSCollectionLayoutEnvironment
+        ) -> [NSCollectionLayoutBoundarySupplementaryItem] {
+            return options.supplementaryViews.compactMap { supplementaryView in
                 let isVisible = {
                     guard
                         let visibility = configuration.supplementaryViewVisibility[supplementaryView.id]
@@ -657,10 +649,51 @@ open class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalL
                     }
                     return visibility.isVisible(in: section)
                 }()
-                guard isVisible else { continue }
-                let item = supplementaryView.toUIKit(unspecifiedDimension: unspecifiedDimension)
+                guard isVisible else { return nil }
+                let item = supplementaryView.toUIKit(unspecifiedDimension: proposedSize)
                 item.pinToVisibleBounds = configuration.pinnedViews.contains(supplementaryView.id)
-                layoutSection.boundarySupplementaryItems.append(item)
+                return item
+            }
+        }
+
+        open func sectionProvider(
+            section: Int,
+            environment: NSCollectionLayoutEnvironment
+        ) -> NSCollectionLayoutSection? {
+            let widthDimension: NSCollectionLayoutDimension = configuration.axis == .vertical
+                ? .fractionalWidth(1.0)
+                : .estimated(100)
+            let heightDimension: NSCollectionLayoutDimension = configuration.axis == .vertical
+                ? .estimated(100)
+                : .fractionalHeight(1.0)
+            let proposedSize = NSCollectionLayoutSize(
+                widthDimension: widthDimension,
+                heightDimension: heightDimension
+            )
+            let layoutSection = layoutSection(
+                section: section,
+                proposedSize: proposedSize,
+                environment: environment
+            )
+            layoutSection.boundarySupplementaryItems = supplementaryItems(
+                section: section,
+                proposedSize: proposedSize,
+                environment: environment
+            )
+            return layoutSection
+        }
+
+        open func _sectionProvider(
+            section: Int,
+            environment: NSCollectionLayoutEnvironment
+        ) -> NSCollectionLayoutSection? {
+            guard let layoutSection = sectionProvider(section: section, environment: environment) else { return nil }
+            layoutSection.interGroupSpacing = configuration.itemSpacing
+            layoutSection.contentInsets = NSDirectionalEdgeInsets(configuration.contentInsets)
+            if #available(iOS 16.0, tvOS 16.0, *) {
+                layoutSection.supplementaryContentInsetsReference = .none
+            } else {
+                layoutSection.supplementariesFollowContentInsets = false
             }
             if let scrollEffect = configuration.scrollEffect {
                 layoutSection.visibleItemsInvalidationHandler = { [unowned self] visibleItems, offset, environment in
@@ -688,7 +721,7 @@ open class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalL
         self.sectionProvider = sectionProvider
         super.init(
             sectionProvider: { [unowned sectionProvider] section, environment in
-                sectionProvider.makeSection(section: section, environment: environment)
+                sectionProvider._sectionProvider(section: section, environment: environment)
             },
             configuration: configuration
         )
