@@ -49,24 +49,24 @@ where
     public var editingConfiguration: CollectionViewCoordinatorEditingConfiguration<Items.Element>? {
         willSet {
             if newValue == nil, editingConfiguration != nil {
-                withCATransaction {
-                    self.endEditing()
+                withCATransaction { [weak self] in
+                    self?.endEditing()
                 }
             }
         }
         didSet {
             if let configuration = editingConfiguration {
                 if !collectionView.isEditing, configuration.isEditing.wrappedValue {
-                    withCATransaction {
-                        self.beginEditing()
+                    withCATransaction { [weak self] in
+                        self?.beginEditing()
                     }
                 } else if collectionView.isEditing, !configuration.isEditing.wrappedValue {
-                    withCATransaction {
-                        self.endEditing()
+                    withCATransaction { [weak self] in
+                        self?.endEditing()
                     }
                 } else {
-                    withCATransaction {
-                        self.updateEditingSelection()
+                    withCATransaction { [weak self] in
+                        self?.updateEditingSelection()
                     }
                 }
                 collectionView.allowsMultipleSelectionDuringEditing = configuration.allowsMultipleSelectionDuringEditing
@@ -392,11 +392,13 @@ where
     #endif
 
     private func beginEditing() {
+        guard let collectionView else { return }
         collectionView.isEditing = true
         updateEditingSelection()
     }
 
     private func updateEditingSelection() {
+        guard let collectionView else { return }
         if collectionView.isEditing {
             for id in editingConfiguration?.selection?.wrappedValue ?? [] {
                 guard let indexPath = indexPath(for: id) else { continue }
@@ -410,7 +412,7 @@ where
     }
 
     private func endEditing() {
-        collectionView.isEditing = false
+        collectionView?.isEditing = false
         updateEditingSelection()
         if let selection = editingConfiguration?.selection {
             selection.wrappedValue = []
@@ -591,6 +593,11 @@ where
 
     open func didFinishUpdate() {
         context.transaction = Transaction()
+        guard let collectionView else {
+            isUpdating = false
+            isUpdatingContentOffset = false
+            return
+        }
         isReadyForDisplay = collectionView.frame != .zero
         if !isUpdatingScrollPosition {
             syncScrollPosition(scrollViewDidScroll: false)
@@ -599,8 +606,8 @@ where
         updates &+= 1
         if isUpdatingContentOffset {
             isUpdatingContentOffset = false
-            withCATransaction {
-                self.scrollViewDidScroll()
+            withCATransaction { [weak self] in
+                self?.scrollViewDidScroll()
             }
         }
     }
@@ -712,15 +719,15 @@ where
             if updates > 1 {
                 scrollViewDidScroll()
             } else {
-                withCATransaction {
-                    self.scrollViewDidScroll()
+                withCATransaction { [weak self] in
+                    self?.scrollViewDidScroll()
                 }
             }
         }
     }
 
     private func scrollViewDidScroll() {
-        guard let onScroll else { return }
+        guard let onScroll, let collectionView else { return }
         let contentOffset = collectionView.contentOffset
         let edgeInsets = EdgeInsets(
             edgeInsets: collectionView.adjustedContentInset,
