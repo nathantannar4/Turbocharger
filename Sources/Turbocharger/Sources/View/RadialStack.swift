@@ -47,8 +47,8 @@ public struct RadialStack<Content: View>: VersionedView {
 }
 
 /// A layout that arranges subviews along a radial circumference.
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct RadialStackLayout: Layout {
 
     public var radius: CGFloat?

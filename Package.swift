@@ -19,14 +19,24 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/nathantannar4/Engine", from: "2.18.0"),
+        .package(url: "https://github.com/nathantannar4/Engine", from: "2.19.0"),
     ],
     targets: [
         .target(
             name: "Turbocharger",
             dependencies: [
                 "Engine"
-            ]
+            ],
+            swiftSettings: {
+                var settings = [SwiftSetting]()
+                #if compiler(>=6.2)
+                settings.append(.define("XCODE_26"))
+                #endif
+                #if compiler(>=6.4)
+                settings.append(.define("XCODE_27"))
+                #endif
+                return settings
+            }()
         )
     ]
 )

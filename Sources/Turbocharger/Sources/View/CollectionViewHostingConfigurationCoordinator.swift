@@ -432,7 +432,7 @@ open class CollectionViewHostingConfigurationCoordinator<
     private func makeFooterContent(
         state: HostingConfigurationStateBridge,
         indexPath: IndexPath,
-        section: CollectionViewSection<Section, Items>,
+        section: CollectionViewSection<Section, Items>
     ) -> UIContentConfiguration {
         makeHostingConfiguration(
             id: SupplementaryViewID(

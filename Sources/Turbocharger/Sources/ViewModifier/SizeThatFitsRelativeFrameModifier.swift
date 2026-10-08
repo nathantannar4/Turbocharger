@@ -6,8 +6,8 @@ import SwiftUI
 import Engine
 
 /// A view modifier that transforms a views frame based on its size that fits
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct SizeThatFitsRelativeFrameModifier: ViewModifier {
 
     public var transform: @Sendable (CGSize) -> CGSize
@@ -40,8 +40,8 @@ extension View {
     }
 }
 
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct SizeThatFitsRelativeFrameLayout: Layout {
 
     public var transform: @Sendable (CGSize) -> CGSize

@@ -198,8 +198,8 @@ extension ComposableCollectionViewLayout {
     }
 }
 
-@frozen
 @available(iOS 14.0, tvOS 14.0, *)
+@frozen
 public struct CollectionViewLayoutContext {
 
     public var environment: EnvironmentValues
@@ -211,8 +211,8 @@ public struct CollectionViewLayoutContext {
     }
 }
 
-@frozen
 @available(iOS 14.0, tvOS 14.0, *)
+@frozen
 public struct CollectionViewLayoutOptions: Equatable {
 
     public var safeAreaInsets: EdgeInsets?
@@ -377,7 +377,7 @@ public struct CollectionViewSupplementaryView: Equatable {
                 case .topLeading:
                     return .topLeading
                 case .topTrailing:
-                    return .topLeading
+                    return .topTrailing
                 case .bottom:
                     return .bottom
                 case .bottomLeading:

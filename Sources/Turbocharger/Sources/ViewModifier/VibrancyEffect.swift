@@ -6,11 +6,11 @@ import SwiftUI
 import Combine
 
 /// A modifier that overlays a Metal layer filter that intensifies the vibrancy
-@frozen
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
+@frozen
 public struct VibrancyEffectModifier: ViewModifier {
 
     @usableFromInline
@@ -30,11 +30,11 @@ public struct VibrancyEffectModifier: ViewModifier {
 }
 
 /// A Metal layer filter that intensifies the vibrancy
-@frozen
 @available(macOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
+@frozen
 public struct VibrancyEffectView: View {
 
     @usableFromInline
@@ -118,6 +118,8 @@ private class HDRLayerView: UIView {
     var commandQueue: MTLCommandQueue?
     var library: MTLLibrary?
 
+    private var renderedDrawableSize: CGSize?
+
     var metalLayer: CAMetalLayer { layer as! CAMetalLayer }
     override class var layerClass: AnyClass { CAMetalLayer.self }
 
@@ -158,9 +160,16 @@ private class HDRLayerView: UIView {
         CATransaction.commit()
     }
 
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        renderedDrawableSize = nil
+        setNeedsLayout()
+    }
+
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
-        setNeedsDisplay()
+        renderedDrawableSize = nil
+        setNeedsLayout()
     }
 
     private func render() {
@@ -170,7 +179,14 @@ private class HDRLayerView: UIView {
         #else
         let isHDRSupported = window?.screen.traitCollection.displayGamut == .P3
         isHidden = !isHDRSupported
-        guard isHDRSupported else { return }
+        guard isHDRSupported else {
+            renderedDrawableSize = nil
+            return
+        }
+
+        // The drawable contents are static, so only re-render when the size changes
+        let drawableSize = metalLayer.drawableSize
+        guard drawableSize != renderedDrawableSize else { return }
 
         guard let drawable = metalLayer.nextDrawable() else { return }
 
@@ -193,6 +209,7 @@ private class HDRLayerView: UIView {
         encoder.endEncoding()
         buffer.present(drawable)
         buffer.commit()
+        renderedDrawableSize = drawableSize
         #endif
     }
 }

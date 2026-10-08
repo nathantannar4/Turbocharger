@@ -255,8 +255,8 @@ extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
     }
 }
 
-@frozen
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+@frozen
 public struct AccessibilityCustomContent {
 
     public var key: AccessibilityCustomContentKey
@@ -278,14 +278,14 @@ public struct AccessibilityCustomContent {
 extension View {
 
     @inlinable
-    func accessibilityCustomContent(
+    public func accessibilityCustomContent(
         _ customContent: AccessibilityCustomContent
     ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
         accessibilityCustomContent(customContent.key, customContent.value, importance: customContent.importance)
     }
 
     @inlinable
-    func accessibilityCustomContent(
+    public func accessibilityCustomContent(
         _ customContent: [AccessibilityCustomContent]
     ) -> ModifiedContent<Self, AccessibilityAttachmentModifier> {
         var modified = accessibility(addTraits: [])
@@ -300,14 +300,14 @@ extension View {
 extension ModifiedContent where Modifier == AccessibilityAttachmentModifier {
 
     @inlinable
-    func accessibilityCustomContent(
+    public func accessibilityCustomContent(
         _ customContent: AccessibilityCustomContent
     ) -> ModifiedContent {
         accessibilityCustomContent(customContent.key, customContent.value, importance: customContent.importance)
     }
 
     @inlinable
-    func accessibilityCustomContent(
+    public func accessibilityCustomContent(
         _ customContent: [AccessibilityCustomContent]
     ) -> ModifiedContent {
         var modified = accessibility(addTraits: [])

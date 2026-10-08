@@ -6,8 +6,8 @@ import SwiftUI
 import Engine
 
 /// A view that arranges its subviews along multiple horizontal lines.
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct FlowStack<Content: View>: View {
 
     public var alignment: Alignment
@@ -64,8 +64,8 @@ public struct FlowStack<Content: View>: View {
 }
 
 /// A layout that arranges subviews along multiple horizontal lines.
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct FlowStackLayout: Layout {
 
     @frozen
@@ -77,6 +77,7 @@ public struct FlowStackLayout: Layout {
             self.rawValue = rawValue
         }
 
+        /// Layout subviews based on their width to fill rows equally
         public static var fill: Options {
             Options(rawValue: 1 << 0)
         }
@@ -122,7 +123,6 @@ public struct FlowStackLayout: Layout {
         subviews: Subviews,
         cache: inout Cache
     ) -> CGSize {
-        let subviews = subviews.sorted(by: { $0.priority > $1.priority })
         let layoutProposal = layoutProposal(
             subviews: subviews,
             proposal: proposal,
@@ -137,15 +137,15 @@ public struct FlowStackLayout: Layout {
         subviews: Subviews,
         cache: inout Cache
     ) {
-        let subviews = subviews.sorted(by: { $0.priority > $1.priority })
         let layoutProposal = layoutProposal(
             subviews: subviews,
             proposal: proposal,
             cache: &cache
         )
-        for index in subviews.indices {
-            let frame = layoutProposal.frames[index]!
-            subviews[index].place(
+        let frames = layoutProposal.frames
+        for index in layoutProposal.order.indices {
+            let frame = frames[index]!
+            subviews[layoutProposal.order[index]].place(
                 at: CGPoint(
                     x: frame.origin.x + bounds.minX,
                     y: frame.origin.y + bounds.minY
@@ -165,6 +165,8 @@ public struct FlowStackLayout: Layout {
 
     struct LayoutProposal {
         var lines: [LayoutProposalLine] = []
+        /// Maps the sorted (by priority) subview positions to their `Subviews` index
+        var order: [LayoutSubviews.Index] = []
 
         var frames: [LayoutSubviews.Index: CGRect] {
             lines.reduce(into: [:]) { result, line in
@@ -178,7 +180,7 @@ public struct FlowStackLayout: Layout {
     }
 
     private func layoutProposal(
-        subviews: [LayoutSubview],
+        subviews: Subviews,
         proposal: ProposedViewSize,
         cache: inout Cache
     ) -> LayoutProposal {
@@ -189,7 +191,14 @@ public struct FlowStackLayout: Layout {
             return layoutProposal
         }
 
+        let priorities = subviews.map(\.priority)
+        let order = subviews.indices.sorted(by: {
+            priorities[$0 - subviews.startIndex] > priorities[$1 - subviews.startIndex]
+        })
+        let subviews = order.map { subviews[$0] }
+
         var layoutProposal = LayoutProposal()
+        layoutProposal.order = order
         var currentX: CGFloat = 0
         var currentLine = LayoutProposalLine()
         let maxWidth = proposal.width ?? .infinity
@@ -217,7 +226,7 @@ public struct FlowStackLayout: Layout {
                             let line = layoutProposal.lines[lineIndex]
                             let spacing = columnSpacing ?? {
                                 let fromIndex = line.frames
-                                    .max(by: { $0.value.maxX > $1.value.maxX })?
+                                    .max(by: { $0.value.maxX < $1.value.maxX })?
                                     .key ?? (index - 1)
                                 return subviews[fromIndex].spacing.distance(
                                     to: subviews[index].spacing,
@@ -238,26 +247,32 @@ public struct FlowStackLayout: Layout {
                             }
                         }
                     }
-                    endLine(index: index)
-                } else if minimumNumberOfRows > 0 {
-                    let lines = (layoutProposal.lines + [currentLine])
-                    var enumeratedLines = Array(zip(lines.indices, lines))
-                    if options.contains(.fill) {
-                        enumeratedLines = Array(enumeratedLines.sorted(by: { $0.1.frame.maxX < $1.1.frame.maxX }))
-                    } else {
-                        enumeratedLines = Array(enumeratedLines.sorted(by: { $0.1.frames.count <= $1.1.frames.count }))
+                    if needsLayout {
+                        endLine(index: index)
                     }
-                    for (lineIndex, line) in enumeratedLines {
+                } else if minimumNumberOfRows > 0 {
+                    var enumeratedLines: [(Int, LayoutProposalLine, maxX: CGFloat)] = []
+                    enumeratedLines.reserveCapacity(layoutProposal.lines.count + 1)
+                    for (lineIndex, line) in layoutProposal.lines.enumerated() {
+                        enumeratedLines.append((lineIndex, line, line.frame.maxX))
+                    }
+                    enumeratedLines.append((layoutProposal.lines.count, currentLine, currentLine.frame.maxX))
+                    if options.contains(.fill) {
+                        enumeratedLines.sort(by: { $0.maxX < $1.maxX })
+                    } else {
+                        enumeratedLines.sort(by: { $0.1.frames.count <= $1.1.frames.count })
+                    }
+                    for (lineIndex, line, maxX) in enumeratedLines {
                         let spacing = columnSpacing ?? {
                             let fromIndex = line.frames
-                                .max(by: { $0.value.maxX > $1.value.maxX })?
+                                .max(by: { $0.value.maxX < $1.value.maxX })?
                                 .key ?? (index - 1)
                             return subviews[fromIndex].spacing.distance(
                                 to: subviews[index].spacing,
                                 along: .horizontal
                             )
                         }()
-                        let x = line.frame.maxX + spacing
+                        let x = maxX + spacing
                         if x + dimension.width <= maxWidth {
                             let rect = CGRect(
                                 x: x,
@@ -296,13 +311,16 @@ public struct FlowStackLayout: Layout {
         }
 
         var currentY: CGFloat = 0
+        // The union of each line, kept in sync as lines are updated, so that the
+        // union of all frames does not need to be recomputed for every subview
+        var lineUnions = layoutProposal.lines.map(\.frame)
         for lineIndex in layoutProposal.lines.indices {
             let line = layoutProposal.lines[lineIndex]
             if lineIndex > 0 {
                 let spacing = rowSpacing ?? {
                     var minSpacing: CGFloat = 0
                     let fromIndex = layoutProposal.lines[lineIndex - 1].frames
-                        .max(by: { $0.value.maxY > $1.value.maxY })?
+                        .max(by: { $0.value.maxY < $1.value.maxY })?
                         .key ?? 0
                     for index in line.frames.keys {
                         let spacing = subviews[fromIndex].spacing.distance(
@@ -316,29 +334,29 @@ public struct FlowStackLayout: Layout {
                 currentY += spacing
             }
 
-            let union = line.frame
+            let union = lineUnions[lineIndex]
+            let width = lineUnions.union.width
             layoutProposal.lines[lineIndex].frames = line.frames.mapValues { rect in
                 var newValue = rect
                 newValue.origin.y -= union.midY
                 newValue.origin.y += union.height / 2
                 newValue.origin.y += currentY
-                if layoutProposal.lines.count > 0 {
-                    switch alignment.horizontal {
-                    case .leading:
-                        break
-                    case .trailing:
-                        let delta = layoutProposal.frame.width - union.width
-                        newValue.origin.x += delta
-                    case .center:
-                        let delta = layoutProposal.frame.width - union.width
-                        newValue.origin.x += delta / 2
-                    default:
-                        break
-                    }
+                switch alignment.horizontal {
+                case .leading:
+                    break
+                case .trailing:
+                    let delta = width - union.width
+                    newValue.origin.x += delta
+                case .center:
+                    let delta = width - union.width
+                    newValue.origin.x += delta / 2
+                default:
+                    break
                 }
                 return newValue
             }
-            currentY += layoutProposal.lines[lineIndex].frame.height
+            lineUnions[lineIndex] = layoutProposal.lines[lineIndex].frame
+            currentY += lineUnions[lineIndex].height
         }
 
         cache.proposedSize = proposal
@@ -412,7 +430,7 @@ struct FlowStack_Previews: PreviewProvider {
                     .fill(color)
                     .frame(width: 10, height: 10)
 
-                if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *) {
+                if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) {
                     Text(label)
                         .geometryGroup()
                 } else {
@@ -619,7 +637,6 @@ struct FlowStack_Previews: PreviewProvider {
 
                         TagView(label: "Lorem ipsum dolor sit amet consectetur", color: .blue)
                     }
-                    .padding(.horizontal)
 
                     Divider()
 
@@ -662,7 +679,7 @@ struct FlowStack_Previews: PreviewProvider {
         var body: some View {
             VStack {
                 Text(width.rounded().description)
-                #if os(iOS) || os(visionOS) || os(macOS)
+                #if os(iOS) || os(macOS) || os(visionOS)
                 Slider(value: $width, in: 10...375)
                 #endif
 

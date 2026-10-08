@@ -6,8 +6,8 @@ import SwiftUI
 import Engine
 
 /// A view that arranges its subviews along multiple horizontal lines.
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct MasonryStack<
     Content: View
 >: View {
@@ -33,8 +33,8 @@ public struct MasonryStack<
     }
 }
 
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct MasonryLayout: Layout {
 
     public var columns: Int
@@ -53,7 +53,6 @@ public struct MasonryLayout: Layout {
         subviews: Subviews,
         cache: inout Cache
     ) -> CGSize {
-        let subviews = subviews.sorted(by: { $0.priority > $1.priority })
         let layoutProposal = layoutProposal(
             subviews: subviews,
             proposal: proposal,
@@ -68,15 +67,14 @@ public struct MasonryLayout: Layout {
         subviews: Subviews,
         cache: inout Cache
     ) {
-        let subviews = subviews.sorted(by: { $0.priority > $1.priority })
         let layoutProposal = layoutProposal(
             subviews: subviews,
             proposal: proposal,
             cache: &cache
         )
-        for index in subviews.indices {
+        for index in layoutProposal.order.indices {
             let frame = layoutProposal.frames[index]!
-            subviews[index].place(
+            subviews[layoutProposal.order[index]].place(
                 at: CGPoint(
                     x: frame.origin.x + bounds.minX,
                     y: frame.origin.y + bounds.minY
@@ -88,6 +86,8 @@ public struct MasonryLayout: Layout {
 
     struct LayoutProposal {
         var frames: [LayoutSubviews.Index: CGRect] = [:]
+        /// Maps the sorted (by priority) subview positions to their `Subviews` index
+        var order: [LayoutSubviews.Index] = []
 
         var frame: CGRect {
             frames.map({ $0.value }).union
@@ -95,7 +95,7 @@ public struct MasonryLayout: Layout {
     }
 
     private func layoutProposal(
-        subviews: [LayoutSubview],
+        subviews: Subviews,
         proposal: ProposedViewSize,
         cache: inout Cache
     ) -> LayoutProposal {
@@ -106,7 +106,15 @@ public struct MasonryLayout: Layout {
             return layoutProposal
         }
 
+        let priorities = subviews.map(\.priority)
+        let order = subviews.indices.sorted(by: {
+            priorities[$0 - subviews.startIndex] > priorities[$1 - subviews.startIndex]
+        })
+        let subviews = order.map { subviews[$0] }
+
         var layoutProposal = LayoutProposal()
+        layoutProposal.order = order
+        let columns = max(1, columns)
         let width = proposal.replacingUnspecifiedDimensions().width
         let totalSpacing = spacing * CGFloat(columns - 1)
         let columnWidth = max(0, (width - totalSpacing) / CGFloat(columns))

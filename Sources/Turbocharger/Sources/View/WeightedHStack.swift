@@ -53,7 +53,7 @@ public struct WeightedHStack<Content: View>: VersionedView {
                         }
                         ForEach(children) { subview in
                             let weight = max(0, min(subview.layoutWeightPriority, CGFloat(children.count)))
-                            let width = availableWidth * weight / weights
+                            let width = weights > 0 ? availableWidth * weight / weights : 0
                             subview.frame(width: width)
                         }
                     }
@@ -68,8 +68,8 @@ public struct WeightedHStack<Content: View>: VersionedView {
 ///
 /// By default, all subviews will be placed with equal width.
 ///
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct WeightedHStackLayout: Layout {
 
     public var alignment: VerticalAlignment
@@ -89,10 +89,14 @@ public struct WeightedHStackLayout: Layout {
 
         let width = proposal.replacingUnspecifiedDimensions().width
         let spacing = spacing(subviews: subviews)
-        let availableWidth = (width - spacing.reduce(0, +)) / CGFloat(subviews.count)
+        let availableWidth = width - spacing.reduce(0, +)
+        let weights = subviews.reduce(into: 0) { value, subview in
+            value += max(0, min(subview.layoutWeightPriority, Double(subviews.count)))
+        }
 
         var sizeThatFits: CGSize = subviews.reduce(into: .zero) { value, subview in
-            let width = availableWidth * max(0, min(subview.layoutWeightPriority, Double(subviews.count)))
+            let weight = max(0, min(subview.layoutWeightPriority, Double(subviews.count)))
+            let width = availableWidth * weight / (weights > 0 ? weights : 1)
             let sizeThatFits = subview.sizeThatFits(
                 ProposedViewSize(width: width, height: proposal.height)
             )
@@ -133,14 +137,14 @@ public struct WeightedHStackLayout: Layout {
         var x = bounds.minX
         for index in subviews.indices {
             let weight = min(subviews[index].layoutWeightPriority, Double(subviews.count))
-            let width = availableWidth * max(0, weight) / max(weights, 1)
+            let width = availableWidth * max(0, weight) / (weights > 0 ? weights : 1)
             x += width / 2
-            let subviewProposal = ProposedViewSize(width: width, height: proposal.height)
-            let placementProposal = ProposedViewSize(
-                width: width,
-                height: subviews[index].sizeThatFits(subviewProposal).height
-            )
             if weight > 0 {
+                let subviewProposal = ProposedViewSize(width: width, height: proposal.height)
+                let placementProposal = ProposedViewSize(
+                    width: width,
+                    height: subviews[index].sizeThatFits(subviewProposal).height
+                )
                 subviews[index].place(
                     at: CGPoint(x: x, y: y),
                     anchor: anchor,
@@ -170,19 +174,18 @@ public struct WeightedHStackLayout: Layout {
                 )
             }
         }()
-        return spacing.indices.map { index in
+        var result = [CGFloat](repeating: 0, count: spacing.count)
+        var hasNextNonZeroWeight = false
+        for index in spacing.indices.reversed() {
             let weight = subviews[index].layoutWeightPriority
-            if weight <= 0 {
-                return 0
+            if !(weight <= 0), hasNextNonZeroWeight {
+                result[index] = spacing[index]
             }
-            let hasNextNonZeroWeight = subviews[(index + 1)..<subviews.endIndex].contains {
-                $0.layoutWeightPriority > 0
+            if weight > 0 {
+                hasNextNonZeroWeight = true
             }
-            if hasNextNonZeroWeight {
-                return spacing[index]
-            }
-            return 0
         }
+        return result
     }
 
     public static var layoutProperties: LayoutProperties {

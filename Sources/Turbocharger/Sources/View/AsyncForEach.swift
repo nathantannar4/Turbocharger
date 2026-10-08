@@ -23,7 +23,7 @@ public struct AsyncForEach<
         placeholders: Int,
         @ViewBuilder content: @escaping (AsyncValue<Section, Data.Element>) -> Content
     ) {
-        var values = data?.enumerated().compactMap {
+        var values = data?.enumerated().map {
             AsyncValue(value: $0.element, offset: .init(index: $0.offset, section: section))
         } ?? []
         let placeholders = (0..<Swift.max(0, placeholders)).map {
@@ -80,7 +80,7 @@ extension AsyncForEach {
         placeholders: Int,
         @ViewBuilder content: @escaping (AsyncValue<Section, Data.Element>) -> Content
     ) where Data == Array<IdentifiableBox<_Data.Element, _ID>> {
-        let data = data?.compactMap {
+        let data = data?.map {
             IdentifiableBox($0, id: id)
         }
         self.init(data, keyPath: keyPath, section: section, placeholders: placeholders) { value in

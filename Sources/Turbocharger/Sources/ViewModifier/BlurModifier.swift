@@ -4,12 +4,12 @@
 
 import SwiftUI
 
-@MainActor
 @available(iOS, deprecated: 17.0, message: "Use BlurTransition")
 @available(macOS, deprecated: 14.0, message: "Use BlurTransition")
 @available(tvOS, deprecated: 17.0, message: "Use BlurTransition")
 @available(watchOS, deprecated: 10.0, message: "Use BlurTransition")
 @available(visionOS, deprecated: 1.0, message: "Use BlurTransition")
+@MainActor
 extension AnyTransition {
 
     /// A transition that blurs the view.
@@ -30,8 +30,8 @@ extension AnyTransition {
 }
 
 /// A transition that blurs the view
-@frozen
 @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)
+@frozen
 public struct BlurTransition: Transition {
 
     public var radius: CGFloat

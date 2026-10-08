@@ -45,10 +45,31 @@ public struct FluidGradient: View {
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
-private struct FluidGradientBody: CALayerRepresentable {
+private struct FluidGradientBody: View {
 
     var colors: [Color]
     var backgroundColors: [Color]
+
+    @State private var isVisible = false
+
+    var body: some View {
+        FluidGradientLayerAdapter(
+            colors: colors,
+            backgroundColors: backgroundColors,
+            isAnimating: isVisible
+        )
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+    }
+}
+
+@available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
+@available(watchOS, unavailable)
+private struct FluidGradientLayerAdapter: CALayerRepresentable {
+
+    var colors: [Color]
+    var backgroundColors: [Color]
+    var isAnimating: Bool
 
     func makeCALayer(
         _ layer: FluidGradientLayer,
@@ -61,10 +82,12 @@ private struct FluidGradientBody: CALayerRepresentable {
         _ layer: FluidGradientLayer,
         context: Context
     ) {
-        withCATransaction {
-            CATransaction.setDisableActions(true)
-            layer.update(colors: colors, backgroundColors: backgroundColors)
-        }
+        layer.onUpdate(
+            colors: colors,
+            backgroundColors: backgroundColors,
+            context: context
+        )
+        context.coordinator.isAnimating = isAnimating
     }
 
     func makeCoordinator() -> Coordinator {
@@ -75,14 +98,34 @@ private struct FluidGradientBody: CALayerRepresentable {
 
         weak var layer: FluidGradientLayer?
         var timer: AnyCancellable?
+        var lastTick: Date?
 
-        init() {
+        var isAnimating = false {
+            didSet {
+                guard isAnimating != oldValue else { return }
+                if isAnimating {
+                    start()
+                } else {
+                    timer = nil
+                }
+            }
+        }
+
+        private func start() {
             let duration: TimeInterval = 15
-            timer = Timer.publish(every: duration, on: .main, in: .default)
-                .autoconnect()
-                .prepend(Date())
+            // Resume the existing cycle if the previous animations are still in flight
+            let elapsed = lastTick.map { Date().timeIntervalSince($0) } ?? duration
+            let delay = max(0, duration - elapsed)
+            timer = Just(Date())
+                .delay(for: .seconds(delay), scheduler: DispatchQueue.main)
+                .flatMap { _ in
+                    Timer.publish(every: duration, on: .main, in: .default)
+                        .autoconnect()
+                        .prepend(Date())
+                }
                 .receive(on: DispatchQueue.main)
-                .sink { [unowned self] _ in
+                .sink { [unowned self] date in
+                    self.lastTick = date
                     withCATransaction {
                         CATransaction.setDisableActions(true)
                         self.layer?.onClockTick(duration: duration)
@@ -94,10 +137,10 @@ private struct FluidGradientBody: CALayerRepresentable {
 
 @available(iOS 14.0, macOS 11.0, tvOS 14.0, *)
 @available(watchOS, unavailable)
-final class FluidGradientLayer: CALayer {
+private class FluidGradientLayer: CALayer {
 
-    private var colors: [Color] = []
-    private var backgroundColors: [Color] = []
+    private var colors: [CGColor] = []
+    private var backgroundColors: [CGColor] = []
     private var backgroundGradientLayer = CAGradientLayer()
     private var backgroundFluidLayers: [FluidLayer] = []
     private let backgroundLayer = CALayer()
@@ -139,30 +182,36 @@ final class FluidGradientLayer: CALayer {
                 layout(layer: sublayer)
             }
         }
-        withCATransaction {
-            CATransaction.setDisableActions(true)
-            layout(layer: self)
-        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layout(layer: self)
+        CATransaction.commit()
 
         if isPendingLayout {
             update()
         }
     }
 
-    func update(
+    func onUpdate(
         colors: [Color],
-        backgroundColors: [Color]
+        backgroundColors: [Color],
+        context: FluidGradientLayerAdapter.Context
     ) {
+        let colors = colors.map { $0.toCGColor(in: context.environment) }
+        let backgroundColors = backgroundColors.map { $0.toCGColor(in: context.environment) }
+        guard colors != self.colors || backgroundColors != self.backgroundColors else { return }
         self.colors = colors
         self.backgroundColors = backgroundColors
+        CATransaction.begin()
         update()
+        CATransaction.commit()
     }
 
     func onClockTick(duration: TimeInterval) {
         backgroundGradientLayer.removeAllAnimations()
         update()
 
-        let backgroundColors = backgroundColors.shuffled().map { $0.toCGColor() }
+        let backgroundColors = backgroundColors.shuffled()
         if duration > 0 {
             let layer = backgroundGradientLayer.presentation() ?? backgroundGradientLayer
             let colorsAnimation = CABasicAnimation.gradientAnimation(
@@ -196,9 +245,7 @@ final class FluidGradientLayer: CALayer {
     }
 
     private func update() {
-        backgroundGradientLayer.colors = backgroundColors.map {
-            $0.toCGColor()
-        }
+        backgroundGradientLayer.colors = backgroundColors
 
         guard bounds.size != .zero else {
             isPendingLayout = true
@@ -221,7 +268,7 @@ final class FluidGradientLayer: CALayer {
     private func update(
         layers: inout [FluidLayer],
         in layer: CALayer,
-        colors: [Color]
+        colors: [CGColor]
     ) {
         layers.reserveCapacity(colors.count)
         while layers.count > colors.count {
@@ -233,6 +280,7 @@ final class FluidGradientLayer: CALayer {
                 sublayer.color = color
             } else {
                 let sublayer = FluidLayer()
+                sublayer.color = color
                 sublayer.frame = layer.bounds
                 let startPoint = CGPoint(unitPoint: .random())
                 sublayer.startPoint = startPoint
@@ -248,15 +296,14 @@ final class FluidGradientLayer: CALayer {
 @available(watchOS, unavailable)
 final class FluidLayer: CAGradientLayer {
 
-    var color: Color? {
+    var color: CGColor? {
         didSet {
             if oldValue != color {
-                if let color = color {
-                    let cgColor = color.toCGColor()
+                if let color {
                     colors = [
-                        cgColor,
-                        cgColor,
-                        color.opacity(0).toCGColor()
+                        color,
+                        color,
+                        color.copy(alpha: 0) ?? CGColor(gray: 0, alpha: 0)
                     ]
                     locations = [0.0, 0.9, 0.99]
                 } else {
@@ -387,11 +434,11 @@ extension CGPoint {
 struct FluidGradient_Previews: PreviewProvider {
     static var previews: some View {
         Preview(colors: [
-            .red, .yellow, .orange
+            .red, .yellow, .orange, .primary
         ])
 
         Preview(colors: [
-            .green, .yellow, .blue
+            .green, .yellow, .blue, .primary
         ])
     }
 
@@ -399,18 +446,28 @@ struct FluidGradient_Previews: PreviewProvider {
         var colors: [Color]
 
         @State var isHidden = false
+        @State var isDark = false
 
         var body: some View {
             ZStack {
                 if !isHidden {
                     FluidGradient(colors: colors)
                         .ignoresSafeArea()
+                        .environment(\.colorScheme, isDark ? .dark : nil)
                 }
 
-                Button {
-                    isHidden.toggle()
-                } label: {
-                    Text("isHidden")
+                VStack {
+                    Button {
+                        isHidden.toggle()
+                    } label: {
+                        Text("isHidden")
+                    }
+
+                    Button {
+                        isDark.toggle()
+                    } label: {
+                        Text("isDark")
+                    }
                 }
             }
         }

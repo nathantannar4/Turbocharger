@@ -28,7 +28,7 @@ public struct VariableBlurView: View {
     }
 
     public var body: some View {
-        #if os(watchOS) || os(tvOS)
+        #if os(tvOS) || os(watchOS)
         EmptyView()
         #else
         VariableBlurViewBody(
@@ -114,7 +114,7 @@ open class VariableBlurLayerView: PlatformView {
                 #if os(macOS)
                 needsDisplay = true
                 #else
-                setNeedsDisplay()
+                setNeedsLayout()
                 #endif
             }
         }
@@ -123,7 +123,7 @@ open class VariableBlurLayerView: PlatformView {
     private var filter: NSObject?
     private let context = CIContext()
 
-    init(
+    public init(
         radius: CGFloat,
         startPoint: UnitPoint,
         endPoint: UnitPoint
@@ -174,28 +174,29 @@ open class VariableBlurLayerView: PlatformView {
     }
 
     #if os(macOS)
-    open override func draw(_ dirtyRect: NSRect) {
+    open override func updateLayer() {
+        super.updateLayer()
         if needsFilterUpdate {
             updateFilter()
         }
-        super.draw(dirtyRect)
     }
     #else
-    open override func draw(_ rect: CGRect) {
+    open override func layoutSubviews() {
+        super.layoutSubviews()
         if needsFilterUpdate {
             updateFilter()
         }
-        super.draw(rect)
     }
     #endif
 
     private func updateFilter() {
         needsFilterUpdate = false
 
+        guard let mask = makeMaskImage() else { return }
         CATransaction.begin()
+        defer { CATransaction.commit() }
         CATransaction.setDisableActions(true)
         if let filter {
-            guard let mask = makeMaskImage() else { return }
             filter.setValue(mask, forKey: "inputMaskImage")
             let keyPath = "filters.variableBlur.inputMaskImage"
             #if os(macOS)
@@ -204,7 +205,6 @@ open class VariableBlurLayerView: PlatformView {
             layer.setValue(mask, forKeyPath: keyPath)
             #endif
         } else if let filter = makeCAFilter() {
-            guard let mask = makeMaskImage() else { return }
             filter.setValue(radius, forKey: "inputRadius")
             filter.setValue(mask, forKey: "inputMaskImage")
             filter.setValue(true, forKey: "inputNormalizeEdges")
@@ -215,7 +215,6 @@ open class VariableBlurLayerView: PlatformView {
             #endif
             self.filter = filter
         }
-        CATransaction.commit()
     }
 
     private func makeMaskImage() -> CGImage? {

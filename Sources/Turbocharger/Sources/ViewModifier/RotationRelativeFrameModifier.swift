@@ -6,8 +6,8 @@ import SwiftUI
 import Engine
 
 /// A view modifier that arranges its subviews that transforms a subviews size to account for a rotation angle.
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct RotationRelativeFrameModifier: ViewModifier {
 
     public var rotation: Angle
@@ -36,8 +36,8 @@ extension View {
 }
 
 /// A layout that transforms a subviews size to account for a rotation angle.
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct RotationRelativeFrameLayout: Layout {
 
     public var rotation: Angle

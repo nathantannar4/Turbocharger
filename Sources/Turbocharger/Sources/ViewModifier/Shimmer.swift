@@ -208,11 +208,11 @@ private class ShimmerClock: ObservableObject {
     @Published private var elapsed: TimeInterval = 0
 
     private var registered: UInt = 0
-    #if os(iOS) || os(visionOS)
+    #if os(iOS) || os(tvOS) || os(visionOS)
     private var displayLink: CADisplayLink?
     #endif
 
-    #if os(macOS)
+    #if os(macOS) || os(watchOS)
     private var timer: Timer?
     #endif
 
@@ -221,16 +221,16 @@ private class ShimmerClock: ObservableObject {
     }
 
     deinit {
-        #if os(iOS) || os(visionOS)
+        #if os(iOS) || os(tvOS) || os(visionOS)
         displayLink?.invalidate()
         #endif
 
-        #if os(macOS)
+        #if os(macOS) || os(watchOS)
         timer?.invalidate()
         #endif
     }
 
-    #if os(iOS) || os(visionOS)
+    #if os(iOS) || os(tvOS) || os(visionOS)
     @objc
     private func onClockTick(displayLink: CADisplayLink) {
         let elapsed = displayLink.targetTimestamp - displayLink.timestamp
@@ -238,7 +238,7 @@ private class ShimmerClock: ObservableObject {
     }
     #endif
 
-    #if os(macOS)
+    #if os(macOS) || os(watchOS)
     @objc
     private func onClockTick(timer: Timer) {
         onClockTick(step: timer.timeInterval)
@@ -259,7 +259,7 @@ private class ShimmerClock: ObservableObject {
     func register() {
         if registered == 0 {
             registered += 1
-            #if os(iOS) || os(visionOS)
+            #if os(iOS) || os(tvOS) || os(visionOS)
             if let displayLink = displayLink {
                 displayLink.isPaused = false
             } else {
@@ -278,7 +278,7 @@ private class ShimmerClock: ObservableObject {
             }
             #endif
 
-            #if os(macOS)
+            #if os(macOS) || os(watchOS)
             if let timer = timer, timer.isValid {
             } else {
                 let timer = Timer(
@@ -302,11 +302,11 @@ private class ShimmerClock: ObservableObject {
         if registered == 1 {
             registered -= 1
             elapsed = 0
-            #if os(iOS) || os(visionOS)
+            #if os(iOS) || os(tvOS) || os(visionOS)
             displayLink?.isPaused = true
             #endif
 
-            #if os(macOS)
+            #if os(macOS) || os(watchOS)
             timer?.invalidate()
             #endif
         } else if registered > 1 {

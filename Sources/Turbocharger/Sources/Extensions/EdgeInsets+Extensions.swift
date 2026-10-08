@@ -29,7 +29,7 @@ extension EdgeInsets {
         self.init(
             top: edgeInsets.top,
             leading: layoutDirection == .leftToRight ? edgeInsets.left : edgeInsets.right,
-            bottom: edgeInsets.right,
+            bottom: edgeInsets.bottom,
             trailing: layoutDirection == .leftToRight ? edgeInsets.right : edgeInsets.left
         )
     }

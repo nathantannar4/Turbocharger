@@ -136,9 +136,6 @@ private struct CALayerRepresentableRenderer<
                 context: context
             )
         }
-        .onDisappear {
-            storage.dismantle()
-        }
     }
 
     final class Storage: ObservableObject {
@@ -150,15 +147,16 @@ private struct CALayerRepresentableRenderer<
             self.coordinator = coordinator
         }
 
-        @MainActor
-        func dismantle() {
-            if let layer {
+        deinit {
+            guard let layer else { return }
+            nonisolated(unsafe) let unsafeLayer = layer
+            nonisolated(unsafe) let unsafeCoordinator = coordinator
+            MainActor.assumeIsolated {
                 Representable.dismantleCALayer(
-                    layer,
-                    coordinator: coordinator
+                    unsafeLayer,
+                    coordinator: unsafeCoordinator
                 )
             }
-            layer = nil
         }
     }
 }

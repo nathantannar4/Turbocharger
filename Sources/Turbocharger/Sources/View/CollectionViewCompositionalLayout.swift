@@ -300,20 +300,28 @@ public struct CollectionViewCompositionalLayoutGroup: Equatable {
             let layoutSize = itemSize.toUIKit(
                 replacingUnspecifiedDimensionBy: proposedSize
             )
+            let itemLayoutSize = NSCollectionLayoutSize(
+                widthDimension: layoutSize.widthDimension.isFractionalWidth || layoutSize.widthDimension.isFractionalHeight
+                    ? .fractionalWidth(1.0)
+                    : layoutSize.widthDimension,
+                heightDimension: layoutSize.heightDimension.isFractionalWidth || layoutSize.heightDimension.isFractionalHeight
+                    ? .fractionalHeight(1.0)
+                    : layoutSize.heightDimension
+            )
             let group: NSCollectionLayoutGroup
             switch axis {
             case .vertical:
                 group = NSCollectionLayoutGroup.vertical(
                     layoutSize: layoutSize,
                     subitems: [
-                        NSCollectionLayoutItem(layoutSize: layoutSize)
+                        NSCollectionLayoutItem(layoutSize: itemLayoutSize)
                     ]
                 )
             case .horizontal:
                 group = NSCollectionLayoutGroup.horizontal(
                     layoutSize: layoutSize,
                     subitems: [
-                        NSCollectionLayoutItem(layoutSize: layoutSize)
+                        NSCollectionLayoutItem(layoutSize: itemLayoutSize)
                     ]
                 )
             }
@@ -400,7 +408,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         contentInsets: EdgeInsets = .zero,
         pinnedViews: Set<CollectionViewSupplementaryView.ID> = [],
         supplementaryViewVisibility: [CollectionViewSupplementaryView.ID: CollectionViewSupplementaryViewVisibility] = [:],
-        backgroundColor: Color? = nil,
+        backgroundColor: Color? = nil
     ) {
         self.configuration = Configuration(
             axis: axis,
@@ -452,12 +460,19 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         collectionViewLayout.sectionProvider.options = options
         collectionViewLayout.sectionProvider.context = context
         collectionViewLayout.sectionProvider.layoutAttributes = layoutAttributes
-        collectionViewLayout.configuration.interSectionSpacing = configuration.sectionSpacing
+        let scrollDirection: UICollectionView.ScrollDirection
         switch configuration.axis {
         case .vertical:
-            collectionViewLayout.configuration.scrollDirection = .vertical
+            scrollDirection = .vertical
         case .horizontal:
-            collectionViewLayout.configuration.scrollDirection = .horizontal
+            scrollDirection = .horizontal
+        }
+        let layoutConfiguration = collectionViewLayout.configuration
+        // Assigning the configuration invalidates the layout, so only do so when it changes
+        if layoutConfiguration.interSectionSpacing != configuration.sectionSpacing || layoutConfiguration.scrollDirection != scrollDirection {
+            layoutConfiguration.interSectionSpacing = configuration.sectionSpacing
+            layoutConfiguration.scrollDirection = scrollDirection
+            collectionViewLayout.configuration = layoutConfiguration
         }
     }
 
@@ -511,7 +526,7 @@ public struct CollectionViewCompositionalLayout: CollectionViewLayout {
         context: Context
     ) {
         if let backgroundConfiguration = backgroundConfiguration {
-            let kind = CollectionViewLayoutElementKind.supplementaryView(.custom(kind))
+            let kind = CollectionViewLayoutElementKind.supplementaryView(.init(kind))
             let configuration = backgroundConfiguration.makeConfiguration(
                 for: kind,
                 indexPath: indexPath,
@@ -708,7 +723,7 @@ open class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalL
             return layoutSection
         }
     }
-    public var sectionProvider: SectionProvider
+    public let sectionProvider: SectionProvider
 
     public var layoutAttributes: (any CollectionViewLayoutAttributes)? {
         sectionProvider.layoutAttributes
@@ -720,8 +735,8 @@ open class CollectionViewCompositionalLayoutImpl: UICollectionViewCompositionalL
     ) {
         self.sectionProvider = sectionProvider
         super.init(
-            sectionProvider: { [unowned sectionProvider] section, environment in
-                sectionProvider._sectionProvider(section: section, environment: environment)
+            sectionProvider: { [weak sectionProvider] section, environment in
+                sectionProvider?._sectionProvider(section: section, environment: environment)
             },
             configuration: configuration
         )
