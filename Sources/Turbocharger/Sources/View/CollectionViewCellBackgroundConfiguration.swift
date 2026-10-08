@@ -254,7 +254,7 @@ struct CollectionViewBackgroundConfiguration_Previews: PreviewProvider {
         var body: some View {
             CollectionView(
                 .compositional(
-                    contentInsets: EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8),
+                    contentInsets: EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
                 )
                 .backgroundConfiguration(
                     .plain(

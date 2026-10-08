@@ -67,16 +67,18 @@ public struct ArrayBuilder<Element> {
     }
 
     public static func buildPartialBlock(
-        accumulated: [Element],
+        accumulated: consuming [Element],
         next: Element
     ) -> [Element] {
-        accumulated + [next]
+        accumulated.append(next)
+        return accumulated
     }
 
     public static func buildPartialBlock(
-        accumulated: [Element],
+        accumulated: consuming [Element],
         next: [Element]
     ) -> [Element] {
-        accumulated + next
+        accumulated.append(contentsOf: next)
+        return accumulated
     }
 }

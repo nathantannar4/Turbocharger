@@ -274,7 +274,7 @@ public struct CollectionViewListLayout: CollectionViewLayout {
         context: Context
     ) {
         if let backgroundConfiguration = backgroundConfiguration {
-            let kind = CollectionViewLayoutElementKind.supplementaryView(.custom(kind))
+            let kind = CollectionViewLayoutElementKind.supplementaryView(.init(kind))
             if #available(iOS 15.0, tvOS 15.0, *) {
                 supplementaryView.configurationUpdateHandler = { cell, state in
                     let configuration = backgroundConfiguration.makeConfiguration(

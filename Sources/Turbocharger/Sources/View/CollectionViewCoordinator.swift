@@ -279,41 +279,8 @@ where
     }
 
     open func configure(to collectionView: Layout.UICollectionViewType) {
-        defaultCellRegistration =  UICollectionView.CellRegistration<
-            Layout.UICollectionViewCellType, ID
-        > { [unowned self] cellView, indexPath, id in
-            guard let item = item(for: id) else { return }
-            configureCell(
-                cellView,
-                indexPath: indexPath,
-                item: item
-            )
-        }
-        for reuseIdentifier in Configuration.reuseIdentifiers {
-            cellRegistration[reuseIdentifier] = UICollectionView.CellRegistration<
-                Layout.UICollectionViewCellType, ID
-            > { [unowned self] cellView, indexPath, id in
-                guard let item = item(for: id) else { return }
-                configureCell(
-                    cellView,
-                    indexPath: indexPath,
-                    item: item
-                )
-            }
-        }
-
-        for supplementaryView in layoutOptions.supplementaryViews {
-            let kind = supplementaryView.kind
-            supplementaryViewRegistration[kind] = UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>(
-                elementKind: kind
-            ) { [unowned self] supplementaryView, kind, indexPath in
-                configureSupplementaryView(
-                    supplementaryView,
-                    kind: kind,
-                    indexPath: indexPath
-                )
-            }
-        }
+        registerCellViews()
+        registerSupplementaryViews()
 
         let dataSource = UICollectionViewDiffableDataSource<Section.ID, ID>(
             collectionView: collectionView
@@ -363,6 +330,47 @@ where
         #endif
     }
 
+    private func registerCellViews() {
+        defaultCellRegistration =  UICollectionView.CellRegistration<
+            Layout.UICollectionViewCellType, ID
+        > { [unowned self] cellView, indexPath, id in
+            guard let item = item(for: id) else { return }
+            configureCell(
+                cellView,
+                indexPath: indexPath,
+                item: item
+            )
+        }
+        for reuseIdentifier in Configuration.reuseIdentifiers {
+            cellRegistration[reuseIdentifier] = UICollectionView.CellRegistration<
+                Layout.UICollectionViewCellType, ID
+            > { [unowned self] cellView, indexPath, id in
+                guard let item = item(for: id) else { return }
+                configureCell(
+                    cellView,
+                    indexPath: indexPath,
+                    item: item
+                )
+            }
+        }
+    }
+
+    private func registerSupplementaryViews() {
+        for supplementaryView in layoutOptions.supplementaryViews {
+            let kind = supplementaryView.kind
+            guard supplementaryViewRegistration[kind] == nil else { continue }
+            supplementaryViewRegistration[kind] = UICollectionView.SupplementaryRegistration<Layout.UICollectionViewSupplementaryViewType>(
+                elementKind: kind
+            ) { [unowned self] supplementaryView, kind, indexPath in
+                configureSupplementaryView(
+                    supplementaryView,
+                    kind: kind,
+                    indexPath: indexPath
+                )
+            }
+        }
+    }
+
     #if !os(tvOS)
     private func configureRefreshControl() {
         if onRefresh == nil {
@@ -400,7 +408,19 @@ where
     private func updateEditingSelection() {
         guard let collectionView else { return }
         if collectionView.isEditing {
-            for id in editingConfiguration?.selection?.wrappedValue ?? [] {
+            let selection = editingConfiguration?.selection?.wrappedValue ?? []
+            if editingConfiguration?.selection != nil {
+                for indexPath in collectionView.indexPathsForSelectedItems ?? [] {
+                    guard
+                        let id = dataSource.itemIdentifier(for: indexPath),
+                        !selection.contains(id)
+                    else {
+                        continue
+                    }
+                    collectionView.deselectItem(at: indexPath, animated: false)
+                }
+            }
+            for id in selection {
                 guard let indexPath = indexPath(for: id) else { continue }
                 collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
             }
@@ -506,8 +526,12 @@ where
         didStartUpdate()
         configureScrollPositionObserver()
         let layoutDidChange = self.layout.configuration != layout.configuration
+            || self.layoutOptions.supplementaryViews != layoutOptions.supplementaryViews
         self.layout = layout
         self.layoutOptions = layoutOptions
+        if layoutDidChange {
+            registerSupplementaryViews()
+        }
 
         let safeAreaInsets = UIEdgeInsets(
             edgeInsets: layoutOptions.safeAreaInsets ?? .zero,
@@ -617,27 +641,34 @@ where
         animated: Bool,
         completion: @MainActor @escaping ([ID]) -> Void
     ) {
-        itemLocations.removeAll(keepingCapacity: true)
+        let oldItemLocations = itemLocations
+        itemLocations = [:]
+        itemLocations.reserveCapacity(oldItemLocations.count)
         sectionLocations.removeAll(keepingCapacity: true)
 
+        var updated = [ID]()
         var snapshot = NSDiffableDataSourceSnapshot<Section.ID, ID>()
-        if !sections.isEmpty {
-            snapshot.appendSections(sections.map({ $0.section.id }))
-            for (sectionIndex, section) in sections.enumerated() {
-                let ids = section.items.map({ $0.id })
-                snapshot.appendItems(ids, toSection: section.section.id)
+        // Duplicate identifiers are skipped, since the snapshot throws on them
+        var sectionIDs = Set<Section.ID>()
+        var itemIDs = Set<ID>()
+        for (sectionIndex, section) in sections.enumerated() {
+            guard sectionIDs.insert(section.section.id).inserted else { continue }
+            snapshot.appendSections([section.section.id])
 
-                /// `sections` is replaced before the new snapshot is applied, so an index path from
-                /// UIKit addresses the applied snapshot rather than the model. Keep track of an item lookup table.
-                sectionLocations[section.id] = sectionIndex
-                for (index, item) in section.items.enumerated() {
-                    itemLocations[item.id] = IndexPath(item: index, section: sectionIndex)
+            /// `sections` is replaced before the new snapshot is applied, so an index path from
+            /// UIKit addresses the applied snapshot rather than the model. Keep track of an item lookup table.
+            sectionLocations[section.id] = sectionIndex
+            var ids = [ID]()
+            for (index, item) in section.items.enumerated() {
+                guard itemIDs.insert(item.id).inserted else { continue }
+                ids.append(item.id)
+                itemLocations[item.id] = IndexPath(item: index, section: sectionIndex)
+                if oldItemLocations[item.id] != nil {
+                    updated.append(item.id)
                 }
             }
+            snapshot.appendItems(ids, toSection: section.section.id)
         }
-        let oldValue = Set(self.sections.flatMap { $0.items.map { $0.id }})
-        let newValue = Set(sections.flatMap { $0.items.map { $0.id }})
-        var updated = Array(newValue.intersection(oldValue))
 
         if #available(iOS 15.0, tvOS 15.0, *), !updated.isEmpty {
             snapshot.reconfigureItems(updated)
@@ -664,6 +695,7 @@ where
     private func updateVisibleViews(updated: [ID]) -> UICollectionViewLayoutInvalidationContext {
         let context = UICollectionViewLayoutInvalidationContext()
         if !updated.isEmpty {
+            let updated = Set(updated)
             for indexPath in collectionView.indexPathsForVisibleItems {
                 if let cellView = collectionView.cellForItem(at: indexPath) as? Layout.UICollectionViewCellType,
                     let item = item(for: indexPath)
@@ -872,19 +904,20 @@ where
         var fromSection: Int?
         var toIndex: IndexPath?
 
-        for change in transaction.difference.inferringMoves() {
-            switch change {
-            case .insert(let offset, let id, let associatedWith):
-                if let sectionId = transaction.finalSnapshot.sectionIdentifier(containingItem: id),
-                    let section = transaction.finalSnapshot.indexOfSection(sectionId)
-                {
-                    let item = offset + (associatedWith.map({ $0 < offset ? 1 : 0 }) ?? 0)
-                    toIndex = IndexPath(item: item, section: section)
+        // Use the per-section differences so that offsets are relative to their section
+        for sectionTransaction in transaction.sectionTransactions {
+            let sectionId = sectionTransaction.sectionIdentifier
+            for change in sectionTransaction.difference.inferringMoves() {
+                switch change {
+                case .insert(let offset, _, let associatedWith):
+                    if let section = transaction.finalSnapshot.indexOfSection(sectionId) {
+                        let item = offset + (associatedWith.map({ $0 < offset ? 1 : 0 }) ?? 0)
+                        toIndex = IndexPath(item: item, section: section)
+                    }
+                case .remove(let offset, _, _):
+                    fromSection = transaction.initialSnapshot.indexOfSection(sectionId)
+                    indices.insert(offset)
                 }
-            case .remove(let offset, let id, _):
-                fromSection = transaction.initialSnapshot.sectionIdentifier(containingItem: id)
-                    .flatMap { transaction.initialSnapshot.indexOfSection($0) }
-                indices.insert(offset)
             }
         }
 
@@ -1001,6 +1034,10 @@ where
         _ collectionView: UICollectionView,
         shouldSelectItemAt indexPath: IndexPath
     ) -> Bool {
+        if !collectionView.isEditing, #unavailable(iOS 16.0, tvOS 16.0) {
+            // Primary actions are unavailable, so selection triggers `onSelect`
+            return self.collectionView(collectionView, canPerformPrimaryActionForItemAt: indexPath)
+        }
         guard collectionView.isEditing, editingConfiguration != nil, let item = item(for: indexPath) else {
             return false
         }
@@ -1011,6 +1048,11 @@ where
         _ collectionView: UICollectionView,
         didSelectItemAt indexPath: IndexPath
     ) {
+        if !collectionView.isEditing, #unavailable(iOS 16.0, tvOS 16.0) {
+            collectionView.deselectItem(at: indexPath, animated: true)
+            self.collectionView(collectionView, performPrimaryActionForItemAt: indexPath)
+            return
+        }
         if let selection = editingConfiguration?.selection, let item = item(for: indexPath) {
             selection.wrappedValue.insert(item.id)
         }
@@ -1142,7 +1184,7 @@ where
         _ collectionView: UICollectionView,
         shouldUpdateFocusIn context: UICollectionViewFocusUpdateContext
     ) -> Bool {
-        return false
+        return true
     }
 
     open func collectionView(

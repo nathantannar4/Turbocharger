@@ -11,8 +11,8 @@ public protocol LayoutShape: Shape {
 }
 
 /// A view modifier that transforms a views frame to the size of a shape
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct ShapeRelativeFrameModifier<S: LayoutShape>: ViewModifier {
 
     public var shape: S
@@ -91,8 +91,8 @@ extension ShapeAdapter: LayoutShape where S: LayoutShape {
     }
 }
 
-@frozen
 @available(iOS 16.0, macOS 13.0, tvOS 16.0, watchOS 9.0, *)
+@frozen
 public struct ShapeRelativeFrameLayout<S: LayoutShape>: Layout {
 
     public var shape: S
@@ -153,8 +153,7 @@ public struct ShapeRelativeFrameLayout<S: LayoutShape>: Layout {
     ) {
         for subview in subviews {
             var size = bounds.size
-            var idealSize = subview.sizeThatFits(ProposedViewSize(size))
-            idealSize = shape.layoutSizeThatFits(size)
+            let idealSize = shape.layoutSizeThatFits(size)
             let dx = idealSize.width - size.width
             let dy = idealSize.height - size.height
             if dx > 0 || dy > 0 {

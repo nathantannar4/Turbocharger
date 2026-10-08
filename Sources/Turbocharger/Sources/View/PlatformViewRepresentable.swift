@@ -35,12 +35,12 @@ public protocol PlatformViewRepresentable: DynamicProperty, PrimitiveView {
 }
 
 extension PlatformViewRepresentable {
-    func sizeThatFits(_ proposal: ProposedSize, view: PlatformView) -> CGSize? { nil }
-    static func dismantleView(_ view: PlatformView, coordinator: Coordinator) { }
+    public func sizeThatFits(_ proposal: ProposedSize, view: PlatformView) -> CGSize? { nil }
+    public static func dismantleView(_ view: PlatformView, coordinator: Coordinator) { }
 }
 
 extension PlatformViewRepresentable where Coordinator == Void {
-    func makeCoordinator() -> Coordinator { () }
+    public func makeCoordinator() -> Coordinator { () }
 }
 
 extension PlatformViewRepresentable {
@@ -104,7 +104,7 @@ public struct _PlatformViewRepresentableBody<
         representable.updateView(nsView, context: context)
     }
 
-    @available(macOS 13.0, iOS 16.0, tvOS 16.0, *)
+    @available(iOS 16.0, macOS 13.0, tvOS 16.0, *)
     public func sizeThatFits(
         _ proposal: ProposedViewSize,
         nsView: Representable.PlatformView,
@@ -118,7 +118,7 @@ public struct _PlatformViewRepresentableBody<
         in proposedSize: _ProposedSize,
         nsView: Representable.PlatformView
     ) {
-        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, *) {
+        if #available(iOS 16.0, macOS 13.0, tvOS 16.0, *) {
             // Already handled
         } else if let sizeThatFits = representable.sizeThatFits(ProposedSize(proposedSize), view: nsView) {
             size = sizeThatFits
@@ -156,7 +156,7 @@ public struct _PlatformViewRepresentableBody<
         representable.updateView(uiView, context: context)
     }
 
-    @available(iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+    @available(iOS 16.0, macOS 13.0, tvOS 16.0, *)
     public func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiView: Representable.PlatformView,
@@ -170,7 +170,7 @@ public struct _PlatformViewRepresentableBody<
         in proposedSize: _ProposedSize,
         uiView: Representable.PlatformView
     ) {
-        if #available(iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+        if #available(iOS 16.0, macOS 13.0, tvOS 16.0, *) {
             // Already handled
         } else if let sizeThatFits = representable.sizeThatFits(ProposedSize(proposedSize), view: uiView) {
             size = sizeThatFits

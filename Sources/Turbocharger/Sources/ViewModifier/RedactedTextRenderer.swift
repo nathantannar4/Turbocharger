@@ -26,7 +26,7 @@ public struct RedactedTextRenderer<S: Shape>: TextRenderer {
 
     public init(
         isRedacted: Bool? = nil,
-        color: Color? = nil,
+        color: Color? = nil
     ) where S == RoundedRectangle {
         self.init(
             isRedacted: isRedacted,

@@ -5,8 +5,8 @@
 import SwiftUI
 import Engine
 
-@frozen
 @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+@frozen
 public struct AsyncButton<Label: View>: View {
 
     public var label: Label

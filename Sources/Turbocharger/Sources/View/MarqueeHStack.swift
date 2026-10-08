@@ -127,7 +127,7 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
         } symbols: {
             views
         }
-        #if os(iOS) || os(visionOS) || os(watchOS) || os(macOS)
+        #if os(iOS) || os(macOS) || os(watchOS) || os(visionOS)
         .overlay {
             if let selection {
                 Rectangle()
@@ -211,6 +211,11 @@ private struct MarqueeHStackBody<Selection: Hashable>: View {
             ctx.draw(node.symbol, in: node.frame)
             origin.x += (node.frame.size.width + spacing)
             proxies.append(MarqueeHStackNodeProxy(id: resolvedSymbol.id, frame: node.frame))
+        }
+
+        guard requiredWidth > size.width else {
+            box?.nodes = proxies
+            return
         }
 
         if speed < 0 {

@@ -34,8 +34,8 @@ extension CollectionViewRepresentable where Body == _CollectionViewRepresentable
     }
 }
 
-@frozen
 @available(iOS 14.0, tvOS 14.0, *)
+@frozen
 public struct _CollectionViewRepresentableBody<Representable: CollectionViewRepresentable>: UIViewRepresentable {
 
     public typealias Coordinator = Representable.Coordinator

@@ -123,8 +123,8 @@ public struct BadgeMask<Label: View>: View {
         var inset: EdgeInsets
 
         func effectValue(size: CGSize) -> ProjectionTransform {
-            let dx = scale.x * (size.width + inset.horizontal) / size.width
-            let dy = scale.y * (size.height + inset.vertical) / size.height
+            let dx = scale.x * (size.width + inset.horizontal) / max(1, size.width)
+            let dy = scale.y * (size.height + inset.vertical) / max(1, size.height)
             let x = size.width * (dx - 1) / 2
             let y = size.height * (dy - 1) / 2
             return ProjectionTransform(
@@ -403,7 +403,7 @@ struct BadgeModifier_Previews: PreviewProvider {
                         }
                     }
 
-                #if canImport(FoundationModels) && !os(visionOS) // Xcode 26
+                #if XCODE_26 && !os(visionOS)
                 if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *) {
                     // Glass effect doesn't work with default masking
                     RoundedRectangle(cornerRadius: 8)
@@ -440,8 +440,8 @@ struct BadgeModifier_Previews: PreviewProvider {
                 #endif
             }
 
-            #if canImport(FoundationModels) && !os(visionOS) // Xcode 26
-            if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, visionOS 26.0, *) {
+            #if XCODE_26 && !os(visionOS)
+            if #available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *) {
                 HStack {
                     // Masking a glassEffect causes weird rendering
                     Circle()
