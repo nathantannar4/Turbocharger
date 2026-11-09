@@ -812,9 +812,9 @@ where
                 } else {
                     section = sections.firstIndex(where: { $0.id == sectionId })
                 }
-                if let section, indexPath?.section != section {
+                if let section, indexPath?.section != section, let firstItem = self.section(for: sectionId)?.items.first {
                     indexPath = IndexPath(item: 0, section: section)
-                    position.item = self.section(for: sectionId)?.items.first?.id
+                    position.item = firstItem.id
                 }
             }
             if indexPath == nil, let previousPosition = lastScrollPosition ?? currentScrollPosition() {
